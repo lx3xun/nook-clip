@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-small">
+  <title id="title-small">NookClip Logo - Small Size Cut</title>
+  <!-- Card Base -->
+  <rect x="44" y="36" width="168" height="184" rx="40" fill="#0F172A"/>
+  <!-- Left Pillar -->
+  <rect x="72" y="66" width="32" height="124" rx="16" fill="#F8FAFC"/>
+  <!-- 45° Bridge -->
+  <path d="M 104 84 L 152 132 L 152 168 L 104 120 Z" fill="#94A3B8"/>
+  <!-- Right Blue Pillar -->
+  <rect x="152" y="66" width="32" height="124" rx="16" fill="#1677FF"/>
+  <!-- Larger dot for 16px visibility -->
+  <circle cx="168" cy="84" r="7" fill="#FFFFFF"/>
+</svg>

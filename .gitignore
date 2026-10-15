@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode / Swift Package Manager
+.build/
+.build-x86_64/
+Packages
+Package.pins
+Package.resolved
+xcuserdata/
+*.xcodeproj/
+*.xcworkspace/
+
+# Application Bundle Output
+*.app/
+NookClip.app/
+
+*.dmg
+dist/
+*.sha256
+# Derived Data
+DerivedData/
+
+# Rust build artifacts
+target/
+crates/nookclip-ffi/lib/
+
+# Local Scratches
+scratch/
+

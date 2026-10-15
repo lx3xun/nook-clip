@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 240" width="800" height="240">
+  <defs>
+    <!-- macOS Menu Bar glass gradient -->
+    <linearGradient id="menubar-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4A5568" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#2D3748" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Wallpaper / Menu Bar strip -->
+  <rect width="800" height="240" fill="#1E293B"/>
+
+  <!-- Row 1: Problem (Current solid black tile) -->
+  <g transform="translate(40, 30)">
+    <rect width="720" height="40" rx="8" fill="url(#menubar-bg)"/>
+    <text x="20" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#E2E8F0" opacity="0.6">当前（黑底色块，过于沉重突兀）：</text>
+    <!-- Current Bad Icon -->
+    <g transform="translate(580, 9) scale(0.9)">
+      <rect width="24" height="24" rx="5" fill="#000000"/>
+      <path d="M 6.5 6.5 L 6.5 17.5 L 8.5 17.5 L 15.5 8.5 L 15.5 17.5 L 17.5 17.5 L 17.5 6.5 Z" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <!-- Row 2: Solution 1 (Card Outline + N Glyph) -->
+  <g transform="translate(40, 95)">
+    <rect width="720" height="40" rx="8" fill="url(#menubar-bg)"/>
+    <text x="20" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#E2E8F0" font-weight="600">方案 1 · 镂空卡片 + N（推荐，原生极简，呼应 App 卡片轮廓）：</text>
+    <!-- Option 1 Icon -->
+    <g transform="translate(580, 9)">
+      <rect x="3.5" y="2.5" width="15" height="17" rx="3.5" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M 7.5 15.5 L 7.5 6.5 L 14.5 15.5 L 14.5 6.5" fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+
+  <!-- Row 3: Solution 2 (Pure N Glyph, No Card) -->
+  <g transform="translate(40, 160)">
+    <rect width="720" height="40" rx="8" fill="url(#menubar-bg)"/>
+    <text x="20" y="25" font-family="system-ui, sans-serif" font-size="13" fill="#E2E8F0">方案 2 · 无外框纯折线 N（类似 Raycast / 无框极简风）：</text>
+    <!-- Option 2 Icon -->
+    <g transform="translate(580, 9)">
+      <path d="M 4.5 17.5 L 4.5 4.5 L 17.5 17.5 L 17.5 4.5" fill="none" stroke="#FFFFFF" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

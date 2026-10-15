@@ -1,0 +1,13 @@
+<svg fill="#000000" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 256" width="880" height="256" role="img" aria-labelledby="title-lh"><title>NookClip</title>
+  <title id="title-lh">NookClip Horizontal Lockup</title>
+  <!-- Symbol scaled to 200x200 -->
+  <g transform="translate(36, 28) scale(0.78125)">
+    <rect x="48" y="38" width="160" height="180" rx="36" fill="#000000"/>
+    <rect x="74" y="68" width="28" height="120" rx="14" fill="#000000"/>
+    <path d="M 102 82 L 154 134 L 154 166 L 102 114 Z" fill="#000000"/>
+    <rect x="154" y="68" width="28" height="120" rx="14" fill="#000000"/>
+    <circle cx="168" cy="86" r="6" fill="#000000"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="248" y="152" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Helvetica, sans-serif" font-size="82" font-weight="700" letter-spacing="-1.5" fill="#000000">Nook<tspan font-weight="500" fill="#000000">Clip</tspan></text>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-sym">
+  <title id="title-sym">NookClip Logo - N-Card Monogram</title>
+  <!-- Card Base -->
+  <rect x="48" y="38" width="160" height="180" rx="36" fill="#0F172A"/>
+  <!-- Left Pillar (History / Clipboard Stash) -->
+  <rect x="74" y="68" width="28" height="120" rx="14" fill="#F8FAFC"/>
+  <!-- 45° Origami Fold Bridge (Notes / Transition) -->
+  <path d="M 102 82 L 154 134 L 154 166 L 102 114 Z" fill="#64748B"/>
+  <!-- Right Pillar (The Signature Blue Action Pill - Todo / Focus) -->
+  <rect x="154" y="68" width="28" height="120" rx="14" fill="#1677FF"/>
+  <!-- Action Indicator Point inside Blue Pillar -->
+  <circle cx="168" cy="86" r="6" fill="#FFFFFF"/>
+</svg>

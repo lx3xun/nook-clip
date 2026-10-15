@@ -1,0 +1,30 @@
+{
+  "brand": "NookClip",
+  "tagline": "轻量、快速、注重隐私的桌面剪贴板与生产力工作台",
+  "brief": "从原生剪贴板扩展至随手笔记与待办清单，保留原版卡片与电光蓝资产，升级为具有长久生命力的超级符号。",
+  "adjectives": ["Native", "Fast", "Private", "Minimal"],
+  "industry": "software",
+  "brand_color": "#1677FF",
+  "tile_color": "#0F172A",
+  "greyscale": false,
+  "final": true,
+  "round": 1,
+  "concepts": [
+    {
+      "name": "N-Card Monogram (E3)",
+      "symbol": "nookclip-symbol.svg",
+      "lockup": "nookclip-lockup-horizontal.svg",
+      "stacked": "nookclip-lockup-stacked.svg",
+      "avatar": "exports/nookclip-symbol-solid-square.svg",
+      "symbol_on_dark": "nookclip-symbol.svg",
+      "symbol_on_tile": "exports/nookclip-symbol-solid-white.svg",
+      "idea": "原版圆角卡片与标志性电光蓝胶囊升华，巧妙咬合出品牌大写字母 N 骨架。",
+      "rationale": [
+        "100% 传承 site/assets/nookclip-icon.svg 的卡片底色与核心蓝色视觉焦点。",
+        "内部条目重构为 45° 几何折角与字母 N，完美融合剪贴板堆叠、笔记纸面与待办推进。",
+        "具备严谨的 1-color 单色主标，在 16px 菜单栏、终端、README 徽标与深浅模式下完全自洽。"
+      ]
+    }
+  ],
+  "recommendation": "E3 方案兼具已有资产的连续性与现代软件的专有商标辨识度，完美支撑从剪切板扩展至笔记与待办的未来版图。"
+}
