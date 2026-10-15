@@ -1,0 +1,411 @@
+/* Menu */
+"menu.open" = "Open NookClip";
+"menu.settings" = "Settings…";
+"menu.quit" = "Quit";
+"menu.check_updates" = "Check for Updates…";
+
+/* Menu Bar Icon Accessibility */
+"menubar.icon.ax" = "NookClip Quick Panel";
+"menubar.icon.ax.hint" = "Open or close the quick panel";
+
+/* Sidebar */
+"sidebar.all" = "All";
+
+/* Clipboard List & Search */
+"clipboard.items_count" = "%d items";
+
+/* Clipboard Item & Row */
+"item.type_text" = "Text";
+"item.type_image" = "Image";
+"item.type_file" = "File";
+"item.file_multi_title" = "%1$@ (%2$d files)";
+"item.type_sensitive" = "Private";
+
+/* Preview Pane */
+"preview.item_type" = "Type";
+"preview.code_fallback" = "Code";
+"preview.copied_time" = "Copied At";
+"preview.action.reveal_in_finder" = "Reveal in Finder";
+"preview.ocr_extracted" = "Recognized Text";
+"preview.lines" = "%d lines";
+"preview.characters" = "%d characters";
+
+/* Relative Time */
+"time.just_now" = "Just now";
+"time.minutes_ago" = "%d mins ago";
+"time.today" = "Today %@";
+"time.yesterday" = "Yesterday %@";
+
+/* Settings Window */
+"settings.window_title" = "Settings";
+"settings.tab.general" = "General";
+"settings.tab.capture" = "Capture";
+"settings.tab.history" = "History & Sync";
+"settings.tab.paste" = "Paste";
+"settings.tab.appearance" = "Appearance";
+"settings.paste.sound_section" = "Sound";
+
+/* Settings - General */
+"settings.general.app_section" = "Application";
+"settings.general.language" = "Language";
+"settings.general.paste_sound" = "Paste Sound";
+"settings.general.paste_sound_desc" = "Play a short sound when a paste succeeds";
+"settings.general.version" = "Version";
+"settings.general.version_desc" = "Check for and install NookClip updates";
+"settings.general.update_section" = "Software Update";
+"settings.general.update_auto" = "Check for Updates Automatically";
+"settings.general.update_auto_desc" = "Notify me when a new version is available";
+"settings.general.update_source" = "Update Source";
+"settings.general.update_source_desc" = "Automatic picks the faster source for your network";
+"settings.general.update_source_auto" = "Automatic";
+"settings.general.update_source_github" = "GitHub";
+"settings.general.update_source_gitee" = "Gitee";
+"settings.general.lang_system" = "Follow System";
+"settings.general.launch_at_login" = "Launch at Login";
+"settings.general.launch_desc" = "Automatically start NookClip when logging into macOS";
+"settings.general.history_retention" = "History Retention";
+"settings.general.disk_limit" = "Disk Space Limit";
+"settings.retention.day" = "1 Day";
+"settings.retention.week" = "1 Week";
+"settings.retention.month" = "1 Month";
+"settings.retention.quarter" = "1 Quarter";
+"settings.retention.half_year" = "6 Months";
+"settings.retention.year" = "1 Year";
+"settings.retention.unlimited" = "Unlimited";
+"settings.general.appearance_section" = "Appearance & Layout";
+"settings.general.appearance" = "Appearance";
+"settings.general.appearance_system" = "Follow System";
+"settings.general.appearance_light" = "Light";
+"settings.general.appearance_dark" = "Dark";
+"settings.general.translucency" = "Translucent Glass Effect";
+"settings.general.translucency_desc" = "Enable native macOS vibrancy and frosted glass background";
+"settings.general.transparency" = "Background Transparency";
+"settings.general.privacy_ocr" = "Privacy";
+"settings.general.enable_sensitive" = "Sensitive Data Protection";
+"settings.general.sensitive_desc" = "When on, passwords and keys are encrypted and masked on your Mac; when off, sensitive content is kept out of history but still pastes normally";
+"settings.general.sensitive_timeout" = "Clear clipboard after pasting sensitive items";
+"settings.general.seconds" = "Seconds";
+"settings.general.backup_section" = "Data Backup & Maintenance";
+"settings.general.export_backup" = "Export Backup…";
+"settings.general.import_backup" = "Import Backup…";
+"settings.general.export_json" = "JSON…";
+"settings.general.export_markdown" = "Markdown…";
+"settings.export.mode_label" = "Sensitive Content";
+"settings.export.mode_exclude" = "Exclude sensitive items";
+"settings.export.mode_masked" = "Masked (••••••••)";
+"settings.export.mode_plaintext" = "Include plaintext";
+"settings.export.plaintext_confirm_title" = "Export sensitive plaintext?";
+"settings.export.plaintext_confirm_message" = "The backup file will contain sensitive plaintext such as passwords and keys. Keep it safe.";
+"settings.export.plaintext_confirm_ok" = "Export Anyway";
+"settings.general.clear_confirm_title" = "Are you sure you want to clear all history?";
+"settings.general.clear_confirm_desc" = "This action will permanently delete all unfavorited clipboard records and cannot be undone.";
+"settings.general.clear_button" = "Clear All";
+"settings.general.cancel_button" = "Cancel";
+
+/* Settings - Hotkeys */
+"settings.hotkey.global_title" = "Global Shortcut";
+"settings.hotkey.global_desc" = "Press this shortcut in any application to bring up NookClip";
+"settings.hotkey.record" = "Record Shortcut";
+"settings.hotkey.group_navigation" = "Navigation";
+"settings.hotkey.group_paste" = "Paste";
+"settings.hotkey.group_manage" = "Manage";
+"settings.hotkey.group_panel" = "Panel";
+"settings.hotkey.action_move_selection" = "Move selection up or down";
+"settings.hotkey.action_multiselect" = "Extend multi-selection";
+"settings.hotkey.action_cycle_category" = "Switch category";
+"settings.hotkey.action_category_menu" = "Open category dropdown";
+"settings.hotkey.action_time_menu" = "Cycle to next time group";
+"settings.hotkey.action_paste" = "Paste selected item";
+"settings.hotkey.action_paste_keep_open" = "Paste and keep panel open";
+"settings.hotkey.action_paste_plain" = "Paste as plain text";
+"settings.hotkey.action_favorite" = "Favorite or unfavorite item";
+"settings.hotkey.action_rename" = "Set an alias for the selected item";
+"settings.hotkey.action_delete" = "Delete selected item";
+"settings.hotkey.action_undo" = "Undo last delete";
+"settings.hotkey.action_toggle_preview" = "Toggle preview pane";
+"settings.hotkey.action_focus_search" = "Focus search box";
+"settings.hotkey.action_dismiss" = "Clear filters or dismiss panel";
+
+/* Settings - Excluded Apps */
+"excluded.title" = "Excluded Applications";
+"excluded.description" = "When any of the following applications are in the foreground, copied content will not be recorded by NookClip.";
+"excluded.empty_title" = "No Excluded Applications";
+"excluded.empty_subtitle" = "Add private or sensitive apps that shouldn't record clipboard data (e.g. password managers, chat apps, or banking clients).";
+"excluded.add_running" = "Add Running Application…";
+"excluded.no_running" = "No running apps available to add";
+"excluded.choose_from_finder" = "Choose from Finder…";
+"excluded.clear_all" = "Clear All";
+"excluded.remove_tooltip" = "Remove from exclusions";
+"excluded.open_panel_prompt" = "Add";
+"excluded.open_panel_message" = "Select an application to exclude from clipboard recording";
+"excluded.add_presets" = "Add Password Managers";
+
+/* Settings - Sync */
+"sync.enable" = "Enable iCloud Drive Sync";
+"sync.status_idle" = "Idle";
+"sync.status_syncing" = "Syncing…";
+"sync.status_success" = "Last synced: %@";
+"sync.status_error" = "Sync error: %@";
+
+/* Settings - Permissions */
+"permissions.open_settings" = "Open System Settings";
+
+/* Initial Demo Data */
+"demo.item1.title" = "Welcome to NookClip — 30s Quick Start";
+"demo.item1.summary" = "💡 Core Workflow: Copy anywhere → Press ⌘ ⇧ V to summon → ↑ / ↓ to select → Press ⏎ to paste right back.\n\n✨ Try typing 'API' or 'Blue' right now: no need to click the search box—just type to search your entire history instantly!";
+"demo.item2.title" = "OpenAI API Key (Privacy Encryption Demo)";
+"demo.item3.title" = "Code Highlighting & JSON Format Demo";
+"demo.item3.summary" = "{\n  \"app\": \"NookClip\",\n  \"engine\": \"Rust + SQLite FTS5\",\n  \"privacy\": {\n    \"localOnly\": true,\n    \"encryption\": \"AES-256-GCM\"\n  },\n  \"shortcuts\": [\"⌘⇧V\", \"⏎\", \"⌥⏎\", \"⌘S\"]\n}";
+"demo.item4.title" = "Image & Offline Vision OCR Demo";
+"demo.item5.title" = "NookClip GitHub (QR Code Transfer Demo)";
+"demo.item6.title" = "macOS System Blue (Color Swatch Demo)";
+"demo.item7.title" = "Pro Keyboard Shortcuts Cheat Sheet";
+"demo.item7.summary" = "⌨️ Pro Shortcuts:\n• ⌥ ⏎ : Paste as Plain Text (strip rich formatting)\n• ⌘ ⏎ : Paste and keep panel open (great for forms)\n• ⇧ ↓ / ⌘ Click : Multi-select (press ⏎ to batch paste)\n• ⌘ [ / ⌘ ] : Cycle categories   • ⌘ T : Jump time groups\n• ⌘ S : Favorite (exempt from auto-cleanup) • ⌘ R : Rename\n• ⌘ ⌫ : Delete selection         • ⌘ Z : Undo delete within 10s";
+"demo.source.notes" = "Notes";
+"demo.source.screenshot" = "Screenshot";
+"demo.ocr_card.subtitle" = "Offline Live Text Recognition Demo";
+"demo.ocr_card.hint" = "Click 'Recognize Text' on the bottom-right to extract text offline";
+/* Sidebar Extra */
+"sidebar.switch_category" = "Switch Category";
+
+/* Settings Extra */
+"settings.history.management" = "History Management";
+"settings.history.stats" = "Storage Stats";
+
+"settings.history.favorite_count" = "%d Favorites";
+"settings.history.clear_unflagged" = "Clear Unflagged History";
+"settings.history.clear_unflagged_desc" = "Safely clear all unfavorited clipboard records and image files";
+"settings.history.clear_unflagged_button" = "Clear Unflagged History…";
+"settings.hotkey.recommended_presets" = "Presets:";
+"settings.hotkey.record_instructions" = "Click the box and press a keyboard shortcut to record (must include ⌘, ⌥, ⌃, or ⇧). Press Esc to cancel.";
+"settings.hotkey.press_keys" = "Press keys…";
+"settings.hotkey.cancel" = "Cancel";
+"settings.hotkey.reset_default" = "Reset to default shortcut (⌘ ⇧ V)";
+"settings.hotkey.err_modifiers" = "Shortcut must include modifier keys (⌘, ⌥, ⌃, ⇧)";
+"settings.hotkey.err_conflict" = "This shortcut may be in use by the system or another app";
+"settings.permissions.section" = "macOS Accessibility";
+"settings.permissions.trusted" = "Direct Paste Allowed";
+"settings.permissions.untrusted" = "Accessibility Permission Required";
+"settings.permissions.trusted_desc" = "Press Enter or double-click to paste directly into target apps after pressing %@.";
+"settings.permissions.untrusted_desc" = "Direct paste requires macOS Accessibility permissions. Please grant access to NookClip in System Settings.";
+"settings.permissions.trusted_success" = "Accessibility permission granted. Press Enter to paste directly after %@.";
+"settings.permissions.open_settings" = "Open System Settings";
+"settings.permissions.recheck" = "Check Again";
+"settings.permissions.restart" = "Restart NookClip";
+"settings.permissions.stale_title" = "If already enabled in System Settings but not working:";
+"settings.permissions.stale_desc" = "CDHash changed due to a new build. Please remove (-) NookClip in Privacy & Security > Accessibility, then re-add (+) it.";
+"settings.sync.section" = "iCloud Drive Sync";
+"settings.sync.enable" = "Enable Multi-Device iCloud Sync";
+"settings.sync.enable_desc" = "Automatically sync text, links, and favorites across your Macs via iCloud Drive. Sensitive data remains strictly local.";
+"settings.sync.dir_label" = "Sync Directory";
+"settings.sync.change_dir" = "Change Directory…";
+"settings.sync.status_label" = "Sync Status";
+"settings.sync.status_not_enabled" = "Not Enabled";
+"settings.sync.status_idle" = "Idle";
+"settings.sync.status_syncing" = "Syncing changes…";
+"settings.sync.status_success" = "Synced successfully · %@";
+"settings.sync.status_error" = "Sync error: %@";
+"settings.sync.btn_syncing" = "Syncing…";
+"settings.sync.btn_sync_now" = "Sync Now";
+"settings.sync.msg_failed" = "Sync failed: %@";
+"settings.sync.msg_done" = "Sync complete!";
+"sync.fail.network" = "Network problem";
+"sync.fail.credential" = "iCloud account problem";
+"sync.fail.unknown" = "Unknown error";
+"settings.sync.panel_title" = "Select iCloud Sync Directory";
+"settings.sync.panel_prompt" = "Select and Authorize";
+"settings.sync.dir_switched" = "Sync directory switched successfully";
+"settings.sync.dir_failed" = "Failed to set directory: %@";
+"settings.sync.rules_section" = "Sync Rules & Privacy";
+"settings.sync.rule_realtime" = "Real-time two-way sync for text, links, and favorites";
+"settings.sync.rule_assets" = "Image attachments automatically synced (≤ 2MB per image)";
+"settings.sync.rule_sensitive" = "Passwords and other sensitive items stay on this Mac only, never uploaded to iCloud";
+"settings.sync.rule_tombstone" = "Deletes sync across your devices";
+"settings.backup.exported_success" = "Successfully exported %d items to %@";
+"settings.backup.export_failed" = "Export failed: %@";
+"settings.backup.imported_success" = "Successfully imported %d new records (duplicates skipped)";
+"settings.backup.import_failed" = "Import failed: %@";
+
+/* PreviewView Extra */
+"preview.action.open" = "Open";
+"preview.ocr_title" = "Extracted Text";
+"preview.lines_and_chars" = "%d lines · %d characters";
+"preview.copied_feedback" = "Copied";
+"preview.copy_path" = "Copy Path";
+"preview.file.count" = "%@ files";
+"preview.file.count_total" = "%1$@ files · %2$@ total";
+
+/* Stale file reference (moved/deleted, or disk not mounted) */
+"file.missing.title" = "File No Longer Exists";
+"file.missing.message" = "The original file may have been moved or deleted, or its disk is not connected:\n%@";
+"file.missing.badge" = "Missing";
+"file.missing.hint" = "The original file no longer exists. It may have been moved, deleted, or its disk is unmounted.";
+"file.missing.unknown" = "This record has no valid file path and cannot be pasted.";
+"preview.from_app" = "From %@";
+
+/* HistoryStore Extra */
+"export.markdown_title" = "# NookClip Clipboard Export";
+"export.export_time" = "Exported At: %@";
+
+/* Toasts */
+"toast.copied_to_clipboard" = "Copied to clipboard";
+"general.pixels" = "%d × %d px";
+
+/* New UI (specs/001) - Main View */
+"hints.select" = "Select";
+"hints.copy" = "Copy";
+"hints.paste" = "Paste";
+"hints.search" = "Search";
+"hints.category" = "Category";
+"hints.more" = "More shortcuts";
+"hints.category_reverse" = "Cycle category backwards";
+"hints.multi" = "Multi-select";
+"hints.multiselect_kbd" = "⌘Click";
+"hints.paste_plain" = "Paste as plain text";
+"hints.paste_keep" = "Paste and keep panel";
+"hints.time_jump" = "Jump to time group";
+"hints.favorite" = "Favorite";
+"hints.favorited" = "Favorited";
+"hints.delete" = "Delete";
+"preview.toolbar.favorite.hint" = "Press ⌘S to favorite";
+"preview.toolbar.delete.hint" = "Press ⌘⌫ to delete";
+"preview.toolbar.unfavorite.hint" = "Press ⌘S to unfavorite";
+"hints.rename" = "Set Alias";
+"rename.placeholder" = "Leave blank to clear the alias";
+"context.rename" = "Set Alias…";
+"context.unfavorite" = "Unfavorite";
+"context.mark_sensitive" = "Mark as Private";
+"context.unmark_sensitive" = "Remove Private Protection";
+
+"empty.no_match" = "No matching records";
+"empty.clear_filters" = "Clear Filters";
+"delete.toast.message" = "Deleted %@ items";
+"delete.toast.undo" = "Undo";
+"launch.welcome_banner" = "Running in the menu bar. Press %@ anytime to show.";
+"launch.permission_tip" = "Enable Accessibility permission for automatic ⏎ paste";
+"empty.welcome_title" = "Clipboard History is Empty";
+"empty.welcome_subtitle" = "Copy any text, image, or file to start recording";
+"common.confirm" = "Confirm";
+"batch.selected_count" = "%@ selected";
+"batch.extend_selection" = "⇧↑ / ⇧↓ Extend selection";
+"batch.merge_paste" = "Merge & Paste";
+"batch.delete" = "Delete";
+"batch.exit_selection" = "Esc Exit";
+
+/* New UI - Preview Pane */
+"preview.meta_line" = "%1$@ · %2$@ · Copied %3$@ times";
+"preview.sensitive.encrypted" = "Encrypted locally";
+"preview.sensitive.local_only" = "Local only · never synced to iCloud";
+"preview.sensitive.auto_remask" = "Automatically re-masked 30 seconds after viewing or pasting, and cleared from the system clipboard";
+"preview.image.fallback_type" = "Image";
+"preview.image.ocr_badge" = "Recognized offline";
+"preview.empty.hint" = "Select an item to view details";
+"preview.mask.title" = "Sensitive content masked";
+"preview.mask.remask" = "Re-mask";
+"preview.mask.reveal" = "Reveal";
+"preview.mask.reveal_error" = "Couldn't open the content. The data may be corrupted.";
+"preview.mask.reveal_denied" = "Keychain access was denied; couldn't show the content.";
+"preview.json.pretty" = "Pretty";
+"preview.json.minify" = "Minify";
+"preview.json.raw" = "Raw";
+"preview.json.copy" = "Copy Content";
+"preview.json.footer_minified" = "Copies minified result · whitespace removed";
+"preview.json.footer_raw" = "Copies raw text · identical to captured content";
+"preview.json.footer_invalid" = "Invalid JSON · shown as raw text";
+"preview.json.footer_formatted" = "Copies formatted result · prettified with system indentation";
+"preview.code.truncated" = "… Showing first %1$@ of %2$@ lines";
+"preview.ocr.badge" = "On-device";
+"preview.ocr.langs" = "Chinese and English · Runs entirely on your Mac, nothing uploaded";
+"preview.ocr.empty" = "No text recognized";
+"preview.ocr.not_scanned" = "Text not extracted yet";
+"preview.ocr.no_text_detected" = "No clear text detected (supports Chinese and English; tiny or blurry text may not be recognized)";
+"preview.ocr.retry" = "Retry Recognition";
+"preview.ocr.rules_title" = "OCR Recognition Rules";
+"preview.ocr.rule_format_title" = "Formats";
+"preview.ocr.rules_show" = "Rules";
+"preview.ocr.rules_hide" = "Hide";
+"preview.ocr.rule_format_desc" = "PNG, JPG, TIFF images and screenshots only";
+"preview.ocr.rule_lang_title" = "Languages";
+"preview.ocr.rule_lang_desc" = "Simplified/Traditional Chinese, English";
+"preview.ocr.rule_limit_title" = "Limits";
+"preview.ocr.rule_limit_desc" = "Blurry, cursive, or tiny text in large images may not be detected; processed locally";
+"preview.ocr.footer_hint" = "💡 Supports offline Chinese and English text extraction from images";
+"preview.ocr.recognize" = "Recognize Text";
+"preview.ocr.scanning" = "Recognizing…";
+"preview.ocr.copied" = "Copied to clipboard";
+"preview.ocr.copy" = "Copy recognized text";
+"settings.ocr.title" = "Offline Text Recognition (OCR)";
+"settings.ocr.engine_title" = "Apple Vision Offline Engine";
+"settings.ocr.engine_desc" = "Uses system neural engine for on-device OCR, never uploading data; supports Chinese & English, pre-warmed in background.";
+"preview.color.hint" = "Click a row to copy that format · swatches stay in sync with list items";
+
+/* New UI - Sidebar / Search / Toolbar */
+"search.more_categories" = "More categories (⌘↓)";
+"search.clear" = "Clear search";
+"action.clear" = "Clear";
+"time.rail.accessibility" = "Timeline index";
+"search.placeholder" = "Search clipboard or apps…";
+"search.index_unavailable" = "Full-history search is temporarily unavailable";
+
+/* App Search & Launch */
+"app.section_title" = "Applications";
+"app.action_open" = "Open";
+"app.open_hint" = "Press Return to open";
+"app.path" = "Path";
+"app.bundle_id" = "Identifier";
+
+/* New UI - Relative Time & Timeline */
+"time.month_day" = "%1$d/%2$d %3$@";
+"time.full_date" = "%1$@/%2$d/%3$d";
+"timeline.today" = "Today";
+"timeline.yesterday" = "Yesterday";
+"timeline.this_week" = "This Week";
+"timeline.last_week" = "Last Week";
+"timeline.year" = "%@";
+
+/* New UI - Sidebar Categories */
+"category.all" = "All";
+"category.text" = "Text";
+"category.image" = "Images";
+"category.file" = "Files";
+"category.link" = "Links";
+"category.code" = "Code";
+"category.color" = "Colors";
+"category.sensitive" = "Private";
+"category.favorite" = "Favorites";
+"category.move_up" = "Move Up";
+"category.move_down" = "Move Down";
+"category.reset_order" = "Reset to Automatic Order";
+
+/* New UI - Source */
+"source.unknown" = "Unknown Source";
+
+/* QR code */
+"preview.qrcode.button" = "Show QR code";
+"preview.qrcode.hint" = "Scan to open link";
+"preview.qrcode.unavailable" = "This text is too long to generate a QR code";
+"preview.open_link" = "Open in browser";
+
+/* Preview Toggle */
+"preview.action.collapse" = "Collapse Preview";
+"preview.action.expand" = "Expand Preview";
+
+/* 同步状态（FR-011b/FR-023） */
+"settings.sync.last_result_label" = "Last Sync Result";
+"settings.sync.last_result_idle" = "Not synced yet";
+"settings.sync.last_result_success" = "Synced · %@";
+"settings.sync.last_result_failure_network" = "Sync failed (network issue) · %@";
+"settings.sync.last_result_failure_credential" = "Sync failed (iCloud account issue) · %@";
+"settings.sync.last_result_failure_unknown" = "Sync failed (unknown error) · %@";
+"settings.sync.plaintext_disclosure" = "Content synced via iCloud is stored in plain text (sensitive items are never synced)";
+
+/* Settings - Appearance Polish (005-ui-ux-redesign) */
+"settings.appearance.list_section" = "List & Navigation Style";
+"settings.appearance.selection_style" = "Selection Highlight Style";
+"settings.appearance.selection_style_desc" = "Visual feedback style when navigating rows via keyboard";
+"settings.appearance.selection_solid" = "Classic System Accent";
+"settings.appearance.selection_subtle" = "Subtle Light Tint";
+"settings.appearance.timeline_jump" = "Timeline Jump Style";
+"settings.appearance.timeline_jump_desc" = "Interaction method for jumping between time sections";
+"settings.appearance.timeline_rail" = "Refined Index Rail";
+"settings.appearance.timeline_header_menu" = "Header Dropdown Menu";

@@ -1,0 +1,20 @@
+[package]
+name = "nookclip-ffi"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib", "cdylib", "lib"]
+name = "nookclip_ffi"
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+nookclip-core = { path = "../nookclip-core" }
+uniffi = { workspace = true, features = ["cli"] }
+thiserror.workspace = true
+parking_lot.workspace = true

@@ -1,0 +1,4 @@
+module NookClipCoreBridgeFFI {
+    header "NookClipCoreBridgeFFI.h"
+    export *
+}

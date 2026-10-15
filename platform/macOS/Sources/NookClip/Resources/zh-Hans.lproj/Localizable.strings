@@ -1,0 +1,411 @@
+/* Menu */
+"menu.open" = "打开 NookClip";
+"menu.settings" = "设置…";
+"menu.quit" = "退出";
+"menu.check_updates" = "检查更新…";
+
+/* Menu Bar Icon Accessibility */
+"menubar.icon.ax" = "NookClip 快速面板";
+"menubar.icon.ax.hint" = "打开或关闭快速面板";
+
+/* Sidebar */
+"sidebar.all" = "全部";
+
+/* Clipboard List & Search */
+"clipboard.items_count" = "%d 条";
+
+/* Clipboard Item & Row */
+"item.type_text" = "文本";
+"item.type_image" = "图片";
+"item.type_file" = "文件";
+"item.file_multi_title" = "%1$@ 等 %2$d 个文件";
+"item.type_sensitive" = "私密";
+
+/* Preview Pane */
+"preview.item_type" = "类型";
+"preview.code_fallback" = "代码";
+"preview.copied_time" = "复制时间";
+"preview.action.reveal_in_finder" = "在访达中显示";
+"preview.ocr_extracted" = "已提取文字";
+"preview.lines" = "%d 行";
+"preview.characters" = "%d 字符";
+
+/* Relative Time */
+"time.just_now" = "刚刚";
+"time.minutes_ago" = "%d 分钟前";
+"time.today" = "今天 %@";
+"time.yesterday" = "昨天 %@";
+
+/* Settings Window */
+"settings.window_title" = "设置";
+"settings.tab.general" = "通用";
+"settings.tab.capture" = "捕捉";
+"settings.tab.history" = "历史与同步";
+"settings.tab.paste" = "粘贴";
+"settings.tab.appearance" = "外观";
+"settings.paste.sound_section" = "音效";
+
+/* Settings - General */
+"settings.general.app_section" = "基础设置";
+"settings.general.language" = "语言";
+"settings.general.paste_sound" = "粘贴音效";
+"settings.general.paste_sound_desc" = "粘贴成功时播放短促提示音";
+"settings.general.version" = "版本";
+"settings.general.version_desc" = "检查并安装 NookClip 新版本";
+"settings.general.update_section" = "软件更新";
+"settings.general.update_auto" = "自动检查更新";
+"settings.general.update_auto_desc" = "发现新版本时提醒我，不会自动安装";
+"settings.general.update_source" = "更新源";
+"settings.general.update_source_desc" = "自动模式按网络环境选择更快的源";
+"settings.general.update_source_auto" = "自动";
+"settings.general.update_source_github" = "GitHub";
+"settings.general.update_source_gitee" = "Gitee";
+"settings.general.lang_system" = "跟随系统";
+"settings.general.launch_at_login" = "开机自启";
+"settings.general.launch_desc" = "登录 macOS 时自动启动 NookClip";
+"settings.general.history_retention" = "历史保留天数";
+"settings.general.disk_limit" = "磁盘空间上限";
+"settings.retention.day" = "1 天";
+"settings.retention.week" = "1 周";
+"settings.retention.month" = "1 个月";
+"settings.retention.quarter" = "1 个季度";
+"settings.retention.half_year" = "半年";
+"settings.retention.year" = "1 年";
+"settings.retention.unlimited" = "无限制";
+"settings.general.appearance_section" = "外观与布局";
+"settings.general.appearance" = "外观模式";
+"settings.general.appearance_system" = "跟随系统";
+"settings.general.appearance_light" = "浅色";
+"settings.general.appearance_dark" = "深色";
+"settings.general.translucency" = "半透明毛玻璃效果";
+"settings.general.translucency_desc" = "开启 macOS 原生磨砂毛玻璃半透明背景";
+"settings.general.transparency" = "背景透明度";
+"settings.general.privacy_ocr" = "隐私";
+"settings.general.enable_sensitive" = "敏感数据保护";
+"settings.general.sensitive_desc" = "开启后密码、密钥等敏感内容在本机加密保存并遮罩显示；关闭后敏感内容不进入历史，仍可直接粘贴到其他应用";
+"settings.general.sensitive_timeout" = "粘贴敏感内容后自动清空剪贴板";
+"settings.general.seconds" = "秒";
+"settings.general.backup_section" = "数据备份与清理";
+"settings.general.export_backup" = "导出备份…";
+"settings.general.import_backup" = "恢复备份…";
+"settings.general.export_json" = "JSON…";
+"settings.general.export_markdown" = "Markdown…";
+"settings.export.mode_label" = "敏感内容处理";
+"settings.export.mode_exclude" = "排除敏感条目";
+"settings.export.mode_masked" = "掩码显示（••••••••）";
+"settings.export.mode_plaintext" = "包含明文";
+"settings.export.plaintext_confirm_title" = "导出明文敏感内容？";
+"settings.export.plaintext_confirm_message" = "备份文件将包含密码、密钥等敏感明文，请妥善保管该文件。";
+"settings.export.plaintext_confirm_ok" = "仍要导出";
+"settings.general.clear_confirm_title" = "确定要清空全部历史记录吗？";
+"settings.general.clear_confirm_desc" = "此操作将永久删除所有未收藏的剪贴板历史，无法撤销。";
+"settings.general.clear_button" = "确认清空";
+"settings.general.cancel_button" = "取消";
+
+/* Settings - Hotkeys */
+"settings.hotkey.global_title" = "全局唤起快捷键";
+"settings.hotkey.global_desc" = "在任何应用程序中按下此快捷键即可呼出剪贴板面板";
+"settings.hotkey.record" = "录制快捷键";
+"settings.hotkey.group_navigation" = "导航";
+"settings.hotkey.group_paste" = "粘贴";
+"settings.hotkey.group_manage" = "管理";
+"settings.hotkey.group_panel" = "面板";
+"settings.hotkey.action_move_selection" = "上下移动选中项";
+"settings.hotkey.action_multiselect" = "扩展批量选择";
+"settings.hotkey.action_cycle_category" = "切换分类";
+"settings.hotkey.action_category_menu" = "打开分类下拉";
+"settings.hotkey.action_time_menu" = "循环定位下一个时间分组";
+"settings.hotkey.action_focus_search" = "聚焦搜索框";
+"settings.hotkey.action_paste" = "粘贴选中项目";
+"settings.hotkey.action_paste_keep_open" = "粘贴且保持面板打开";
+"settings.hotkey.action_paste_plain" = "纯文本粘贴";
+"settings.hotkey.action_favorite" = "收藏/取消收藏选中项";
+"settings.hotkey.action_rename" = "为选中项设置别名";
+"settings.hotkey.action_delete" = "删除选中项";
+"settings.hotkey.action_undo" = "撤销最近一次删除";
+"settings.hotkey.action_toggle_preview" = "折叠/展开详细预览区";
+"settings.hotkey.action_dismiss" = "清空筛选或收起面板";
+
+/* Settings - Excluded Apps */
+"excluded.title" = "排除应用程序";
+"excluded.description" = "当以下应用处于前台时，复制的任何内容都不会被 NookClip 记录到剪贴板历史中。";
+"excluded.empty_title" = "暂无排除的应用";
+"excluded.empty_subtitle" = "添加不需要记录剪贴板的私密或敏感应用（如密码管理器、聊天工具或银行客户端）。";
+"excluded.add_running" = "添加运行中的应用…";
+"excluded.no_running" = "没有可添加的运行中应用";
+"excluded.choose_from_finder" = "从访达选择…";
+"excluded.clear_all" = "清空全部";
+"excluded.remove_tooltip" = "移除排除";
+"excluded.open_panel_prompt" = "添加";
+"excluded.open_panel_message" = "选择需要排除剪切板记录的应用";
+"excluded.add_presets" = "添加常见密码管理器";
+
+/* Settings - Sync */
+"sync.enable" = "启用 iCloud Drive 同步";
+"sync.status_idle" = "空闲";
+"sync.status_syncing" = "同步中…";
+"sync.status_success" = "上次同步: %@";
+"sync.status_error" = "同步失败: %@";
+
+/* Settings - Permissions */
+"permissions.open_settings" = "打开系统设置";
+
+/* Initial Demo Data */
+"demo.item1.title" = "欢迎使用 NookClip — 30 秒上手指南";
+"demo.item1.summary" = "💡 核心主循环：在任意应用中复制内容 → 按 ⌘ ⇧ V 呼出面板 → 按 ↑ / ↓ 选择 → 按 ⏎ 直接粘贴回原应用。\n\n✨ 试试现在直接输入「API」或「蓝」：列表态无需点搜索框，直接打字即触发毫秒级全历史搜索！";
+"demo.item2.title" = "OpenAI API 密钥（隐私加密保护演示）";
+"demo.item3.title" = "代码高亮与 JSON 格式化演示";
+"demo.item3.summary" = "{\n  \"app\": \"NookClip\",\n  \"engine\": \"Rust + SQLite FTS5\",\n  \"privacy\": {\n    \"localOnly\": true,\n    \"encryption\": \"AES-256-GCM\"\n  },\n  \"shortcuts\": [\"⌘⇧V\", \"⏎\", \"⌥⏎\", \"⌘S\"]\n}";
+"demo.item4.title" = "图片与离线 Vision OCR 演示";
+"demo.item5.title" = "NookClip 开源主页（扫码跨端传输演示）";
+"demo.item6.title" = "macOS 系统强调蓝（色彩胶囊演示）";
+"demo.item7.title" = "进阶效率快捷键速查卡（常驻备忘）";
+"demo.item7.summary" = "⌨️ 效率进阶指南：\n• ⌥ ⏎ ：纯文本粘贴（自动剔除网页/文档字体与背景样式）\n• ⌘ ⏎ ：粘贴后保持面板打开（适合连续填表）\n• ⇧ ↓ / ⌘ 点选 ：扩展多选（按 ⏎ 合并多条一起粘贴）\n• ⌘ [ / ⌘ ] ：快速切换分类   • ⌘ T ：循环跳转时间分组\n• ⌘ S ：收藏（豁免自动清理） • ⌘ R ：为条目设置别名\n• ⌘ ⌫ ：删除选中项          • ⌘ Z ：10 秒内撤销删除";
+"demo.source.notes" = "备忘录";
+"demo.source.screenshot" = "截图";
+"demo.ocr_card.subtitle" = "离线实况文本识别演示（支持中英文混合检索）";
+"demo.ocr_card.hint" = "点击图片右下角「识别文字」按钮，体验本地离线文字提取";
+/* Sidebar Extra */
+"sidebar.switch_category" = "切换分类";
+
+/* Settings Extra */
+"settings.history.management" = "历史记录管理";
+"settings.history.stats" = "存储统计";
+
+"settings.history.favorite_count" = "%d 收藏";
+"settings.history.clear_unflagged" = "清空常规历史记录";
+"settings.history.clear_unflagged_desc" = "安全清空所有未收藏的剪贴板历史及图片文件";
+"settings.history.clear_unflagged_button" = "清空常规历史…";
+"settings.hotkey.recommended_presets" = "推荐预设：";
+"settings.hotkey.record_instructions" = "点击按键框后按下键盘组合键即可录制（需包含 ⌘、⌥、⌃、⇧ 修饰键）。按 Esc 可取消录制。";
+"settings.hotkey.press_keys" = "请按快捷键…";
+"settings.hotkey.cancel" = "取消";
+"settings.hotkey.reset_default" = "恢复为默认快捷键 (⌘ ⇧ V)";
+"settings.hotkey.err_modifiers" = "快捷键必须包含修饰键 (⌘, ⌥, ⌃, ⇧)";
+"settings.hotkey.err_conflict" = "该快捷键可能已被系统或其他应用占用";
+"settings.permissions.section" = "macOS 辅助功能 (Accessibility)";
+"settings.permissions.trusted" = "已允许自动粘贴";
+"settings.permissions.untrusted" = "需要辅助功能权限";
+"settings.permissions.trusted_desc" = "%@ 呼出面板后按 Enter 或双击即可直接粘贴到目标 App。";
+"settings.permissions.untrusted_desc" = "自动粘贴需要 macOS 辅助功能权限。请在系统设置中找到并勾选 NookClip。若列表中没有 NookClip，点击下方按钮将自动唤起系统登记。";
+"settings.permissions.trusted_success" = "已成功获得辅助功能权限，%@ 呼出后可自动粘贴到目标应用。";
+"settings.permissions.open_settings" = "打开系统设置";
+"settings.permissions.recheck" = "重新检测";
+"settings.permissions.restart" = "重启 NookClip 生效";
+"settings.permissions.stale_title" = "如已在系统设置中勾选过但未生效：";
+"settings.permissions.stale_desc" = "因重新构建更新，旧权限绑定已失效。请在「系统设置 > 隐私与安全性 > 辅助功能」中先按【-】移除旧 NookClip，再重新添加/勾选并点击「重新检测」。";
+"settings.sync.section" = "iCloud 云盘同步 (iCloud Drive)";
+"settings.sync.enable" = "启用 iCloud 多端同步";
+"settings.sync.enable_desc" = "通过个人的 iCloud 云盘自动在多台 Mac 之间双向同步文本、链接与收藏记录。敏感数据（密码等）本地独享不上云。";
+"settings.sync.dir_label" = "云盘存放位置";
+"settings.sync.change_dir" = "更改目录...";
+"settings.sync.status_label" = "同步状态";
+"settings.sync.status_not_enabled" = "未启用";
+"settings.sync.status_idle" = "空闲待机";
+"settings.sync.status_syncing" = "正在同步变更...";
+"settings.sync.status_success" = "同步成功 · %@";
+"settings.sync.status_error" = "同步出错: %@";
+"settings.sync.btn_syncing" = "同步中...";
+"settings.sync.btn_sync_now" = "立即同步";
+"settings.sync.msg_failed" = "同步失败: %@";
+"settings.sync.msg_done" = "同步完成！";
+"sync.fail.network" = "网络问题";
+"sync.fail.credential" = "iCloud 账号问题";
+"sync.fail.unknown" = "未知错误";
+"settings.sync.panel_title" = "选择 iCloud 同步目录";
+"settings.sync.panel_prompt" = "选择并授权";
+"settings.sync.dir_switched" = "已成功切换同步目录";
+"settings.sync.dir_failed" = "设置目录失败: %@";
+"settings.sync.rules_section" = "同步规则与隐私";
+"settings.sync.rule_realtime" = "文本、链接与收藏实时双向同步";
+"settings.sync.rule_assets" = "图片附件自动同步（单张 ≤ 2MB）";
+"settings.sync.rule_sensitive" = "密码等敏感内容只保存在本机，不上传 iCloud";
+"settings.sync.rule_tombstone" = "在一台设备上删除，其他设备也会同步删除";
+"settings.backup.exported_success" = "成功导出 %d 条记录到 %@";
+"settings.backup.export_failed" = "导出失败: %@";
+"settings.backup.imported_success" = "成功导入 %d 条新记录（重复记录已自动忽略）";
+"settings.backup.import_failed" = "导入失败: %@";
+
+/* PreviewView Extra */
+"preview.action.open" = "打开";
+"preview.ocr_title" = "提取文字";
+"preview.lines_and_chars" = "%d 行 · %d 字符";
+"preview.copied_feedback" = "已复制";
+"preview.copy_path" = "复制路径";
+"preview.file.count" = "%@ 个文件";
+"preview.file.count_total" = "%1$@ 个文件 · 共 %2$@";
+
+/* 文件条目失效（原文件被移动/删除或磁盘未挂载） */
+"file.missing.title" = "文件不存在";
+"file.missing.message" = "原文件可能已被移动、删除，或所在磁盘未连接：\n%@";
+"file.missing.badge" = "已失效";
+"file.missing.hint" = "原文件已不存在，可能已被移动、删除或所在磁盘未挂载";
+"file.missing.unknown" = "该记录缺少有效的文件路径，无法粘贴";
+"preview.from_app" = "来自 %@";
+
+/* HistoryStore Extra */
+"export.markdown_title" = "# NookClip 剪贴板历史导出";
+"export.export_time" = "导出时间：%@";
+
+/* Toasts */
+"toast.copied_to_clipboard" = "已复制到剪贴板";
+"general.pixels" = "%d × %d 像素";
+
+/* New UI (specs/001) - Main View */
+"hints.select" = "选择";
+"hints.copy" = "拷贝";
+"hints.paste" = "粘贴";
+"hints.search" = "搜索";
+"hints.category" = "分类";
+"hints.more" = "更多快捷键";
+"hints.category_reverse" = "反向切换分类";
+"hints.multi" = "多选";
+"hints.multiselect_kbd" = "⌘点";
+"hints.paste_plain" = "纯文本粘贴";
+"hints.paste_keep" = "粘贴且保持面板";
+"hints.time_jump" = "定位时间分组";
+"hints.favorite" = "收藏";
+"hints.favorited" = "已收藏";
+"hints.delete" = "删除";
+"preview.toolbar.favorite.hint" = "按下 ⌘S 收藏";
+"preview.toolbar.delete.hint" = "按下 ⌘⌫ 删除";
+"preview.toolbar.unfavorite.hint" = "按下 ⌘S 取消收藏";
+"hints.rename" = "设置别名";
+"rename.placeholder" = "留空清除别名";
+"context.rename" = "设置别名…";
+"context.unfavorite" = "取消收藏";
+"context.mark_sensitive" = "设为私密";
+"context.unmark_sensitive" = "取消私密保护";
+
+"empty.no_match" = "无匹配记录";
+"empty.clear_filters" = "清除筛选";
+"delete.toast.message" = "已删除 %@ 项";
+"delete.toast.undo" = "撤销";
+"launch.welcome_banner" = "已常驻顶部菜单栏，随时按 %@ 唤出";
+"launch.permission_tip" = "开启辅助功能权限可支持 ⏎ 自动粘贴";
+"empty.welcome_title" = "剪贴板历史为空";
+"empty.welcome_subtitle" = "复制任意文本、图片或文件，即可开始记录";
+"common.confirm" = "确定";
+"batch.selected_count" = "已选中 %@ 项";
+"batch.extend_selection" = "⇧↑ / ⇧↓ 扩展选择";
+"batch.merge_paste" = "合并粘贴";
+"batch.delete" = "删除";
+"batch.exit_selection" = "Esc 退出";
+
+/* New UI - Preview Pane */
+"preview.meta_line" = "%1$@ · %2$@ · 复制 %3$@ 次";
+"preview.sensitive.encrypted" = "已本地加密";
+"preview.sensitive.local_only" = "纯本机 · 不同步 iCloud";
+"preview.sensitive.auto_remask" = "查看或粘贴 30 秒后自动重新遮罩，并清除系统剪贴板";
+"preview.image.fallback_type" = "图片";
+"preview.image.ocr_badge" = "已离线识别";
+"preview.empty.hint" = "选择条目查看详情";
+"preview.mask.title" = "敏感内容已遮罩";
+"preview.mask.remask" = "重新遮罩";
+"preview.mask.reveal" = "查看明文";
+"preview.mask.reveal_error" = "无法查看内容，数据可能已损坏";
+"preview.mask.reveal_denied" = "未获得钥匙串授权，无法查看明文";
+"preview.json.pretty" = "美化";
+"preview.json.minify" = "压缩";
+"preview.json.raw" = "原文";
+"preview.json.copy" = "复制内容";
+"preview.json.footer_minified" = "复制压缩结果 · 已移除多余空白";
+"preview.json.footer_raw" = "复制原始文本 · 与捕获内容一致";
+"preview.json.footer_invalid" = "非法 JSON · 已降级为原文展示";
+"preview.json.footer_formatted" = "复制格式化结果 · 已按系统缩进美化";
+"preview.code.truncated" = "… 已截断显示前 %1$@ 行（共 %2$@ 行）";
+"preview.ocr.badge" = "离线识别";
+"preview.ocr.langs" = "识别中文和英文 · 全程在本机完成，不上传任何内容";
+"preview.ocr.empty" = "未识别到文字";
+"preview.ocr.not_scanned" = "尚未提取文字";
+"preview.ocr.no_text_detected" = "未在图中检测到清晰文字（仅支持中英文，字号过小或过于模糊可能影响识别）";
+"preview.ocr.retry" = "重新识别";
+"preview.ocr.rules_title" = "OCR 识别规则与限制";
+"preview.ocr.rules_show" = "规则";
+"preview.ocr.rules_hide" = "收起";
+"preview.ocr.rule_format_title" = "支持格式";
+"preview.ocr.rule_format_desc" = "仅限 PNG、JPG、TIFF 等图片及截图";
+"preview.ocr.rule_lang_title" = "语言支持";
+"preview.ocr.rule_lang_desc" = "支持简体中文、繁体中文、英文";
+"preview.ocr.rule_limit_title" = "识别限制";
+"preview.ocr.rule_limit_desc" = "模糊、草书或超大图中极小字号可能无法检出；全程本机离线处理";
+"preview.ocr.footer_hint" = "💡 支持图片中的中文/英文离线提取";
+"preview.ocr.recognize" = "识别文字";
+"preview.ocr.scanning" = "正在识别…";
+"preview.ocr.copied" = "已复制到剪贴板";
+"preview.ocr.copy" = "一键复制识别文字";
+"settings.ocr.title" = "离线文字识别 (OCR)";
+"settings.ocr.engine_title" = "Apple Vision 离线引擎";
+"settings.ocr.engine_desc" = "采用系统原生神经网络模型离线识别图片文字，数据不出设备；支持中英文，已自动后台静默预热。";
+"preview.color.hint" = "点击行可复制对应格式 · 行内色点与列表条目实时同步";
+
+/* New UI - Sidebar / Search / Toolbar */
+"search.more_categories" = "更多分类 (⌘↓)";
+"search.clear" = "清空搜索";
+"action.clear" = "清空";
+"time.rail.accessibility" = "时间定位索引";
+"search.placeholder" = "搜索剪贴板或应用…";
+"search.index_unavailable" = "暂时无法搜索全部历史";
+
+/* App Search & Launch */
+"app.section_title" = "应用程序";
+"app.action_open" = "打开";
+"app.open_hint" = "按回车打开应用";
+"app.path" = "路径";
+"app.bundle_id" = "标识符";
+
+/* New UI - Relative Time & Timeline */
+"time.month_day" = "%d月%d日 %@";
+"time.full_date" = "%@年%d月%d日";
+"timeline.today" = "今天";
+"timeline.yesterday" = "昨天";
+"timeline.this_week" = "本周";
+"timeline.last_week" = "上周";
+"timeline.year" = "%@年";
+
+/* New UI - Sidebar Categories */
+"category.all" = "全部";
+"category.text" = "文本";
+"category.image" = "图片";
+"category.file" = "文件";
+"category.link" = "链接";
+"category.code" = "代码";
+"category.color" = "色值";
+"category.sensitive" = "私密";
+"category.favorite" = "收藏";
+"category.move_up" = "上移";
+"category.move_down" = "下移";
+"category.reset_order" = "恢复自动排序";
+
+/* New UI - Source */
+"source.unknown" = "未知来源";
+
+/* QR code */
+"preview.qrcode.button" = "显示二维码";
+"preview.qrcode.hint" = "扫码打开链接";
+"preview.qrcode.unavailable" = "文本过长，无法生成二维码";
+"preview.open_link" = "在浏览器中打开";
+
+/* Preview Toggle */
+"preview.action.collapse" = "收起预览";
+"preview.action.expand" = "展开预览";
+
+/* 同步状态（FR-011b/FR-023） */
+"settings.sync.last_result_label" = "最近同步结果";
+"settings.sync.last_result_idle" = "尚未同步";
+"settings.sync.last_result_success" = "已同步 · %@";
+"settings.sync.last_result_failure_network" = "同步失败（网络问题）· %@";
+"settings.sync.last_result_failure_credential" = "同步失败（iCloud 账号问题）· %@";
+"settings.sync.last_result_failure_unknown" = "同步失败（未知错误）· %@";
+"settings.sync.plaintext_disclosure" = "通过 iCloud 同步的内容为明文（敏感条目不会同步）";
+
+/* Settings - Appearance Polish (005-ui-ux-redesign) */
+"settings.appearance.list_section" = "列表与导航风格";
+"settings.appearance.selection_style" = "选中行高亮风格";
+"settings.appearance.selection_style_desc" = "设置键盘连续导航时的行选中视觉反馈";
+"settings.appearance.selection_solid" = "经典系统强调色（反白文字）";
+"settings.appearance.selection_subtle" = "现代柔和微底（指示线）";
+"settings.appearance.timeline_jump" = "时间定位导航样式";
+"settings.appearance.timeline_jump_desc" = "设置列表中按时间快速跳转定位的交互方式";
+"settings.appearance.timeline_rail" = "右侧时间导航条";
+"settings.appearance.timeline_header_menu" = "分组标题下拉菜单";
