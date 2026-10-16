@@ -134,24 +134,57 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. 移动端抽屉菜单 (Mobile Drawer Navigation)
   const mobileMenuBtn = document.getElementById('mobileMenuBtn');
   const mobileMenu = document.getElementById('mobileMenu');
+  const mobileBackdrop = document.getElementById('mobileBackdrop');
+
+  function setMobileMenuOpen(open) {
+    if (!mobileMenuBtn || !mobileMenu) return;
+    mobileMenuBtn.setAttribute('aria-expanded', String(open));
+    if (open) {
+      if (mobileBackdrop) mobileBackdrop.hidden = false;
+      mobileMenu.hidden = false;
+      document.body.classList.add('mobile-nav-locked');
+    } else {
+      if (mobileBackdrop) mobileBackdrop.hidden = true;
+      mobileMenu.hidden = true;
+      document.body.classList.remove('mobile-nav-locked');
+    }
+  }
 
   if (mobileMenuBtn && mobileMenu) {
     mobileMenuBtn.addEventListener('click', () => {
       const isExpanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true';
-      const nextState = !isExpanded;
+      setMobileMenuOpen(!isExpanded);
+    });
 
-      mobileMenuBtn.setAttribute('aria-expanded', String(nextState));
-      mobileMenu.hidden = !nextState;
+    if (mobileBackdrop) {
+      mobileBackdrop.addEventListener('click', () => {
+        setMobileMenuOpen(false);
+      });
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && mobileMenuBtn.getAttribute('aria-expanded') === 'true') {
+        setMobileMenuOpen(false);
+      }
     });
 
     // 点击链接后自动收起菜单
-    const mobileLinks = mobileMenu.querySelectorAll('.mobile-nav-link');
+    const mobileLinks = mobileMenu.querySelectorAll('.mobile-nav-link, .btn-mobile-download');
     mobileLinks.forEach((link) => {
       link.addEventListener('click', () => {
-        mobileMenu.hidden = true;
-        mobileMenuBtn.setAttribute('aria-expanded', 'false');
+        setMobileMenuOpen(false);
       });
     });
+  }
+
+  // 移动端快捷悬浮返回顶部
+  const floatingBackToTop = document.getElementById('floatingBackToTop');
+  if (floatingBackToTop) {
+    window.addEventListener('scroll', () => {
+      const isScrolled = window.scrollY > 400;
+      floatingBackToTop.hidden = !isScrolled;
+      floatingBackToTop.classList.toggle('is-visible', isScrolled);
+    }, { passive: true });
   }
 
   // 6. 多语言初始化实现
@@ -256,6 +289,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const isActive = btn.getAttribute('data-lang') === lang;
         btn.classList.toggle('is-active', isActive);
       });
+    }
+  }
+
+  // 7. 动态同步 GitHub 最新 Release 直链与版本号（优雅增强，失败时无缝保留静态兜底）
+  syncLatestRelease();
+
+  async function syncLatestRelease() {
+    try {
+      const resp = await fetch('https://api.github.com/repos/lx3xun/nook-clip/releases/latest', {
+        headers: { 'Accept': 'application/vnd.github.v3+json' }
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data || !Array.isArray(data.assets)) return;
+
+      // 匹配 DMG 产物（优先匹配带当前 release 版本号的产物，若无则回退到 NookClip.dmg）
+      let dmgAsset = null;
+      if (data.tag_name) {
+        const ver = data.tag_name.replace(/^v/, '');
+        dmgAsset = data.assets.find((a) => a.name === `NookClip-${ver}.dmg`);
+      }
+      if (!dmgAsset) {
+        dmgAsset = data.assets.find((a) => a.name && a.name.endsWith('.dmg'));
+      }
+
+      if (dmgAsset && dmgAsset.browser_download_url) {
+        document.querySelectorAll('a[data-role="download-dmg"]').forEach((btn) => {
+          btn.href = dmgAsset.browser_download_url;
+        });
+      }
+
+      // 同步顶部导航或 Brand Badge 显示的最新版本号
+      if (data.tag_name) {
+        const badge = document.querySelector('.brand-badge');
+        if (badge) {
+          badge.textContent = data.tag_name;
+        }
+      }
+    } catch (_) {
+      // 遭遇网络阻隔或 API 速率限制时静默降级，不影响基础交互与静态链接直链下载
     }
   }
 });
