@@ -1,7 +1,7 @@
 import XCTest
 @testable import NookClip
 
-/// 代码高亮衔接层（HighlightSwift → NSTextView 管线）的行为不变量：
+/// 代码高亮衔接层（CodeHighlightService → NSTextView 管线）的行为不变量：
 /// 字体/行高契约（行号列对齐依据）、语言检测、缓存命中、空文本回退
 @MainActor
 final class CodeHighlightServiceTests: XCTestCase {

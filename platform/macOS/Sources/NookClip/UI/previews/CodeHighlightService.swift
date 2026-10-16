@@ -1,13 +1,11 @@
 import AppKit
-import HighlightSwift
 import JavaScriptCore
 import SwiftUI
 
 // MARK: - highlight.js 高亮服务（直驱 JSContext + 原生 Span 解析器）
 //
-// 为什么不调 HighlightSwift.request(…)：
-//   1. HighlightSwift 将 highlight.js 产出的 HTML 经 NSAttributedString(.html)
-//      导入，底层会拉起 WebKit HTML 转换管线，不仅冷启动耗时 150~300ms 且污染
+// 为什么自研高亮渲染管线（直驱 JSContext + 原生 Span 解析器）：
+//   1. 传统基于 WebKit NSAttributedString(.html) 的导入管线冷启动耗时 150~300ms 且污染
 //      进程内存页，还会在 <pre><code> 外层调 trimmingCharacters(in: .whitespacesAndNewlines)
 //      破坏首行缩进、折叠 <code><span> 边界空白并将 \r\n 改写为 \n，导致行号错位。
 //   2. highlight.js 的输出仅包含 `<span class="...">`、`</span>` 与 5 种基础 HTML
@@ -44,8 +42,8 @@ private actor HLJSEngine {
     private static func loadScript() -> String? {
         if let cachedScript { return cachedScript }
         let candidateBundles: [Bundle] = [
+            Bundle.module,
             Bundle.main,
-            Bundle(for: Highlight.self),
         ]
         for bundle in candidateBundles {
             if let path = bundle.path(forResource: "highlight.min", ofType: "js"),
@@ -53,24 +51,9 @@ private actor HLJSEngine {
                 cachedScript = content
                 return content
             }
-            if let bundleURL = bundle.resourceURL?.appendingPathComponent("HighlightSwift_HighlightSwift.bundle"),
-               let subBundle = Bundle(url: bundleURL),
-               let path = subBundle.path(forResource: "highlight.min", ofType: "js"),
-               let content = try? String(contentsOfFile: path, encoding: .utf8) {
-                cachedScript = content
-                return content
-            }
         }
-        // SPM 测试或命令行环境下遍历已加载 bundle 查找 HighlightSwift 资源包
         for bundle in Bundle.allBundles + Bundle.allFrameworks {
             if let path = bundle.path(forResource: "highlight.min", ofType: "js"),
-               let content = try? String(contentsOfFile: path, encoding: .utf8) {
-                cachedScript = content
-                return content
-            }
-            if let bundleURL = bundle.resourceURL?.appendingPathComponent("HighlightSwift_HighlightSwift.bundle"),
-               let subBundle = Bundle(url: bundleURL),
-               let path = subBundle.path(forResource: "highlight.min", ofType: "js"),
                let content = try? String(contentsOfFile: path, encoding: .utf8) {
                 cachedScript = content
                 return content

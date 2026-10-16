@@ -148,7 +148,7 @@ nook-clip/
 │   ├── nook-core/                 # 核心业务引擎（SQLite WAL + FTS5、AES-256-GCM、Zstd 同步包、脱敏导出）
 │   └── nook-ffi/                  # UniFFI 0.28 绑定层（生成 Swift / C 桥接代码与静态库）
 ├── platform/macOS/                # macOS 原生客户端（Swift Package）
-│   ├── Package.swift              # SwiftPM 依赖配置（Sparkle 2、HighlightSwift）
+│   ├── Package.swift              # SwiftPM 依赖配置（Sparkle 2）
 │   ├── Sources/NookClip/
 │   │   ├── App/                   # 应用生命周期、无边框悬浮面板（DraggablePanel）、全局热键与键盘分发
 │   │   ├── Clipboard/             # 剪贴板监听、自动粘贴、敏感检测、应用排除与语言分类

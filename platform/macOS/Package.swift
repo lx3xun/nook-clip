@@ -8,9 +8,7 @@ let package = Package(
     products: [.executable(name: "NookClip", targets: ["NookClip"])],
     dependencies: [
         // Sparkle 2 自动更新（动态 framework，build-app.sh 负责拷入 Contents/Frameworks/ 并补 rpath）
-        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
-        // highlight.js 离线语法高亮（JSContext 本地执行，无网络）
-        .package(url: "https://github.com/appstefan/highlightswift", exact: "1.0.9")
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")
     ],
     targets: [
         .target(
@@ -21,8 +19,7 @@ let package = Package(
             name: "NookClip",
             dependencies: [
                 "NookClipCoreBridgeFFI",
-                .product(name: "Sparkle", package: "Sparkle"),
-                .product(name: "HighlightSwift", package: "HighlightSwift")
+                .product(name: "Sparkle", package: "Sparkle")
             ],
             path: "Sources/NookClip",
             resources: [

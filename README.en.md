@@ -148,7 +148,7 @@ nook-clip/
 │   ├── nook-core/                 # Core engine (SQLite WAL + FTS5, AES-256-GCM, Zstd sync packs, redacted export)
 │   └── nook-ffi/                  # UniFFI 0.28 bindings (generates Swift / C bridge & static library)
 ├── platform/macOS/                # Native macOS client (Swift Package)
-│   ├── Package.swift              # SwiftPM manifest (Sparkle 2, HighlightSwift)
+│   ├── Package.swift              # SwiftPM manifest (Sparkle 2)
 │   ├── Sources/NookClip/
 │   │   ├── App/                   # App lifecycle, floating panel (DraggablePanel), global hotkeys & key routing
 │   │   ├── Clipboard/             # Pasteboard monitor, paste service, sensitive detector, app exclusions & classifier
