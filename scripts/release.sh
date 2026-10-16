@@ -8,6 +8,7 @@
 #       scripts/release.sh --dry-run 1.0.1
 # =============================================================================
 set -euo pipefail
+export NOOKCLIP_RELEASE=1
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$ROOT/dist"
@@ -289,7 +290,7 @@ for a in json.load(sys.stdin).get('assets', []):
 GH_RELEASE_JSON="$(python3 - "$TAG" "$VER" "$NOTES" <<'PYEOF'
 import json, sys
 tag, ver, notes = sys.argv[1:4]
-print(json.dumps({"tag_name": tag, "name": tag, "body": notes}))
+print(json.dumps({"tag_name": tag, "name": tag, "body": notes, "make_latest": "true"}))
 PYEOF
 )"
 
@@ -310,8 +311,12 @@ APPCAST_REL_ID="$(github_release_id "$APPCAST_TAG")"
 if [[ -z "$APPCAST_REL_ID" ]]; then
   APPCAST_REL_ID="$(github_api POST "/repos/$GITHUB_OWNER_REPO/releases" \
     -H 'Content-Type: application/json' \
-    -d "{\"tag_name\": \"$APPCAST_TAG\", \"name\": \"appcast\", \"body\": \"Sparkle 更新清单（自动覆盖）\"}" \
+    -d "{\"tag_name\": \"$APPCAST_TAG\", \"name\": \"appcast\", \"body\": \"Sparkle 更新清单（自动覆盖）\", \"make_latest\": \"false\"}" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+else
+  github_api PATCH "/repos/$GITHUB_OWNER_REPO/releases/$APPCAST_REL_ID" \
+    -H 'Content-Type: application/json' \
+    -d "{\"make_latest\": \"false\"}" >/dev/null || true
 fi
 github_upload_asset "$APPCAST_REL_ID" "$STAGING/github/appcast.xml"
 echo "==> GitHub 发布完成"

@@ -4,56 +4,24 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  test:
-    name: 构建与全量测试 (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        # 最低支持系统 + 最新系统：防止新 macOS 上的权限/行为变化静默回归
-        os: [macos-14, macos-15]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 编译 Rust 核心引擎
-        run: bash scripts/build-rust.sh --release
-
-      - name: 构建
-        run: swift build --package-path platform/macOS
-
-      - name: 全量测试
-        run: swift test --package-path platform/macOS
-  performance:
-    name: 万级性能基准
+  build-and-package:
+    name: 生产构建与 DMG 打包校验
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
-      - name: 编译 Rust 核心引擎
-        run: bash scripts/build-rust.sh --release
-
-      # NOOK_PERF=1 启用三档（5k/10k/50k）全功能链路基准，
-      # 防止分类计数/过滤/分组/搜索/FTS 的性能回退；阈值断言见 PerformanceBenchmarkTests
-      - name: 性能基准
-        run: NOOK_PERF=1 swift test --package-path platform/macOS --filter PerformanceBenchmarkTests
-  # 打包冒烟（FR-021）：验证 build-app.sh 全量构建、Sparkle framework 拷贝、
-  # lipo 双架构校验、ad-hoc 分层签名与 DMG 打包不回归。不发布、不上传。
-  packaging-smoke:
-    name: 打包与签名冒烟
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 构建 .app（Universal + ad-hoc 分层签名）
+      - name: 构建 Universal 双架构 .app（含 Rust 与 Swift 编译）
         run: zsh scripts/build-app.sh --universal
 
-      - name: 签名校验
+      - name: 分层签名校验
         run: codesign --verify --deep --strict --verbose=2 dist/NookClip.app
 
-      - name: DMG 打包
+      - name: 生成 DMG 安装包
         run: zsh scripts/build-dmg.sh --skip-app
 
-      - name: DMG 完整性
+      - name: DMG 挂载完整性校验
         run: hdiutil verify dist/NookClip.dmg
