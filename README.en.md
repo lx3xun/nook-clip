@@ -1,4 +1,4 @@
-# <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="36" height="36" align="center" alt="NookClip"> NookClip
+# <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="32" height="32" valign="bottom" alt="NookClip"> NookClip
 
 **A lightweight, fast, and privacy-first clipboard manager.**
 
