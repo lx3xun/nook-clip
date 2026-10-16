@@ -47,6 +47,10 @@ struct AppIconBadge: View {
     @MainActor private static var iconCache: [String: NSImage?] = [:]
 
     @MainActor
+    static func clearIconCache() {
+        iconCache.removeAll()
+    }
+    @MainActor
     private static func realAppIcon(for app: SourceAppModel) -> NSImage? {
         let key = app.bundleID ?? "name:\(app.name)"
         if let cached = iconCache[key] { return cached }

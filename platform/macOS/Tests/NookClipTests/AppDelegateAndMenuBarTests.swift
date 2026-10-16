@@ -60,9 +60,17 @@ final class AppDelegateAndMenuBarTests: XCTestCase {
         let settingsWindow = NSApp.windows.first { $0.title == settingsTitle }
         XCTAssertNotNil(settingsWindow, "首次发送 .openSettings 时设置窗口必须立即创建并存在")
         XCTAssertTrue(settingsWindow?.isVisible == true, "设置窗口首次展示必须立即处于可见状态")
+        XCTAssertNotNil(settingsWindow?.contentViewController, "展示期间应持有 SettingsView 宿主视图控制器")
         XCTAssertEqual(settingsWindow?.contentView?.frame.width, 580, "设置窗口内容宽度必须为 580")
         XCTAssertEqual(settingsWindow?.contentView?.frame.height, 520, "设置窗口内容高度必须为 520")
         XCTAssertFalse(settingsWindow?.isReleasedWhenClosed ?? true, "设置窗口关闭时不应被自动释放")
+
+        // 关闭设置窗口后应自动释放宿主视图树以回收内存，再次发送 .openSettings 应能无缝重建
+        settingsWindow?.close()
+        XCTAssertNil(settingsWindow?.contentViewController, "设置窗口关闭后应释放 contentViewController 宿主视图树")
+        NotificationCenter.default.post(name: .openSettings, object: nil)
+        XCTAssertNotNil(settingsWindow?.contentViewController, "再次打开设置窗口应重新挂载 SettingsView 宿主视图树")
+        XCTAssertTrue(settingsWindow?.isVisible == true)
     }
 
     func testQuickPopoverControllerCloseWithoutRestoreFocusHidesPanel() {

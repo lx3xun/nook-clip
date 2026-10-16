@@ -336,11 +336,15 @@
 "preview.ocr.footer_hint" = "💡 支持图片中的中文/英文离线提取";
 "preview.ocr.recognize" = "识别文字";
 "preview.ocr.scanning" = "正在识别…";
+"preview.ocr.stage.loading_engine" = "正在按需加载 Apple Vision 离线 OCR 引擎…";
+"preview.ocr.stage.recognizing" = "正在执行中英文神经网络文字检测与识别…";
+"preview.ocr.stage.formatting" = "正在重排文字坐标并执行敏感信息校验…";
+"preview.ocr.stage.reclaiming" = "识别完成，正在释放神经网络缓存并回收内存…";
 "preview.ocr.copied" = "已复制到剪贴板";
 "preview.ocr.copy" = "一键复制识别文字";
 "settings.ocr.title" = "离线文字识别 (OCR)";
 "settings.ocr.engine_title" = "Apple Vision 离线引擎";
-"settings.ocr.engine_desc" = "采用系统原生神经网络模型离线识别图片文字，数据不出设备；支持中英文，已自动后台静默预热。";
+"settings.ocr.engine_desc" = "采用系统原生神经网络模型按需离线识别图片文字，数据不出设备；识别完成后自动释放模型内存，零常驻开销。";
 "preview.color.hint" = "点击行可复制对应格式 · 行内色点与列表条目实时同步";
 
 /* New UI - Sidebar / Search / Toolbar */

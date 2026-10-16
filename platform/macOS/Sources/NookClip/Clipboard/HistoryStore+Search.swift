@@ -30,6 +30,14 @@ extension InMemoryHistoryStore {
         loadingMore = false
     }
 
+    /// 面板闲置回收：将因滚动翻页膨胀的内存镜像收缩回首页 `pageSize` 上限，释放多余条目对象
+    func compactIdleMemory() {
+        if items.count > Self.pageSize {
+            items.removeLast(items.count - Self.pageSize)
+            hasMoreItems = true
+        }
+        purgeExpiredTrash()
+    }
     /// 搜索结果（全历史命中前缀 + 分页/失败状态）
     struct HistorySearchOutcome {
         /// 命中条目（last_used_at 倒序前缀；不含回收站）

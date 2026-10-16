@@ -10,7 +10,8 @@ final class QuickPopoverController: NSObject {
     /// T040（契约 R4/R5）：经 AppDelegate → AppDependencies 注入，转发给 MainView
     private let clipboardWriter: any ClipboardWriter
     private var globalClickMonitor: Any?
-
+    /// 面板收起闲置释放任务：隐藏满 20s 未再呼出时释放重型预览缓存
+    private var idleMemoryReclaimTask: Task<Void, Never>?
     init(historyStore: InMemoryHistoryStore, targetApplicationProvider: @escaping () -> NSRunningApplication?, clipboardWriter: any ClipboardWriter) {
         self.historyStore = historyStore
         self.targetApplicationProvider = targetApplicationProvider
@@ -138,6 +139,8 @@ final class QuickPopoverController: NSObject {
     }
 
     private func show(preserveDuration: TimeInterval? = nil) {
+        idleMemoryReclaimTask?.cancel()
+        idleMemoryReclaimTask = nil
         if let preserveDuration {
             preserveOnResignKey.set(for: preserveDuration)
         }
@@ -179,8 +182,8 @@ final class QuickPopoverController: NSObject {
     func close(restoreFocus: Bool = true) {
         stopMonitoringOutsideClicks()
         panel?.orderOut(nil)
+        scheduleIdleMemoryReclaim()
         guard restoreFocus else { return }
-        // 归还焦点：show() 用 NSApp.activate 抢占了前台，关闭时若 NookClip 仍是
         // 前台（Esc/外部点击/快捷键收起），把焦点还给呼出前的目标应用——
         // LSUIElement 无其他窗口时系统不一定自动归还，原应用会持续失焦吞键
         //（审计 BUG-025）。应用切换路径（对方已激活）不抢焦点
@@ -231,6 +234,37 @@ final class QuickPopoverController: NSObject {
             NSEvent.removeMonitor(monitor)
             globalClickMonitor = nil
         }
+    }
+
+    /// 面板收起后延迟 20s 回收重型内存缓存（解码缩略图/大图、代码高亮 JSContext、来源图标缓存與 allocator 空闲页）：
+    /// 兼顾短时间连按快捷键秒开与后台常驻低内存占用。
+    private func scheduleIdleMemoryReclaim() {
+        idleMemoryReclaimTask?.cancel()
+        idleMemoryReclaimTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard !Task.isCancelled, let self else { return }
+            guard self.panel?.isVisible != true else { return }
+            self.reclaimIdleMemoryNow()
+        }
+    }
+
+    /// 立即执行面板闲置内存清理（可供测试直接触发）
+    func reclaimIdleMemoryNow() {
+        if let existingPanel = panel, !existingPanel.isVisible {
+            lastExpandedWidth = existingPanel.frame.width
+            if let draggable = existingPanel as? DraggablePanel {
+                draggable.keyActions = nil
+                draggable.onCancel = nil
+            }
+            existingPanel.contentViewController = nil
+            panel = nil
+        }
+        historyStore.compactIdleMemory()
+        AppSearchService.shared.clearCache()
+        FileStore.shared.clearMemoryCache()
+        CodeHighlightService.purgeIdleMemory()
+        AppIconBadge.clearIconCache()
+        OCREngine.reclaimProcessMemory()
     }
 
     @objc private func handleWorkspaceDidActivateApp(_ notification: Notification) {

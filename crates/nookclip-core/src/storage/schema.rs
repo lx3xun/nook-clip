@@ -6,7 +6,9 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
     let _: String = conn.query_row("PRAGMA journal_mode = WAL;", [], |row| row.get(0))?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
-
+    // 限制 SQLite 页缓存上限为 512KB（默认 -2000 约 8MB），防止万级历史或大文本 FTS 查询后页缓存长期膨胀
+    conn.pragma_update(None, "cache_size", -512)?;
+    conn.pragma_update(None, "temp_store", "MEMORY")?;
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS clip_items (
