@@ -76,6 +76,11 @@ public class RustHistoryStore: @unchecked Sendable {
         do {
             let store = try RustHistoryStore(databaseURL: databaseURL, encryptionKey: keyData)
             defaults.set(true, forKey: migrationKey)
+            if !fileExists {
+                // 生产库为首次全新创建：重置首启引导与示例数据标记，确保全新安装或清理重装用户能正常获得引导体验
+                defaults.removeObject(forKey: InMemoryHistoryStore.demoSeededKey)
+                defaults.removeObject(forKey: UserDefaultsKey.hasLaunchedBefore.rawValue)
+            }
             return store
         } catch {
             Self.logger.error("生产库打开/迁移失败，回退内存库：\(error.localizedDescription)")

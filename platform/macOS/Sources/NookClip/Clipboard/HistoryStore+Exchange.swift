@@ -56,9 +56,11 @@ extension InMemoryHistoryStore {
 extension InMemoryHistoryStore {
     /// 空库时播种 7 条核心功能演示记录；仅每台设备一次
     ///（涵盖上手引导、敏感凭证加密、代码/JSON 高亮、离线 OCR 图片、链接二维码、色彩胶囊与快捷键速查）
-    func seedDemoItemsIfNeeded() {
-        guard rustStore.page(limit: 1, offset: 0).isEmpty,
-              !defaults.bool(forKey: Self.demoSeededKey) else { return }
+    func seedDemoItemsIfNeeded(force: Bool = false) {
+        if !force {
+            guard rustStore.page(limit: 1, offset: 0).isEmpty,
+                  !defaults.bool(forKey: Self.demoSeededKey) else { return }
+        }
 
         let now = Date.now
         let secretPlain = "sk-proj-NookDemoKeyForLocalEncryption256GCM"
@@ -158,9 +160,15 @@ extension InMemoryHistoryStore {
                 persistedItems.append(item)
             }
         }
-        items = persistedItems
+        if force {
+            let existing = items.filter { oldItem in !persistedItems.contains(where: { $0.id == oldItem.id }) }
+            items = persistedItems + existing
+        } else {
+            items = persistedItems
+        }
         defaults.set(true, forKey: Self.demoSeededKey)
         hasMoreItems = false
+        publishMutation(scheduleSync: false)
     }
 
     /// 生成带清晰文字排版的演示 PNG（640×320），让用户点击「识别文字」即可真实提取出中英文内容

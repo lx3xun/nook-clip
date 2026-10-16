@@ -137,7 +137,10 @@ final class QuickPopoverController: NSObject {
         }
     }
 
-    private func show() {
+    private func show(preserveDuration: TimeInterval? = nil) {
+        if let preserveDuration {
+            preserveOnResignKey.set(for: preserveDuration)
+        }
         currentTargetApplication = targetApplicationProvider()
         let panel = getOrCreatePanel()
         updatePanelAppearance(panel)
@@ -166,8 +169,9 @@ final class QuickPopoverController: NSObject {
             ),
             display: true
         )
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
         startMonitoringOutsideClicks()
         NotificationCenter.default.post(name: .quickPopoverDidOpen, object: nil)
     }
@@ -242,7 +246,7 @@ final class QuickPopoverController: NSObject {
         }
     }
 
-    func showFromMenuBar() { show() }
+    func showFromMenuBar(preserveDuration: TimeInterval? = nil) { show(preserveDuration: preserveDuration) }
 
     @objc private func openFromMenuBar() { show() }
 

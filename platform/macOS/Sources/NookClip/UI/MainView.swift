@@ -706,7 +706,7 @@ struct AccessibilityPermissionBanner: View {
     let onOpenSettings: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: NookClipIcon.TCC.untrusted)
                 .font(.system(size: NookClipIconSize.compactMedium, weight: .semibold))
                 .foregroundStyle(NookClip.colorSensitive)
@@ -714,12 +714,12 @@ struct AccessibilityPermissionBanner: View {
                 .font(.nookClipMeta)
                 .foregroundStyle(NookClip.textPrimary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
             Button {
                 onOpenSettings()
             } label: {
-                Text(L10n.tr("permissions.open_settings"))
+                Text(L10n.tr("launch.permission_action"))
                     .font(.nookClipMetaMedium)
                     .foregroundStyle(NookClip.accent)
                     .padding(.horizontal, 8)

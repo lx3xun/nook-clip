@@ -1,0 +1,38 @@
+#!/bin/sh
+# =============================================================================
+# NookClip Git Hook: 禁止直接向 main 分支推送代码
+# =============================================================================
+
+# 如果是由发布脚本触发（设置了环境变量 NOOKCLIP_RELEASE=1），允许推送
+if [ "${NOOKCLIP_RELEASE:-0}" = "1" ]; then
+  exit 0
+fi
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    cat << 'EOF' >&2
+
+================================================================================
+🚫 [Git Hook 拦截] 禁止直接向 main 分支推送代码！
+================================================================================
+main 是受保护的发布分支，禁止日常直接 push。
+
+【推荐开发工作流】：
+  1. 日常开发在 dev 分支进行：
+     git checkout dev
+  2. 提交并推送到远端 dev：
+     git add . && git commit -m "feat: 你的改动"
+     git push origin dev
+  3. 准备发布版本时，合并到 main 并执行发版脚本：
+     git checkout main && git merge dev
+     zsh scripts/release.sh <版本号> [说明]
+
+（如遇紧急特殊情况确实需要直接推送，可使用: git push --no-verify）
+================================================================================
+
+EOF
+    exit 1
+  fi
+done
+
+exit 0

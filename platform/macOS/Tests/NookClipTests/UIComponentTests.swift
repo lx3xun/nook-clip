@@ -255,4 +255,16 @@ final class UIComponentTests: XCTestCase {
         header.onSelectGroup?("yesterday")
         XCTAssertEqual(selectedGroupID, "yesterday")
     }
+
+    func testGroupHeaderViewHidesDropdownWhenGroupsNotProvided() {
+        let header = GroupHeaderView(
+            title: "今天",
+            count: 6,
+            allGroups: nil,
+            onSelectGroup: nil
+        )
+        XCTAssertNil(header.allGroups)
+        XCTAssertNil(header.onSelectGroup)
+        XCTAssertNotNil(renderView(header), "不传 allGroups 的吸顶分组头（如 indexRail 模式下）应正常渲染且不含下拉")
+    }
 }

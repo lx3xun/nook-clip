@@ -5,7 +5,7 @@ import OSLog
 @MainActor
 @Observable
 final class InMemoryHistoryStore {
-    static let demoSeededKey = "nook.demoItemsSeeded"
+    nonisolated static let demoSeededKey = "nook.demoItemsSeeded"
     static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.lx3xun.nookclip", category: "HistoryStore")
     let rustStore: RustHistoryStore
     /// 配置读取来源（测试注入隔离 suite，避免污染测试进程共享域）

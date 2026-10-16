@@ -146,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !hasLaunchedBefore else { return }
         dependencies.defaults.set(true, forKey: UserDefaultsKey.hasLaunchedBefore.rawValue)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            self?.popoverController?.showFromMenuBar()
+            self?.popoverController?.showFromMenuBar(preserveDuration: 3.0)
             _ = PasteService.promptForAccessibilityPermissionIfNeeded()
         }
     }
