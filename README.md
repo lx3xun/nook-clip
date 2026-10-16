@@ -1,4 +1,4 @@
-# <img src="assets/logo-kit/exports/nookclip-appicon-128.png" width="36" height="36" alt="NookClip App Icon" style="vertical-align: middle; margin-right: 8px;"> NookClip
+# <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="36" height="36" align="center" alt="NookClip"> NookClip
 
 **轻量、快速、注重隐私的剪贴板管理工具。**
 
