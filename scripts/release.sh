@@ -15,7 +15,7 @@ APP="$DIST_DIR/NookClip.app"
 DMG="$DIST_DIR/NookClip.dmg"
 PLIST="$ROOT/platform/macOS/Packaging/Info.plist"
 CARGO_TOML="$ROOT/Cargo.toml"
-
+SITE_INDEX="$ROOT/site/index.html"
 GITHUB_TOKEN_FILE="$HOME/.nookclip/github-token"
 [[ ! -f "$GITHUB_TOKEN_FILE" && -f "$HOME/.nook/github-token" ]] && GITHUB_TOKEN_FILE="$HOME/.nook/github-token"
 EDDSA_KEY="$HOME/.nookclip/sparkle-eddsa.key"
@@ -159,7 +159,7 @@ pkill -x Nook 2>/dev/null || true
 pkill -f "swift-test" 2>/dev/null || true
 swift test --package-path platform/macOS
 
-# 6. 版本号同步更新 (Info.plist + Cargo.toml)
+# 6. 版本号同步更新 (Info.plist + Cargo.toml + site/index.html)
 echo "==> 更新版本号为 $VER..."
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VER" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VER" "$PLIST"
@@ -179,6 +179,23 @@ with open(path, "w", encoding="utf-8") as f:
     f.write(new_content)
 PYEOF
 
+if [[ -f "$SITE_INDEX" ]]; then
+  python3 - "$SITE_INDEX" "$VER" <<'PYEOF'
+import re, sys
+path, ver = sys.argv[1], sys.argv[2]
+with open(path, "r", encoding="utf-8") as f:
+    content = f.read()
+new_content = re.sub(
+    r'(<span class="brand-badge">)v[^<]+(</span>)',
+    rf'\g<1>v{ver}\g<2>',
+    content,
+    count=1
+)
+with open(path, "w", encoding="utf-8") as f:
+    f.write(new_content)
+PYEOF
+  echo "    已同步更新落地页 $SITE_INDEX 徽标版本号"
+fi
 # 7. 构建 Universal DMG
 echo "==> 构建 Universal 双架构 DMG 产物..."
 zsh "$ROOT/scripts/build-dmg.sh" --universal
@@ -219,12 +236,14 @@ if [[ "$DRY_RUN" = true ]]; then
   echo "=========================================="
   # 恢复被修改的版本号文件，保持工作区干净
   git -C "$ROOT" checkout "$PLIST" "$CARGO_TOML"
+  [[ -f "$SITE_INDEX" ]] && git -C "$ROOT" checkout "$SITE_INDEX"
   exit 0
 fi
 
 # 9. Git 提交与打 Tag
 echo "==> 提交版本与创建 Git Tag: $TAG..."
 git -C "$ROOT" add "$PLIST" "$CARGO_TOML"
+[[ -f "$SITE_INDEX" ]] && git -C "$ROOT" add "$SITE_INDEX"
 if ! git -C "$ROOT" diff --cached --quiet; then
   git -C "$ROOT" commit -m "release: $TAG" --quiet
 fi
