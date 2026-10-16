@@ -1,14 +1,20 @@
-# <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="36" height="36" align="center" alt="NookClip"> NookClip
+<p align="center">
+  <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="80" height="80" alt="NookClip">
+</p>
 
-**輕量、快速、注重隱私的剪貼簿管理工具。**
+<h1 align="center">NookClip</h1>
 
-[介紹頁](https://lx3xun.github.io/nook-clip/) · [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md)
+<p align="center">
+  <strong>輕量、快速、注重隱私的剪貼簿管理工具。</strong>
+</p>
 
-[![Website](https://img.shields.io/badge/Website-NookClip-1677FF?logo=safari&logoColor=white)](https://lx3xun.github.io/nook-clip/)
-[![macOS 14.0+](https://img.shields.io/badge/macOS-14.0%2B-007AFF?logo=apple&logoColor=white)](https://www.apple.com/macos/)
-[![Swift 5.10+](https://img.shields.io/badge/Swift-5.10%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![Rust 1.75+](https://img.shields.io/badge/Rust-Core_Engine-000000?logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![License GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://lx3xun.github.io/nook-clip/">介紹頁</a> · <a href="README.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
+  <a href="https://lx3xun.github.io/nook-clip/"><img src="https://img.shields.io/badge/Website-NookClip-1677FF?logo=safari&logoColor=white" alt="Website"></a>&nbsp;<a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-14.0%2B-007AFF?logo=apple&logoColor=white" alt="macOS 14.0+"></a>&nbsp;<a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.10%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.10+"></a>&nbsp;<a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-Core_Engine-000000?logo=rust&logoColor=white" alt="Rust 1.75+"></a>&nbsp;<a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License GPLv3"></a>
+</p>
 
 ## 💡 解決什麼問題
 
@@ -212,6 +218,6 @@ NOOK_PERF=1 swift test --package-path platform/macOS --filter PerformanceBenchma
 
 - **開源授權**：本專案原始碼基於 [GNU General Public License v3.0 (GPLv3)](LICENSE) 協議開源。任何基於本專案的修改或衍生散佈必須同樣採用 GPLv3 協議開放全部原始碼。
 - **商業散佈與 App Store 獨佔權**：原始版權所有人（`lx3xun`）保留在 Apple App Store 及官方商業管道獨家散佈公證安裝包（Notarized Binary）及閉源商業擴充版本的全部權利。未經書面許可，任何第三方不得將本專案或其衍生版本上架至 Apple App Store 或其他商業應用商店。
-- **品牌與商標保護**：依據 GPLv3 第 7(e) 条附加條款，**「Nook」**、**「NookClip」** 名稱、應用程式圖示（`AppIcon.icns` / `NookClipIcon.svg`）及相關品牌視覺標識歸 `lx3xun` 獨家所有，不在開源授權範圍內。第三方修改或重新散佈的版本必須移除上述品牌標識與名稱。
+- **品牌與商標保護**：依據 GPLv3 第 7(e) 条附加條款，**「NookClip」** 名稱、應用程式圖示（`AppIcon.icns` / `NookClipIcon.svg`）及相關品牌視覺標識歸 `lx3xun` 獨家所有，不在開源授權範圍內。第三方修改或重新散佈的版本必須移除上述品牌標識與名稱。
 
 [GPLv3](LICENSE) © 2026 lx3xun

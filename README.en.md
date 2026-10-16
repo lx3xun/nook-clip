@@ -1,14 +1,20 @@
-# <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="36" height="36" align="center" alt="NookClip"> NookClip
+<p align="center">
+  <img src="./assets/logo-kit/exports/nookclip-appicon-128.png" width="80" height="80" alt="NookClip">
+</p>
 
-**A lightweight, fast, and privacy-first clipboard manager.**
+<h1 align="center">NookClip</h1>
 
-[Product Page](https://lx3xun.github.io/nook-clip/) · [简体中文](README.md) · [繁體中文](README.zh-TW.md) · [English](README.en.md)
+<p align="center">
+  <strong>A lightweight, fast, and privacy-first clipboard manager.</strong>
+</p>
 
-[![Website](https://img.shields.io/badge/Website-NookClip-1677FF?logo=safari&logoColor=white)](https://lx3xun.github.io/nook-clip/)
-[![macOS 14.0+](https://img.shields.io/badge/macOS-14.0%2B-007AFF?logo=apple&logoColor=white)](https://www.apple.com/macos/)
-[![Swift 5.10+](https://img.shields.io/badge/Swift-5.10%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![Rust 1.75+](https://img.shields.io/badge/Rust-Core_Engine-000000?logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![License GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://lx3xun.github.io/nook-clip/">Product Page</a> · <a href="README.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.en.md">English</a>
+</p>
+
+<p align="center">
+  <a href="https://lx3xun.github.io/nook-clip/"><img src="https://img.shields.io/badge/Website-NookClip-1677FF?logo=safari&logoColor=white" alt="Website"></a>&nbsp;<a href="https://www.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-14.0%2B-007AFF?logo=apple&logoColor=white" alt="macOS 14.0+"></a>&nbsp;<a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.10%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.10+"></a>&nbsp;<a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-Core_Engine-000000?logo=rust&logoColor=white" alt="Rust 1.75+"></a>&nbsp;<a href="LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License GPLv3"></a>
+</p>
 
 ## 💡 What Problems Does It Solve?
 
@@ -212,6 +218,6 @@ Issues and Pull Requests are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING
 
 - **Open-Source License**: The source code in this repository is licensed under the [GNU General Public License v3.0 (GPLv3)](LICENSE). Any modified or derivative distributions must also disclose their full source code under GPLv3.
 - **Commercial Distribution & App Store Exclusivity**: The original copyright holder (`lx3xun`) retains the exclusive right to distribute notarized binaries and proprietary commercial editions on the Apple App Store and official commercial channels. No third party may submit this software or its derivatives to the Apple App Store or other commercial app stores without prior written permission.
-- **Trademark & Branding Protection**: Pursuant to Section 7(e) of the GPLv3, the **“Nook”** and **“NookClip”** names, app icons (`AppIcon.icns` / `NookClipIcon.svg`), and associated brand assets are the exclusive property of `lx3xun` and are not granted under this open-source license. Derivative works must remove all Nook / NookClip branding and logos before distribution.
+- **Trademark & Branding Protection**: Pursuant to Section 7(e) of the GPLv3, the **“NookClip”** name, app icons (`AppIcon.icns` / `NookClipIcon.svg`), and associated brand assets are the exclusive property of `lx3xun` and are not granted under this open-source license. Derivative works must remove all NookClip branding and logos before distribution.
 
 [GPLv3](LICENSE) © 2026 lx3xun
