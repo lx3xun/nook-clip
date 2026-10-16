@@ -406,8 +406,8 @@ struct MainView: View {
                                 deleteSingle(id)
                             }
                         },
-                        onTriggerOCR: { id in
-                            await store.performManualOCR(for: id)
+                        onTriggerOCR: { id, onStageChange in
+                            await store.performManualOCRWithProgress(for: id, onStageChange: onStageChange)
                         },
                         highlightKeywords: activeSearchKeywords,
                         entityProvider: { row in

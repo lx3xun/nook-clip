@@ -22,15 +22,21 @@ public final class FileStore: @unchecked Sendable {
     public let directory: URL
     private let thumbnailCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
-        // 解码缩略图位图总内存上限 64MB（T052，FR-026）：此前只设 countLimit 隐含
-        // 上限，缩略图/预览位图无成本约束可无上限驻留（BUG-028 同源取舍）
-        cache.totalCostLimit = 64 * 1024 * 1024
+        // 解码缩略图位图总内存上限 16MB（列表 64px 缩略图约 16KB/张，可缓存上百张及当前预览图）：
+        // 避免高分辨率图片预览在后台驻留过多未压缩位图
+        cache.totalCostLimit = 16 * 1024 * 1024
+        cache.countLimit = 120
         return cache
     }()
-    /// 预览解码上限（像素）：预览窗格 aspectFit 展示量级（宽 ~800pt × 2x Retina
+    /// 预览解码上限（像素）：预览窗格 aspectFit 展示量级（宽 ~500pt × 2x Retina
     /// + 余量）。超过该尺寸的原图按此下采样，避免 5K 截图/单反原片
-    /// 的 ~100MB 未压缩位图驻留（复用 thumbnailCache 的 64MB 总量上限淘汰）
-    static let previewMaxPixelSize: CGFloat = 2048
+    /// 的未压缩位图驻留
+    static let previewMaxPixelSize: CGFloat = 1440
+
+    /// 释放内存中的解码位图缓存（面板收起闲置后调用，不影响磁盘文件）
+    public func clearMemoryCache() {
+        thumbnailCache.removeAllObjects()
+    }
 
     internal init(directory: URL = AppPaths.contentDirectory) {
         self.directory = directory

@@ -55,6 +55,9 @@ struct ImagePreviewCard: View {
                 image = decoded
             }
         }
+        .onDisappear {
+            image = nil
+        }
     }
 
     /// 扫描动画覆盖层：垂直往返激光扫描线 + 科技感微光

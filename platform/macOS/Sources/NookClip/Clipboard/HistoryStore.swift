@@ -349,11 +349,19 @@ final class InMemoryHistoryStore {
     /// 用户手动触发 OCR 识别（前台交互路径）：
     /// 识别成功后回写数据库与内存，并在 completion 回传识别文本（失败回传 nil）
     func performManualOCR(for id: UUID, completion: ((String?) -> Void)? = nil) {
+        performManualOCR(for: id, onStageChange: nil, completion: completion)
+    }
+
+    func performManualOCR(
+        for id: UUID,
+        onStageChange: (@Sendable @MainActor (OCRProgressStage) -> Void)?,
+        completion: ((String?) -> Void)? = nil
+    ) {
         guard let item = items.first(where: { $0.id == id }) else {
             completion?(nil)
             return
         }
-        ocrService.performManualOCR(for: item) { [weak self] text, itemId in
+        ocrService.performManualOCR(for: item, onStageChange: onStageChange) { [weak self] text, itemId in
             if let text {
                 self?.updateOCRText(text, for: itemId)
             }
@@ -366,7 +374,20 @@ final class InMemoryHistoryStore {
     @discardableResult
     func performManualOCR(for id: UUID) async -> String? {
         await withCheckedContinuation { continuation in
-            performManualOCR(for: id) { result in
+            performManualOCR(for: id, onStageChange: nil) { result in
+                continuation.resume(returning: result)
+            }
+        }
+    }
+
+    /// async 版本手动 OCR 识别（带实时阶段回调）
+    @discardableResult
+    func performManualOCRWithProgress(
+        for id: UUID,
+        onStageChange: (@Sendable @MainActor (OCRProgressStage) -> Void)? = nil
+    ) async -> String? {
+        await withCheckedContinuation { continuation in
+            performManualOCR(for: id, onStageChange: onStageChange) { result in
                 continuation.resume(returning: result)
             }
         }

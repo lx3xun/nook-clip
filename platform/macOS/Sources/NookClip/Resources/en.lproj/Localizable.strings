@@ -336,11 +336,15 @@
 "preview.ocr.footer_hint" = "💡 Supports offline Chinese and English text extraction from images";
 "preview.ocr.recognize" = "Recognize Text";
 "preview.ocr.scanning" = "Recognizing…";
+"preview.ocr.stage.loading_engine" = "Loading Apple Vision on-device OCR engine…";
+"preview.ocr.stage.recognizing" = "Running neural text detection & recognition (ZH/EN)…";
+"preview.ocr.stage.formatting" = "Formatting layout & checking sensitive data…";
+"preview.ocr.stage.reclaiming" = "Recognition complete, releasing neural cache & reclaiming memory…";
 "preview.ocr.copied" = "Copied to clipboard";
 "preview.ocr.copy" = "Copy recognized text";
 "settings.ocr.title" = "Offline Text Recognition (OCR)";
 "settings.ocr.engine_title" = "Apple Vision Offline Engine";
-"settings.ocr.engine_desc" = "Uses system neural engine for on-device OCR, never uploading data; supports Chinese & English, pre-warmed in background.";
+"settings.ocr.engine_desc" = "Uses system neural engine for on-demand offline OCR, never uploading data; automatically reclaims model memory after recognition.";
 "preview.color.hint" = "Click a row to copy that format · swatches stay in sync with list items";
 
 /* New UI - Sidebar / Search / Toolbar */

@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "nookclip-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aes-gcm",
  "chrono",
@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "nookclip-ffi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "nookclip-core",
  "parking_lot",

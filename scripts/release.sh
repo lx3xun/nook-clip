@@ -59,10 +59,13 @@ fi
 VER="${POSITIONAL_ARGS[1]}"
 CUSTOM_NOTES="${POSITIONAL_ARGS[2]:-}"
 
-# 优先从 CHANGELOG.md 中自动提取当前版本的更新日志
+# 自动提取或推导更新日志（防呆机制）
 CHANGELOG_FILE="$ROOT/CHANGELOG.md"
 EXTRACTED_NOTES=""
+FROM_UNRELEASED=false
+
 if [[ -f "$CHANGELOG_FILE" ]]; then
+  # 1. 优先提取当前版本 [VER]
   EXTRACTED_NOTES="$(python3 -c '
 import re, sys
 try:
@@ -70,33 +73,68 @@ try:
     content = open(changelog_path, "r", encoding="utf-8").read()
     pattern = rf"##\s*\[{re.escape(ver)}\][^\n]*\n(.*?)(?=\n##\s*\[|\Z)"
     m = re.search(pattern, content, re.DOTALL)
-    if m:
+    if m and m.group(1).strip():
         print(m.group(1).strip())
 except Exception:
     pass
 ' "$CHANGELOG_FILE" "$VER" 2>/dev/null || true)"
+
+  # 2. 如果未找到对应版本，但 [Unreleased] 下有内容，则自动采用 [Unreleased]
+  if [[ -z "$EXTRACTED_NOTES" ]]; then
+    UNRELEASED_NOTES="$(python3 -c '
+import re, sys
+try:
+    changelog_path = sys.argv[1]
+    content = open(changelog_path, "r", encoding="utf-8").read()
+    pattern = r"##\s*\[Unreleased\][^\n]*\n(.*?)(?=\n##\s*\[|\Z)"
+    m = re.search(pattern, content, re.DOTALL)
+    if m and m.group(1).strip():
+        print(m.group(1).strip())
+except Exception:
+    pass
+' "$CHANGELOG_FILE" 2>/dev/null || true)"
+    if [[ -n "$UNRELEASED_NOTES" ]]; then
+      EXTRACTED_NOTES="$UNRELEASED_NOTES"
+      FROM_UNRELEASED=true
+      echo "ℹ️  CHANGELOG.md 中未找到 [$VER]，但检测到 [Unreleased] 内容，已自动采用作为本次发版说明。"
+    fi
+  fi
 fi
 
-GATEKEEPER_TIPS="### 首次打开遇到安全提示说明
+# 3. 严格门禁防呆：既没有参数，也没有 CHANGELOG 内容，直接报错拦截，防止空白发版
+if [[ -z "$CUSTOM_NOTES" && -z "$EXTRACTED_NOTES" ]]; then
+  echo "❌ 发布被拦截：CHANGELOG.md 中未找到 [${VER}] 或 [Unreleased] 的更新说明，且未传入发布说明参数！" >&2
+  echo "   请按以下任一方式提供：" >&2
+  echo "   1. 在 CHANGELOG.md 中添加 ## [${VER}] 或将内容写在 ## [Unreleased] 下" >&2
+  echo "   2. 命令行直接指定说明: scripts/release.sh ${VER} \"本次更新内容说明...\"" >&2
+  exit 1
+fi
+
+GATEKEEPER_TIPS="### 首次打开遇到安全提示说明 / Security Notice for First Launch
 
 由于当前版本尚未接入 Apple 开发者证书公证，首次打开可能提示 **“无法打开，因为无法验证开发者”** 或 **“已被阻止”**：
 
 1. **推荐方法**：在访达（Finder）中找到 **NookClip.app**，**按住 Control 键点按（或右键）** 点击「打开」，并在弹窗中选择「打开」。
 2. **备选方法**：打开 macOS **系统设置 -> 隐私与安全性**，向下滚动找到安全性提示，点击 **「仍要打开」**。
-3. **终端解决（若提示已损坏）**：在终端执行 \`xattr -cr /Applications/NookClip.app\` 即可清除隔离标记正常启动。"
+3. **终端解决（若提示已损坏）**：在终端执行 \`xattr -cr /Applications/NookClip.app\` 即可清除隔离标记正常启动。
+
+---
+
+Because NookClip is currently distributed without an Apple Developer notarization certificate, macOS Gatekeeper may show **\"cannot be opened because the developer cannot be verified\"** or **\"is blocked\"** on first launch:
+
+1. **Recommended**: Locate **NookClip.app** in Finder, **press and hold the Control key while clicking (or right-click)**, select \"Open\", and click \"Open\" in the confirmation dialog.
+2. **Alternative**: Open **System Settings -> Privacy & Security**, scroll down to the Security section, and click **\"Open Anyway\"**.
+3. **Terminal fix (if marked damaged)**: Run \`xattr -cr /Applications/NookClip.app\` in Terminal to clear the quarantine flag.
+"
 
 if [[ -n "$CUSTOM_NOTES" ]]; then
   NOTES="${CUSTOM_NOTES}
 
 ${GATEKEEPER_TIPS}"
-elif [[ -n "$EXTRACTED_NOTES" ]]; then
+else
   NOTES="## NookClip v${VER}
 
 ${EXTRACTED_NOTES}
-
-${GATEKEEPER_TIPS}"
-else
-  NOTES="## NookClip v${VER}
 
 ${GATEKEEPER_TIPS}"
 fi
@@ -197,6 +235,22 @@ with open(path, "w", encoding="utf-8") as f:
 PYEOF
   echo "    已同步更新落地页 $SITE_INDEX 徽标版本号"
 fi
+
+# 如果发版说明直接从 [Unreleased] 提取，自动将 CHANGELOG.md 中的 [Unreleased] 归档为 [VER] - YYYY-MM-DD
+if [[ "$FROM_UNRELEASED" = true ]]; then
+  TODAY="$(date +%Y-%m-%d)"
+  python3 - "$CHANGELOG_FILE" "$VER" "$TODAY" <<'PYEOF'
+import re, sys
+path, ver, today = sys.argv[1:4]
+with open(path, "r", encoding="utf-8") as f:
+    content = f.read()
+replacement = rf"## [Unreleased]\n\n---\n\n## [{ver}] - {today}"
+new_content = re.sub(r'##\s*\[Unreleased\]', replacement, content, count=1)
+with open(path, "w", encoding="utf-8") as f:
+    f.write(new_content)
+PYEOF
+  echo "    已自动将 CHANGELOG.md 中的 [Unreleased] 归档为 [$VER] - $TODAY"
+fi
 # 7. 构建 Universal DMG
 echo "==> 构建 Universal 双架构 DMG 产物..."
 zsh "$ROOT/scripts/build-dmg.sh" --universal
@@ -209,19 +263,25 @@ rm -rf "$STAGING"
 for SRC in github gitee; do
   DIR="$STAGING/$SRC"
   mkdir -p "$DIR"
+  # Sparkle 的 generate_appcast 会扫描目录下所有 dmg，同一个目录不能放重复版本的归档
   cp "$DMG" "$DIR/$DMG_ASSET"
+  # 写入与 dmg 主文件名一致的 Markdown 更新说明文件（去掉 .dmg 后缀，如 NookClip-0.2.0.md）
+  echo "$NOTES" > "$DIR/${DMG_ASSET%.*}.md"
   if [[ "$SRC" == github ]]; then
     PREFIX="https://github.com/$GITHUB_OWNER_REPO/releases/download/$TAG"
   else
     PREFIX="https://gitee.com/$GITEE_OWNER_REPO/releases/download/$TAG"
   fi
   "$SPARKLE_TOOLS/bin/generate_appcast" \
+    --embed-release-notes \
     --ed-key-file "$EDDSA_KEY" \
     --download-url-prefix "$PREFIX/" \
     --link "https://github.com/$GITHUB_OWNER_REPO" \
     -o "$DIR/appcast.xml" \
     "$DIR"
   echo "    $SRC appcast 生成完毕"
+  # 生成完 appcast 后，再复制通用的 NookClip.dmg 供外部直接下载使用
+  cp "$DMG" "$DIR/NookClip.dmg"
 done
 
 # 如果是 Dry-Run 模式，在此正常退出并恢复版本文件
@@ -238,6 +298,7 @@ if [[ "$DRY_RUN" = true ]]; then
   # 恢复被修改的版本号文件，保持工作区干净
   git -C "$ROOT" checkout "$PLIST" "$CARGO_TOML"
   [[ -f "$SITE_INDEX" ]] && git -C "$ROOT" checkout "$SITE_INDEX"
+  [[ "$FROM_UNRELEASED" = true ]] && git -C "$ROOT" checkout "$CHANGELOG_FILE"
   exit 0
 fi
 
@@ -245,6 +306,7 @@ fi
 echo "==> 提交版本与创建 Git Tag: $TAG..."
 git -C "$ROOT" add "$PLIST" "$CARGO_TOML"
 [[ -f "$SITE_INDEX" ]] && git -C "$ROOT" add "$SITE_INDEX"
+[[ "$FROM_UNRELEASED" = true ]] && git -C "$ROOT" add "$CHANGELOG_FILE"
 if ! git -C "$ROOT" diff --cached --quiet; then
   git -C "$ROOT" commit -m "release: $TAG" --quiet
 fi
@@ -304,6 +366,7 @@ else
     -H 'Content-Type: application/json' -d "$GH_RELEASE_JSON" >/dev/null
 fi
 github_upload_asset "$VREL_ID" "$STAGING/github/$DMG_ASSET"
+github_upload_asset "$VREL_ID" "$STAGING/github/NookClip.dmg"
 
 # 固定 appcast release
 git -C "$ROOT" push -f origin "$APPCAST_TAG" 2>/dev/null || true
@@ -363,7 +426,7 @@ OLD_DMG_IDS="$(gitee_api GET "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID?access_
 import json,sys
 r=json.load(sys.stdin)
 for f in r.get("attach_files") or []:
-    if f.get("name") == "'"$DMG_ASSET"'":
+    if f.get("name") in ("'"$DMG_ASSET"'", "NookClip.dmg"):
         print(f.get("id"))
 ' 2>/dev/null || true)"
 for AID in ${(f)OLD_DMG_IDS}; do
@@ -371,6 +434,8 @@ for AID in ${(f)OLD_DMG_IDS}; do
 done
 gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" \
   -F "file=@$STAGING/gitee/$DMG_ASSET" >/dev/null
+gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" \
+  -F "file=@$STAGING/gitee/NookClip.dmg" >/dev/null
 
 git -C "$ROOT" push gitee -f "$APPCAST_TAG" 2>/dev/null || true
 APPCAST_REL_ID="$(gitee_release_id "$APPCAST_TAG")"

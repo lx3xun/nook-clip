@@ -15,7 +15,6 @@ extension MainView {
         .onAppear {
             wireCoordinatorHooks()
             installKeyActions?(panelKeyActions)
-            AppSearchService.shared.warmUp()
             listState.refresh(dataVersion: store.dataVersion)
             keyAnchorFocused = true
             accessibilityTrusted = PasteService.isAccessibilityTrusted

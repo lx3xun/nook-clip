@@ -12,7 +12,7 @@ struct PreviewPane: View {
     var item: ClipboardRowModel?
     var onFavorite: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
-    var onTriggerOCR: ((UUID) async -> String?)? = nil
+    var onTriggerOCR: ((UUID, (@Sendable @MainActor (OCRProgressStage) -> Void)?) async -> String?)? = nil
     /// 搜索命中高亮关键词（nil = 非搜索态，纯文本渲染；仅作用于标题/文本正文/OCR）
     var highlightKeywords: [String]? = nil
     /// 底层实体供给（data-model §4：预览区经 selectedID 取原 ClipboardItem）。
@@ -30,8 +30,9 @@ struct PreviewPane: View {
     @State private var revealFailure: ClipboardItem.RevealFailure?
     /// 链接二维码展示状态（切换选中条目时重置）
     @State private var showQRCode = false
-    /// 图片 OCR 扫描动画状态
+    /// 图片 OCR 扫描动画状态与实时阶段日志
     @State private var isScanningOCR = false
+    @State private var ocrProgressStage: OCRProgressStage? = nil
     @State private var urlCopied = false
     @State private var asyncTotalSize: Int64? = nil
     @State private var asyncHasMissingPath = false
@@ -99,10 +100,12 @@ struct PreviewPane: View {
                     }
                 }
                 isScanningOCR = false
+                ocrProgressStage = nil
             }
             .onChange(of: entity(item)?.ocrText) { _, newOcr in
                 if newOcr != nil {
                     isScanningOCR = false
+                    ocrProgressStage = nil
                 }
             }
         } else {
@@ -249,6 +252,7 @@ struct PreviewPane: View {
                 ocrText: entityItem?.ocrText,
                 highlightKeywords: highlightKeywords,
                 isScanning: isScanningOCR,
+                currentStage: ocrProgressStage,
                 onTriggerOCR: triggerAction
             )
             .padding(.top, 14)
@@ -258,12 +262,16 @@ struct PreviewPane: View {
     private func startScan(for id: UUID) {
         guard !isScanningOCR else { return }
         isScanningOCR = true
+        ocrProgressStage = .loadingEngine
         let trigger = onTriggerOCR
         Task { @MainActor in
             // 识别结束（含识别不到文字的失败）必须复位扫描状态；
             // 成功路径 ocrText 已先行写入，onChange 同样会复位，双保险
-            _ = await trigger?(id)
+            _ = await trigger?(id) { stage in
+                self.ocrProgressStage = stage
+            }
             isScanningOCR = false
+            ocrProgressStage = nil
         }
     }
 

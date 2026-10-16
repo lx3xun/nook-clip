@@ -1193,16 +1193,56 @@ final class NookClipTests: XCTestCase {
         let savedItem = store.item(withID: item.id)
         XCTAssertNil(savedItem?.ocrText, "新保存图片不应自动执行 OCR")
 
-        // 手动触发 OCR 识别
-        let result = await store.performManualOCR(for: item.id)
+        // 手动触发 OCR 识别，并验证按需加载阶段日志回调顺序
+        var observedStages: [OCRProgressStage] = []
+        let result = await store.performManualOCRWithProgress(for: item.id) { stage in
+            if observedStages.last != stage {
+                observedStages.append(stage)
+            }
+        }
         XCTAssertNotNil(result, "手动 OCR 应当识别到文字")
         XCTAssertTrue(result?.contains("NOOK") == true || result?.contains("TEST") == true)
+        XCTAssertTrue(observedStages.contains(.loadingEngine), "应上报加载 Apple Vision 引擎阶段")
+        XCTAssertTrue(observedStages.contains(.recognizingText), "应上报识别文字阶段")
+        XCTAssertTrue(observedStages.contains(.reclaimingMemory), "应上报释放缓存与回收内存阶段")
 
         // 验证内存与数据库已更新
         let afterOCR = store.item(withID: item.id)
         XCTAssertEqual(afterOCR?.ocrText, result)
         let rustItem = store.rustStore.page(limit: 10, offset: 0).first(where: { $0.id == item.id })
         XCTAssertEqual(rustItem?.ocrText, result)
+    }
+
+    @MainActor
+    func testIdleMemoryReclamationClearsPreviewAndHighlightCaches() async {
+        let sampleCode = "func hello() { print(\"world\") }"
+        _ = await CodeHighlightService.outcome(for: sampleCode, forcedLanguage: "swift", dark: false)
+        XCTAssertNotNil(
+            CodeHighlightService.cachedOutcome(for: sampleCode, forcedLanguage: "swift", dark: false),
+            "前置：代码高亮结果已进入缓存"
+        )
+
+        let store = makeIsolatedStore()
+        let controller = QuickPopoverController(
+            historyStore: store,
+            targetApplicationProvider: { nil },
+            clipboardWriter: PasteService.shared
+        )
+        controller.showFromMenuBar()
+        XCTAssertNotNil(controller.panel, "呼出面板后应持有 NSPanel 实例")
+        controller.close(restoreFocus: false)
+        controller.reclaimIdleMemoryNow()
+
+        XCTAssertNil(controller.panel, "闲置回收后应释放隐藏的 NSPanel 与 SwiftUI 宿主视图树")
+        XCTAssertNil(
+            CodeHighlightService.cachedOutcome(for: sampleCode, forcedLanguage: "swift", dark: false),
+            "面板闲置回收后应清空代码高亮富文本与引擎缓存"
+        )
+
+        // 再次呼出面板应能无缝重建
+        controller.showFromMenuBar()
+        XCTAssertEqual(controller.panel?.isVisible, true, "闲置回收后再次呼出应能正常重建并显示面板")
+        controller.close(restoreFocus: false)
     }
 
     @MainActor

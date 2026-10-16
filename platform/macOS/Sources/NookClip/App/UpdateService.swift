@@ -90,10 +90,13 @@ final class UpdateService: NSObject, ObservableObject {
     /// 后台探测 GitHub feed 可达性，不可达则本会话回落 Gitee
     private func probeAndUpdateResolvedSource() {
         Task {
+            let session = URLSession(configuration: .ephemeral)
+            defer { session.finishTasksAndInvalidate() }
             var request = URLRequest(url: UpdateSource.githubFeedURL)
             request.httpMethod = "HEAD"
             request.timeoutInterval = Self.probeTimeout
-            let response = (try? await URLSession.shared.data(for: request))?.1 as? HTTPURLResponse
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            let response = (try? await session.data(for: request))?.1 as? HTTPURLResponse
             let reachable = response?.statusCode != nil
             self.resolvedAutoSource = reachable ? .github : .gitee
         }
