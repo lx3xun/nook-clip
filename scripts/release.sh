@@ -218,6 +218,10 @@ with open(path, "w", encoding="utf-8") as f:
     f.write(new_content)
 PYEOF
 
+# 立即通过 cargo 校验触发 Cargo.lock 中 workspace package 版本号同步更新
+cargo check --quiet --workspace || true
+echo "    已同步更新 Cargo.toml 与 Cargo.lock 版本号"
+
 if [[ -f "$SITE_INDEX" ]]; then
   python3 - "$SITE_INDEX" "$VER" <<'PYEOF'
 import re, sys
@@ -296,7 +300,7 @@ if [[ "$DRY_RUN" = true ]]; then
   echo "注意: 未执行 Git 提交、未打 Tag、未上传远程资产。"
   echo "=========================================="
   # 恢复被修改的版本号文件，保持工作区干净
-  git -C "$ROOT" checkout "$PLIST" "$CARGO_TOML"
+  git -C "$ROOT" checkout "$PLIST" "$CARGO_TOML" "$ROOT/Cargo.lock"
   [[ -f "$SITE_INDEX" ]] && git -C "$ROOT" checkout "$SITE_INDEX"
   [[ "$FROM_UNRELEASED" = true ]] && git -C "$ROOT" checkout "$CHANGELOG_FILE"
   exit 0
@@ -304,7 +308,7 @@ fi
 
 # 9. Git 提交与打 Tag
 echo "==> 提交版本与创建 Git Tag: $TAG..."
-git -C "$ROOT" add "$PLIST" "$CARGO_TOML"
+git -C "$ROOT" add "$PLIST" "$CARGO_TOML" "$ROOT/Cargo.lock"
 [[ -f "$SITE_INDEX" ]] && git -C "$ROOT" add "$SITE_INDEX"
 [[ "$FROM_UNRELEASED" = true ]] && git -C "$ROOT" add "$CHANGELOG_FILE"
 if ! git -C "$ROOT" diff --cached --quiet; then
