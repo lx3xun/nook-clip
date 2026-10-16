@@ -254,8 +254,8 @@ git -C "$ROOT" push origin main
 git -C "$ROOT" push -f origin "$TAG"
 
 github_api() {
-  local method="$1" path="$2"; shift 2
-  curl -fsSL -X "$method" "https://api.github.com$path" \
+  local method="$1" endpoint="$2"; shift 2
+  curl -fsSL -X "$method" "https://api.github.com$endpoint" \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github+json" "$@"
 }
@@ -326,8 +326,8 @@ git -C "$ROOT" push gitee main
 git -C "$ROOT" push gitee -f "$TAG"
 
 gitee_api() {
-  local method="$1" path="$2"; shift 2
-  curl -fsSL -X "$method" "https://gitee.com/api/v5$path" "$@"
+  local method="$1" endpoint="$2"; shift 2
+  curl -fsSL -X "$method" "https://gitee.com/api/v5$endpoint" "$@"
 }
 
 gitee_release_id() {
