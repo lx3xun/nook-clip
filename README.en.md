@@ -1,4 +1,4 @@
-# NookClip
+# <img src="assets/logo-kit/exports/nookclip-appicon-128.png" width="36" height="36" alt="NookClip App Icon" style="vertical-align: middle; margin-right: 8px;"> NookClip
 
 **A lightweight, fast, and privacy-first clipboard manager.**
 
