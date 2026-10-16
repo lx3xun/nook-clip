@@ -15,6 +15,9 @@ window.I18N_DATA = {
     nav_download: '下载安装',
     nav_btn_dl: '下载 DMG',
     lang_short: '简',
+    mobile_theme_label: '外观 / Theme:',
+    theme_light: '浅色',
+    theme_dark: '深色',
 
     hero_badge: '原生架构 · Rust 存储内核 · 常驻仅约 20MB · 开源免费',
     hero_title: '轻量、极速、守住隐私的<br><span class="text-gradient">macOS 剪贴板工作台</span>',
@@ -161,6 +164,11 @@ window.I18N_DATA = {
     copy_cmd: '复制',
     copied_cmd: '已复制！',
 
+    modal_dl_title: '🎉 下载已开始！',
+    modal_dl_desc: 'NookClip 是 100% 本地运行且完全开源的剪贴板工具。<br>如果它能为你提升效率，欢迎前往 GitHub 点亮一颗 ⭐️ 支持我们！',
+    modal_dl_star_btn: '⭐️ 前往 GitHub 点亮 Star',
+    modal_dl_close_btn: '稍后再说',
+
     faq_headline: '首次打开与权限说明（开源 Ad-hoc 签名版本）',
     faq_intro: '本开源版本采用本地签名，未接入苹果每年付费的公证体系。首次启动若遇到 macOS Gatekeeper 拦截，请按以下方式快速通行：',
     faq_step1: '<strong>1. 提示「无法打开，因为无法验证开发者」</strong>：在访达（Finder）中找到 <code>/Applications/NookClip.app</code>，<strong>按住 Control 键点按（或右键）选择「打开」</strong>，并在弹出确认窗中点击「打开」即可。',
@@ -188,6 +196,9 @@ window.I18N_DATA = {
     nav_download: '下載安裝',
     nav_btn_dl: '下載 DMG',
     lang_short: '繁',
+    mobile_theme_label: '外觀 / Theme:',
+    theme_light: '淺色',
+    theme_dark: '深色',
 
     hero_badge: '原生架構 · Rust 儲存核心 · 常駐僅約 20MB · 開源免費',
     hero_title: '輕量、極速、守護隱私的<br><span class="text-gradient">macOS 剪貼簿工作台</span>',
@@ -334,6 +345,11 @@ window.I18N_DATA = {
     copy_cmd: '複製',
     copied_cmd: '已複製！',
 
+    modal_dl_title: '🎉 下載已開始！',
+    modal_dl_desc: 'NookClip 是一款完全開源、資料 100% 留在本機的剪貼簿工具。<br>如果它對你的工作流程有所幫助，歡迎前往 GitHub 點亮一顆 ⭐️ 給予支持！',
+    modal_dl_star_btn: '⭐️ 前往 GitHub 點亮 Star',
+    modal_dl_close_btn: '稍後再說',
+
     faq_headline: '首次開啟與權限說明（開源 Ad-hoc 簽名版本）',
     faq_intro: '本開源版本採本機簽名，未接入蘋果每年收費的公證體系。首次啟動若遇 macOS Gatekeeper 安全防護攔截，請按以下方式快速通過：',
     faq_step1: '<strong>1. 提示「無法打開，因為無法驗證開發者」</strong>：在訪達（Finder）中找到 <code>/Applications/NookClip.app</code>，<strong>按住 Control 鍵點按（或右鍵）選擇「開啟」</strong>，並在彈出確認對話方塊中點選「開啟」即可。',
@@ -361,6 +377,9 @@ window.I18N_DATA = {
     nav_download: 'Download',
     nav_btn_dl: 'Download DMG',
     lang_short: 'EN',
+    mobile_theme_label: 'Theme:',
+    theme_light: 'Light',
+    theme_dark: 'Dark',
 
     hero_badge: 'Native Architecture · Rust Engine · ~20MB RAM · Open Source & Free',
     hero_title: 'Lightweight, Instant & Private<br><span class="text-gradient">macOS Clipboard Workspace</span>',
@@ -506,6 +525,11 @@ window.I18N_DATA = {
     dl_build_title: 'Developers can also build from source with one command:',
     copy_cmd: 'Copy',
     copied_cmd: 'Copied!',
+
+    modal_dl_title: '🎉 Download Started!',
+    modal_dl_desc: 'NookClip is 100% open-source and privacy-first with zero telemetry.<br>If it speeds up your workflow, please consider starring our GitHub repository — it means the world to us!',
+    modal_dl_star_btn: '⭐️ Star on GitHub',
+    modal_dl_close_btn: 'Maybe Later',
 
     faq_headline: 'First-time Launch & Gatekeeper Tips (Ad-hoc Signature)',
     faq_intro: 'This open-source release uses local ad-hoc code signing without Apple paid notarization. If Gatekeeper flags it on first launch, bypass easily:',

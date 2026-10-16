@@ -59,17 +59,33 @@ document.addEventListener('DOMContentLoaded', () => {
       (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
     updateMockupPreview(effectiveIsDark ? 'dark' : 'light');
+
+    // 同步移动端抽屉导航中的主题按钮激活态
+    document.querySelectorAll('.mobile-theme-option').forEach((btn) => {
+      const val = btn.getAttribute('data-theme-val');
+      const isActive = val === (effectiveIsDark ? 'dark' : 'light');
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-checked', String(isActive));
+    });
   }
 
   function syncPreviewWithSystem(isDark) {
     updateMockupPreview(isDark ? 'dark' : 'light');
   }
 
-  // 3. 产品交互展示窗模式切换 (Mockup Mode Switcher)
+  // 移动端抽屉菜单内主题切换点击
+  document.querySelectorAll('.mobile-theme-option').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-theme-val');
+      setTheme(val, true);
+    });
+  });
+
+  // 3. 产品交互展示窗模式切换 (Mockup Mode Switcher - 与全局主题深度联动)
   previewBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.getAttribute('data-preview-mode');
-      updateMockupPreview(mode);
+      setTheme(mode, true);
     });
   });
 
@@ -330,5 +346,60 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {
       // 遭遇网络阻隔或 API 速率限制时静默降级，不影响基础交互与静态链接直链下载
     }
+  }
+
+  // 8. 下载引导加星弹窗逻辑 (Download & Star Modal Flow)
+  initStarModal();
+
+  function initStarModal() {
+    const modal = document.getElementById('starModal');
+    if (!modal) return;
+
+    const closeBtn = document.getElementById('starModalCloseBtn');
+    const dismissBtn = document.getElementById('starModalDismissBtn');
+    const githubBtn = document.getElementById('starModalGithubBtn');
+    const card = modal.querySelector('.star-modal-card');
+
+    function openModal() {
+      modal.hidden = false;
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    // 点击各处下载入口时触发弹窗（稍作延迟确保浏览器正常唤起下载管道）
+    const downloadLinks = document.querySelectorAll('a[data-role="download-dmg"], a[href*="releases"]');
+    downloadLinks.forEach((link) => {
+      link.addEventListener('click', () => {
+        setTimeout(() => {
+          openModal();
+        }, 300);
+      });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (dismissBtn) dismissBtn.addEventListener('click', closeModal);
+    if (githubBtn) {
+      githubBtn.addEventListener('click', () => {
+        setTimeout(closeModal, 400);
+      });
+    }
+
+    // 点击卡片外层遮罩关闭
+    modal.addEventListener('click', (e) => {
+      if (card && !card.contains(e.target)) {
+        closeModal();
+      }
+    });
+
+    // 按下 ESC 键关闭
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.hidden) {
+        closeModal();
+      }
+    });
   }
 });
