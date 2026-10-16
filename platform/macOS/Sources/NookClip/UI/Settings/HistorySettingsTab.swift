@@ -239,10 +239,16 @@ struct HistorySettingsTab: View {
                     }
                     .disabled((historyStore?.totalCount ?? 0) == 0)
                 }
-                SettingsRowView(title: L10n.tr("settings.general.import_backup"), showDivider: backupStatusMessage != nil) {
-
+                SettingsRowView(title: L10n.tr("settings.general.import_backup"), showDivider: true) {
                     Button(L10n.tr("settings.general.import_backup")) {
                         importBackup()
+                    }
+                }
+                SettingsRowView(title: L10n.tr("settings.general.restore_demo"), showDivider: backupStatusMessage != nil) {
+                    Button(L10n.tr("settings.general.restore_demo_button")) {
+                        historyStore?.seedDemoItemsIfNeeded(force: true)
+                        backupStatusMessage = L10n.tr("settings.general.restore_demo_success")
+                        backupStatusIsError = false
                     }
                 }
                 if let status = backupStatusMessage {

@@ -101,6 +101,9 @@
 "settings.general.clear_confirm_desc" = "This action will permanently delete all unfavorited clipboard records and cannot be undone.";
 "settings.general.clear_button" = "Clear All";
 "settings.general.cancel_button" = "Cancel";
+"settings.general.restore_demo" = "Sample Demo Data";
+"settings.general.restore_demo_button" = "Import Demo Data";
+"settings.general.restore_demo_success" = "Successfully imported 7 core demo records";
 
 /* Settings - Hotkeys */
 "settings.hotkey.global_title" = "Global Shortcut";
@@ -283,6 +286,7 @@
 "delete.toast.undo" = "Undo";
 "launch.welcome_banner" = "Running in the menu bar. Press %@ anytime to show.";
 "launch.permission_tip" = "Enable Accessibility permission for automatic ⏎ paste";
+"launch.permission_action" = "Settings";
 "empty.welcome_title" = "Clipboard History is Empty";
 "empty.welcome_subtitle" = "Copy any text, image, or file to start recording";
 "common.confirm" = "Confirm";

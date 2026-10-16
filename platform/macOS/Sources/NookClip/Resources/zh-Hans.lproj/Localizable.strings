@@ -101,6 +101,9 @@
 "settings.general.clear_confirm_desc" = "此操作将永久删除所有未收藏的剪贴板历史，无法撤销。";
 "settings.general.clear_button" = "确认清空";
 "settings.general.cancel_button" = "取消";
+"settings.general.restore_demo" = "演示示例数据";
+"settings.general.restore_demo_button" = "导入示例数据";
+"settings.general.restore_demo_success" = "已成功导入 7 条核心功能演示数据";
 
 /* Settings - Hotkeys */
 "settings.hotkey.global_title" = "全局唤起快捷键";
@@ -283,6 +286,7 @@
 "delete.toast.undo" = "撤销";
 "launch.welcome_banner" = "已常驻顶部菜单栏，随时按 %@ 唤出";
 "launch.permission_tip" = "开启辅助功能权限可支持 ⏎ 自动粘贴";
+"launch.permission_action" = "去设置";
 "empty.welcome_title" = "剪贴板历史为空";
 "empty.welcome_subtitle" = "复制任意文本、图片或文件，即可开始记录";
 "common.confirm" = "确定";

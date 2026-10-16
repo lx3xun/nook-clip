@@ -161,8 +161,8 @@ extension MainView {
                 groupID: currentGroup.id,
                 title: currentGroup.title,
                 count: railCount,
-                allGroups: timelineRailItems,
-                onSelectGroup: { scrollToGroup($0) }
+                allGroups: timelineJumpMode == .groupHeaderMenu ? timelineRailItems : nil,
+                onSelectGroup: timelineJumpMode == .groupHeaderMenu ? { scrollToGroup($0) } : nil
             )
         }
     }

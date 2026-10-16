@@ -101,6 +101,9 @@
 "settings.general.clear_confirm_desc" = "此操作將永久刪除所有未收藏的剪貼簿記錄，無法復原。";
 "settings.general.clear_button" = "確認清除";
 "settings.general.cancel_button" = "取消";
+"settings.general.restore_demo" = "演示範例資料";
+"settings.general.restore_demo_button" = "匯入範例資料";
+"settings.general.restore_demo_success" = "已成功匯入 7 條核心功能演示資料";
 
 /* Settings - Hotkeys */
 "settings.hotkey.global_title" = "全域呼叫快速鍵";
@@ -283,6 +286,7 @@
 "delete.toast.undo" = "復原";
 "launch.welcome_banner" = "已常駐頂部選單列，隨時按 %@ 喚出";
 "launch.permission_tip" = "開啟輔助使用權限可支援 ⏎ 自動貼上";
+"launch.permission_action" = "去設定";
 "empty.welcome_title" = "剪貼簿歷史為空";
 "empty.welcome_subtitle" = "複製任意文字、圖片或檔案，即可開始記錄";
 "common.confirm" = "確定";

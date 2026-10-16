@@ -351,4 +351,25 @@ final class RustHistoryStoreCutoverTests: XCTestCase {
         let imagePath = try XCTUnwrap(imageRow.payloadPath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: imagePath))
     }
+
+    @MainActor
+    func testSeedDemoItemsWithForceTrueSeedsEvenWhenDemoSeededKeyIsTrue() throws {
+        let tempDB = NSTemporaryDirectory() + "nook_force_seed_\(UUID().uuidString).sqlite"
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: tempDB) }
+
+        let rustStore = try RustHistoryStore(path: tempDB, encryptionKey: Data(repeating: 0x42, count: 32))
+        let defaults = makeIsolatedDefaults()
+        defaults.set(true, forKey: InMemoryHistoryStore.demoSeededKey)
+
+        let store = InMemoryHistoryStore(
+            rustStore: rustStore,
+            syncEngine: makeDisabledSyncEngine(),
+            defaults: defaults
+        )
+        XCTAssertEqual(store.items.count, 0, "设置 demoSeededKey 时初始不播种")
+
+        // 强制重新播种
+        store.seedDemoItemsIfNeeded(force: true)
+        XCTAssertEqual(store.items.count, 7, "force = true 时即使 demoSeededKey 为 true 也能重新导入演示数据")
+    }
 }

@@ -372,6 +372,53 @@ final class RustHistoryStoreTests: XCTestCase {
         XCTAssertEqual(reopened.getDetail(id: sensitiveItem.id)?.rawText, secret)
     }
 
+    @MainActor
+    func testOpenProductionResetsOnboardingFlagsWhenDatabaseFileIsNewlyCreated() throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fresh_\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+
+        let keyDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("keychain_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: keyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: keyDir) }
+        let keychain = KeychainCryptoService(
+            keyFileURL: keyDir.appendingPathComponent("master.key"),
+            keychainService: "test.nook.\(UUID().uuidString)"
+        )
+        let suiteName = "test.nook.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // 模拟用户之前开发/旧版本遗留的已播种与已启动标记
+        defaults.set(true, forKey: InMemoryHistoryStore.demoSeededKey)
+        defaults.set(true, forKey: UserDefaultsKey.hasLaunchedBefore.rawValue)
+
+        // 首次打开全新不存在的库文件
+        let store = RustHistoryStore.openProduction(
+            databaseURL: dbURL,
+            keychain: keychain,
+            defaults: defaults
+        )
+        XCTAssertNotNil(store)
+        XCTAssertFalse(defaults.bool(forKey: InMemoryHistoryStore.demoSeededKey), "全新库创建时应清除 demoSeededKey 标记以允许播种示例数据")
+        XCTAssertFalse(defaults.bool(forKey: UserDefaultsKey.hasLaunchedBefore.rawValue), "全新库创建时应清除 hasLaunchedBefore 标记以允许触发首启引导")
+
+        // 再次设置标记模拟已完成首启和播种
+        defaults.set(true, forKey: InMemoryHistoryStore.demoSeededKey)
+        defaults.set(true, forKey: UserDefaultsKey.hasLaunchedBefore.rawValue)
+
+        // 二次打开已有库文件：标记不应被清除
+        let reopened = RustHistoryStore.openProduction(
+            databaseURL: dbURL,
+            keychain: keychain,
+            defaults: defaults
+        )
+        XCTAssertNotNil(reopened)
+        XCTAssertTrue(defaults.bool(forKey: InMemoryHistoryStore.demoSeededKey), "已有库文件再次打开不应清除 demoSeededKey")
+        XCTAssertTrue(defaults.bool(forKey: UserDefaultsKey.hasLaunchedBefore.rawValue), "已有库文件再次打开不应清除 hasLaunchedBefore")
+    }
+
     func testCategorySearchSingleImageFileMatchesImageCategoryAndNotFileCategory() {
         let imageFile = ClipboardItem(
             id: UUID(),
