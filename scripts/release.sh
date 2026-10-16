@@ -210,6 +210,7 @@ for SRC in github gitee; do
   DIR="$STAGING/$SRC"
   mkdir -p "$DIR"
   cp "$DMG" "$DIR/$DMG_ASSET"
+  cp "$DMG" "$DIR/NookClip.dmg"
   if [[ "$SRC" == github ]]; then
     PREFIX="https://github.com/$GITHUB_OWNER_REPO/releases/download/$TAG"
   else
@@ -304,6 +305,7 @@ else
     -H 'Content-Type: application/json' -d "$GH_RELEASE_JSON" >/dev/null
 fi
 github_upload_asset "$VREL_ID" "$STAGING/github/$DMG_ASSET"
+github_upload_asset "$VREL_ID" "$STAGING/github/NookClip.dmg"
 
 # 固定 appcast release
 git -C "$ROOT" push -f origin "$APPCAST_TAG" 2>/dev/null || true
@@ -363,7 +365,7 @@ OLD_DMG_IDS="$(gitee_api GET "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID?access_
 import json,sys
 r=json.load(sys.stdin)
 for f in r.get("attach_files") or []:
-    if f.get("name") == "'"$DMG_ASSET"'":
+    if f.get("name") in ("'"$DMG_ASSET"'", "NookClip.dmg"):
         print(f.get("id"))
 ' 2>/dev/null || true)"
 for AID in ${(f)OLD_DMG_IDS}; do
@@ -371,6 +373,8 @@ for AID in ${(f)OLD_DMG_IDS}; do
 done
 gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" \
   -F "file=@$STAGING/gitee/$DMG_ASSET" >/dev/null
+gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" \
+  -F "file=@$STAGING/gitee/NookClip.dmg" >/dev/null
 
 git -C "$ROOT" push gitee -f "$APPCAST_TAG" 2>/dev/null || true
 APPCAST_REL_ID="$(gitee_release_id "$APPCAST_TAG")"

@@ -21,14 +21,21 @@ final class HistoryOCRService {
     /// 无论识别成功与否，completion 必定回调一次——
     /// 识别到文字回传文本；图片不可读或识别不到文字（纯色图等）回传 nil。
     /// 调用方依赖此回调复位 UI 扫描状态，不得静默丢弃。
-    func performManualOCR(for item: ClipboardItem, completion: @escaping @MainActor (_ text: String?, _ id: UUID) -> Void) {
+    func performManualOCR(
+        for item: ClipboardItem,
+        onStageChange: (@Sendable @MainActor (OCRProgressStage) -> Void)? = nil,
+        completion: @escaping @MainActor (_ text: String?, _ id: UUID) -> Void
+    ) {
         guard item.type == .image, let path = item.payloadPath else {
             completion(nil, item.id)
             return
         }
         let itemId = item.id
         Task.detached(priority: .userInitiated) {
-            let recognized = await self.ocrEngine.recognizeText(from: path)
+            let recognized = await self.ocrEngine.recognizeText(
+                from: path,
+                onStageChange: onStageChange
+            )
             await MainActor.run {
                 completion(recognized, itemId)
             }

@@ -62,6 +62,9 @@ private actor HLJSEngine {
         return nil
     }
 
+    static func clearCachedScript() {
+        cachedScript = nil
+    }
     func highlight(_ text: String, languageAlias: String?) -> RawResult? {
         guard let hljs = loadHLJS() else { return nil }
         if let alias = languageAlias {
@@ -128,8 +131,19 @@ enum CodeHighlightService {
             try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
             engine = nil
+            HLJSEngine.clearCachedScript()
             idleReleaseTask = nil
         }
+    }
+
+    /// 面板收起闲置后立即释放 JSContext 引擎、highlight.min.js 源码缓存与富文本高亮缓存
+    static func purgeIdleMemory() {
+        idleReleaseTask?.cancel()
+        idleReleaseTask = nil
+        engine = nil
+        HLJSEngine.clearCachedScript()
+        cache.removeAll()
+        order.removeAll()
     }
 
     // MARK: - 语言别名映射与展示名规范化
@@ -239,7 +253,7 @@ enum CodeHighlightService {
     }
     private static var cache: [CacheKey: Outcome] = [:]
     private static var order: [CacheKey] = []
-    private static let cacheLimit = 128
+    private static let cacheLimit = 32
 
     private static func makeCacheKey(text: String, forcedLanguage: String?, dark: Bool) -> CacheKey {
         let norm = forcedLanguage

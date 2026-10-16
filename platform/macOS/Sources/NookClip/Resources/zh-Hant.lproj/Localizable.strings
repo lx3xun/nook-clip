@@ -336,11 +336,15 @@
 "preview.ocr.footer_hint" = "💡 支援圖片中的中文/英文離線擷取";
 "preview.ocr.recognize" = "辨識文字";
 "preview.ocr.scanning" = "正在辨識…";
+"preview.ocr.stage.loading_engine" = "正在按需載入 Apple Vision 離線 OCR 引擎…";
+"preview.ocr.stage.recognizing" = "正在執行中英文神經網路文字偵測與辨識…";
+"preview.ocr.stage.formatting" = "正在重排文字座標並執行敏感資訊校驗…";
+"preview.ocr.stage.reclaiming" = "辨識完成，正在釋放神經網路快取並回收記憶體…";
 "preview.ocr.copied" = "已複製到剪貼簿";
 "preview.ocr.copy" = "一鍵複製辨識文字";
 "settings.ocr.title" = "離線文字辨識 (OCR)";
 "settings.ocr.engine_title" = "Apple Vision 離線引擎";
-"settings.ocr.engine_desc" = "採用系統原生神經網路模型離線辨識圖片文字，資料不出裝置；支援中英文，已自動背景靜默預熱。";
+"settings.ocr.engine_desc" = "採用系統原生神經網路模型按需離線辨識圖片文字，資料不出裝置；辨識完成後自動釋放模型記憶體，零常駐開銷。";
 "preview.color.hint" = "點擊行可複製對應格式 · 行內色點與列表條目即時同步";
 
 /* New UI - Sidebar / Search / Toolbar */

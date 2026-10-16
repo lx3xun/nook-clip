@@ -104,9 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Sparkle 自动更新：先探测更新源再启动（延迟检查周期默认 24h）
         UpdateService.shared.start()
 
-        // 预热应用列表缓存，避免用户首次在搜索框输入时阻塞
-        AppSearchService.shared.warmUp()
-
+        // 应用搜索列表采用按需构建（用户在搜索框输入字符时才扫描并建立拼音索引，面板闲置后释放）
         // 调试/冒烟入口：带 `--show-panel` 启动时直接呼出面板
         // （自动化测试无法触发 Carbon 全局热键）
         if ProcessInfo.processInfo.arguments.contains("--show-panel") {
@@ -121,13 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || ProcessInfo.processInfo.arguments.contains("--show-panel")
         performFirstLaunchOnboardingIfNeeded(isTesting: isTesting, hasCliOverride: hasCliOverride)
 
-
-        // 延迟后台静默预热 Vision OCR 模型，避免用户首次在图片预览区点击识别时因加载模型等待 10-20 秒
-        if !isTesting {
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3.0) {
-                OCREngine.shared.prewarm()
-            }
-        }
+        // Vision OCR 采用按需子进程执行并在识别完成后自动退出回收 ~35MB 神经网络权重，
+        // 启动阶段不再全局预热驻留。
         // 调试/冒烟入口：带 `--show-settings` 启动时直接打开设置窗口
         if ProcessInfo.processInfo.arguments.contains("--show-settings") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -185,18 +178,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-private final class SettingsWindowController: NSWindowController {
+private final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let historyStore: InMemoryHistoryStore
+    private var lastSelectedTab: SettingsTab = .general
 
     init(historyStore: InMemoryHistoryStore) {
         self.historyStore = historyStore
-        let hostingController = NSHostingController(rootView: SettingsView(historyStore: historyStore).nookClipLocalized())
-        let window = NSWindow(contentViewController: hostingController)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 580, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
         window.title = L10n.tr("settings.window_title")
-        window.styleMask = [.titled, .closable, .miniaturizable]
         window.setContentSize(NSSize(width: 580, height: 520))
         window.isReleasedWhenClosed = false
         super.init(window: window)
+        window.delegate = self
 
         NotificationCenter.default.addObserver(
             self,
@@ -204,6 +202,10 @@ private final class SettingsWindowController: NSWindowController {
             name: .languageDidChange,
             object: nil
         )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     @objc private func languageDidChange() {
@@ -215,10 +217,19 @@ private final class SettingsWindowController: NSWindowController {
         nil
     }
 
+    func windowWillClose(_ notification: Notification) {
+        // 关闭设置窗口时释放整棵 SettingsView SwiftUI 宿主视图树与排除应用图标缓存，回收 ~15-25MB 内存
+        window?.contentViewController = nil
+        OCREngine.reclaimProcessMemory()
+    }
+
     func show(tab: SettingsTab? = nil) {
         if let tab {
+            lastSelectedTab = tab
+        }
+        if tab != nil || window?.contentViewController == nil {
             window?.contentViewController = NSHostingController(
-                rootView: SettingsView(historyStore: historyStore, initialTab: tab).nookClipLocalized()
+                rootView: SettingsView(historyStore: historyStore, initialTab: lastSelectedTab).nookClipLocalized()
             )
             window?.setContentSize(NSSize(width: 580, height: 520))
         }

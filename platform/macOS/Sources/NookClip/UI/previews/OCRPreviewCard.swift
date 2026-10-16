@@ -8,6 +8,7 @@ struct OCRPreviewCard: View {
     let ocrText: String?
     var highlightKeywords: [String]? = nil
     var isScanning: Bool = false
+    var currentStage: OCRProgressStage? = nil
     var onTriggerOCR: (() -> Void)? = nil
 
     /// 预览数据出口（文本复制）
@@ -23,7 +24,6 @@ struct OCRPreviewCard: View {
         }
         return false
     }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // 顶部标题栏 + 规则展开/折叠按钮 + 离线标识
@@ -132,12 +132,8 @@ struct OCRPreviewCard: View {
                 .textSelection(.enabled)
                 .foregroundStyle(NookClip.codeText)
         } else if isScanning {
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text(L10n.tr("preview.ocr.scanning"))
-                    .foregroundStyle(NookClip.textSecondary)
-            }
-            .padding(.vertical, 4)
+            OCRProgressLogView(activeStage: currentStage ?? .loadingEngine)
+                .padding(.vertical, 4)
         } else if hasAttemptedScan {
             // 识别完成但无文字反馈
             VStack(alignment: .leading, spacing: 8) {
@@ -232,6 +228,53 @@ struct OCRPreviewCard: View {
         Text(L10n.tr("preview.ocr.footer_hint"))
             .font(.nookClip(10))
             .foregroundStyle(NookClip.textTertiary)
+    }
+}
+
+// MARK: - 按需 OCR 识别与内存回收实时步骤日志视图
+
+struct OCRProgressLogView: View {
+    let activeStage: OCRProgressStage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(OCRProgressStage.allCases, id: \.rawValue) { stage in
+                if stage <= activeStage {
+                    logRow(for: stage, isCurrent: stage == activeStage)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                .fill(NookClip.bgCode)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                .strokeBorder(NookClip.borderHairline, lineWidth: 0.5)
+        }
+        .animation(.easeOut(duration: 0.16), value: activeStage)
+    }
+
+    private func logRow(for stage: OCRProgressStage, isCurrent: Bool) -> some View {
+        HStack(spacing: 7) {
+            if isCurrent {
+                ProgressView()
+                    .controlSize(.mini)
+                    .frame(width: 12, height: 12)
+            } else {
+                Image(systemName: NookClipIcon.Status.success)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(NookClip.colorSuccess)
+                    .frame(width: 12, height: 12)
+            }
+            Text(stage.localizedTitle)
+                .font(.nookClipMono(11))
+                .foregroundStyle(isCurrent ? NookClip.textPrimary : NookClip.textSecondary)
+                .lineLimit(1)
+        }
     }
 }
 
