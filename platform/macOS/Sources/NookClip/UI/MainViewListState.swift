@@ -172,7 +172,7 @@ final class MainViewListState {
     var hasSearchText: Bool { !searchText.isEmpty }
     var activeSearchKeywords: [String]? {
         guard hasSearchText else { return nil }
-        let keywords = SearchQueryParser.parse(searchText).keywords.filter { !$0.isEmpty }
+        let keywords = tokenizeSearchKeywords(query: searchText).filter { !$0.isEmpty }
         return keywords.isEmpty ? nil : keywords
     }
     private let store: InMemoryHistoryStore

@@ -283,12 +283,12 @@ final class AuditFixRegressionTests: XCTestCase {
     // MARK: - 词汇原样保留为关键词
 
     func testLangPrefixParsedAsNormalKeywords() {
-        XCTAssertEqual(SearchQueryParser.parse("hello lang:").keywords, ["hello", "lang:"])
-        XCTAssertEqual(SearchQueryParser.parse("lang:swift").keywords, ["lang:swift"])
+        XCTAssertEqual(tokenizeSearchKeywords(query: "hello lang:"), ["hello", "lang:"])
+        XCTAssertEqual(tokenizeSearchKeywords(query: "lang:swift"), ["lang:swift"])
     }
 
     func testRelativeDaysParsedAsNormalKeywords() {
-        XCTAssertEqual(SearchQueryParser.parse("7天内").keywords, ["7天内"])
+        XCTAssertEqual(tokenizeSearchKeywords(query: "7天内"), ["7天内"])
     }
 
     // MARK: - BUG-010 重叠正则不破坏掩码文本

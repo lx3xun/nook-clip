@@ -176,6 +176,46 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
         }
         conn.execute_batch("PRAGMA user_version = 4;")?;
     }
+    if version < 5 {
+        conn.execute_batch(
+            r#"
+            DELETE FROM clip_fts;
+            INSERT INTO clip_fts (rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id)
+            SELECT ci.rowid, ci.title,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE ci.summary END,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+                   ci.id
+            FROM clip_items ci
+            LEFT JOIN clip_payloads cp ON ci.id = cp.id;
+            PRAGMA user_version = 5;
+            "#,
+        )?;
+    }
 
     Ok(())
+}
+pub fn database_has_encrypted_payloads(db_path: &str) -> bool {
+    if !std::path::Path::new(db_path).exists() {
+        return false;
+    }
+    let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    match rusqlite::Connection::open_with_flags(db_path, flags) {
+        Ok(conn) => match &conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM clip_payloads WHERE encrypted_content IS NOT NULL LIMIT 1)",
+            [],
+            |row| row.get::<_, bool>(0),
+        ) {
+            Ok(has_encrypted) => *has_encrypted,
+            Err(rusqlite::Error::SqliteFailure(_, Some(msg)))
+                if msg.contains("no such table") =>
+            {
+                false
+            }
+            // 数据库存在但遇到 SQLITE_BUSY / I/O 异常时保守视为可能含有密文，防止误生成新密钥
+            Err(_) => true,
+        },
+        Err(_) => true,
+    }
 }

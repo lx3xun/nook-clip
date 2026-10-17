@@ -27,10 +27,22 @@ final class ClipboardMonitorCapturePipelineTests: XCTestCase {
             super.init(unsafeFromRawPointer: base.uniffiClonePointer())
         }
 
-        override func analyzeContent(text: String) -> DetectionResult {
+        override func ingestClipboardSnapshot(
+            snapshot: RawClipboardSnapshot,
+            config: IngestConfig,
+            lastPastedSummary: String?,
+            lastPastedTime: Double?,
+            nowTs: Double
+        ) throws -> IngestOutcome {
             DispatchQueue.main.async { [heartbeat] in heartbeat.value = true }
             Thread.sleep(forTimeInterval: 0.3)
-            return super.analyzeContent(text: text)
+            return try super.ingestClipboardSnapshot(
+                snapshot: snapshot,
+                config: config,
+                lastPastedSummary: lastPastedSummary,
+                lastPastedTime: lastPastedTime,
+                nowTs: nowTs
+            )
         }
     }
 

@@ -32,6 +32,7 @@ struct AppRowView: View {
                     keywords: highlightKeywords,
                     isOnAccent: isSolid
                 )
+                .searchHighlightRenderer()
                 .font(.nookClipBodyMedium)
                 .foregroundStyle(isSolid ? NookClip.textOnAccent : NookClip.textPrimary)
                 .lineLimit(1)

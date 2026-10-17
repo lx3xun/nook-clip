@@ -164,3 +164,50 @@ fn test_search_kind_filter_image_and_file() {
     assert_eq!(res_file.len(), 1);
     assert_eq!(res_file[0].id, "id-doc-file");
 }
+
+#[test]
+fn test_search_alias_short_and_long_tokens() {
+    let (_f, repo) = create_test_repo();
+
+    // 1. 普通条目设置别名 "123"
+    let item_normal = dummy_item("id-normal", "", "normal summary text", "Safari");
+    repo.save_item(&item_normal, Some("normal summary text")).unwrap();
+    repo.update_title("id-normal", "123").unwrap();
+
+    // 2. 敏感条目设置别名 "123"
+    let mut item_sensitive = dummy_item("id-sensitive", "", "secret-token-xyz999", "Terminal");
+    item_sensitive.is_sensitive = true;
+    repo.save_item(&item_sensitive, Some("secret-token-xyz999")).unwrap();
+    repo.update_title("id-sensitive", "123").unwrap();
+
+    // 3. 搜索短词 "12"（<3 标量）：两条别名均应命中
+    let res_12 = repo
+        .query_items(&QueryFilter {
+            search_query: Some("12".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+    let ids_12: Vec<String> = res_12.iter().map(|it| it.id.clone()).collect();
+    assert!(ids_12.contains(&"id-normal".to_string()), "短词 12 应搜出普通条目别名 123");
+    assert!(ids_12.contains(&"id-sensitive".to_string()), "短词 12 应搜出敏感条目别名 123");
+
+    // 4. 搜索长词 "123"（>=3 标量）：两条别名也必须均能命中
+    let res_123 = repo
+        .query_items(&QueryFilter {
+            search_query: Some("123".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+    let ids_123: Vec<String> = res_123.iter().map(|it| it.id.clone()).collect();
+    assert!(ids_123.contains(&"id-normal".to_string()), "长词 123 必须搜出普通条目别名 123");
+    assert!(ids_123.contains(&"id-sensitive".to_string()), "长词 123 必须搜出敏感条目别名 123（当前 BUG）");
+
+    // 5. 安全断言：敏感条目的原始密文绝不可被检索
+    let res_secret = repo
+        .query_items(&QueryFilter {
+            search_query: Some("xyz999".to_string()),
+            ..Default::default()
+        })
+        .unwrap();
+    assert!(res_secret.is_empty(), "敏感条目密文绝对不可被检索命中");
+}

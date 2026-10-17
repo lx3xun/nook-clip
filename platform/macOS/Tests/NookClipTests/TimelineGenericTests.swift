@@ -101,23 +101,22 @@ final class TimelineGenericTests: XCTestCase {
         XCTAssertEqual(groups.first?.items.first?.title, "重复制项")
     }
 
-    // MARK: 统一搜索解析（SearchQueryParser：纯文本与短语）
+    // MARK: 统一搜索解析（tokenizeSearchKeywords：纯文本与短语）
 
     func testParseNaturalWordsAsKeywords() {
-        let result = SearchQueryParser.parse("今天")
-        XCTAssertEqual(result.keywords, ["今天"])
+        let result = tokenizeSearchKeywords(query: "今天")
+        XCTAssertEqual(result, ["今天"])
     }
 
     func testParseMultipleKeywords() {
-        let result = SearchQueryParser.parse("上周 json")
-        XCTAssertEqual(result.keywords, ["上周", "json"])
+        let result = tokenizeSearchKeywords(query: "上周 json")
+        XCTAssertEqual(result, ["上周", "json"])
     }
 
     func testParseQuotedPhrases() {
-        let result = SearchQueryParser.parse("\"order payment\" refund")
-        XCTAssertEqual(result.keywords, ["order payment", "refund"])
+        let result = tokenizeSearchKeywords(query: "\"order payment\" refund")
+        XCTAssertEqual(result, ["order payment", "refund"])
     }
-
     // MARK: RelativeTime 格式化
 
     func testRelativeTimeJustNow() {

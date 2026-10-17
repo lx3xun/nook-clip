@@ -306,6 +306,7 @@
 "preview.empty.hint" = "選取項目檢視詳情";
 "preview.mask.title" = "敏感內容已遮罩";
 "preview.mask.remask" = "重新遮罩";
+"preview.mask.remask_countdown" = "重新遮罩 (%1$d 秒)";
 "preview.mask.reveal" = "檢視明文";
 "preview.mask.reveal_error" = "無法檢視內容，資料可能已損壞";
 "preview.mask.reveal_denied" = "未取得鑰匙圈授權，無法檢視明文";

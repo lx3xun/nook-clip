@@ -264,3 +264,23 @@ public final class KeychainCryptoService {
         SecItemDelete(query as CFDictionary)
     }
 }
+extension KeychainCryptoService: KeyVaultBackupProvider {
+    public func readBackupKey() -> KeyVaultReadStatus {
+        guard keychainBackupEnabled else { return .missing }
+        switch readKeyFromKeychain() {
+        case .found(let key):
+            let data = key.withUnsafeBytes { Data($0) }
+            return .found(keyBytes: data)
+        case .missing:
+            return .missing
+        case .unavailable(let status):
+            return .unavailable(errorCode: status)
+        }
+    }
+
+    public func writeBackupKey(keyBytes: Data) -> Bool {
+        guard keychainBackupEnabled else { return true }
+        let key = SymmetricKey(data: keyBytes)
+        return saveKeyToKeychain(key)
+    }
+}

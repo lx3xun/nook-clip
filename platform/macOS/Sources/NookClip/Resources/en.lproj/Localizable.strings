@@ -306,6 +306,7 @@
 "preview.empty.hint" = "Select an item to view details";
 "preview.mask.title" = "Sensitive content masked";
 "preview.mask.remask" = "Re-mask";
+"preview.mask.remask_countdown" = "Re-mask (%1$ds)";
 "preview.mask.reveal" = "Reveal";
 "preview.mask.reveal_error" = "Couldn't open the content. The data may be corrupted.";
 "preview.mask.reveal_denied" = "Keychain access was denied; couldn't show the content.";

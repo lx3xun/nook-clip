@@ -27,48 +27,46 @@ struct JSONPreviewCard: View {
             && detection?.minifiedJSON != nil
     }
 
-    private var effectiveSegment: Int { isValidJSON ? segment : 2 }
+    /// 非法 JSON（或解析产物缺失、或超限降级）锁定原文段并禁用美化/压缩
+    private var effectiveSegment: Int { isValidJSON ? segment : 0 }
 
     private var lines: [String] {
         switch effectiveSegment {
         case 1:
-            return CodePreviewCard.normalizedLines(detection?.minifiedJSON ?? "")
-        case 2:
-            return CodePreviewCard.normalizedLines(text)
-        default:
             return CodePreviewCard.normalizedLines(detection?.formattedJSON ?? "")
+        case 2:
+            return CodePreviewCard.normalizedLines(detection?.minifiedJSON ?? "")
+        default:
+            return CodePreviewCard.normalizedLines(text)
         }
     }
 
     private var currentText: String {
         switch effectiveSegment {
         case 1:
-            return detection?.minifiedJSON ?? ""
-        case 2:
-            return text
-        default:
             return detection?.formattedJSON ?? ""
+        case 2:
+            return detection?.minifiedJSON ?? ""
+        default:
+            return text
         }
     }
 
     private var footerText: String {
         switch effectiveSegment {
-        case 1: return L10n.tr("preview.json.footer_minified")
-        case 2: return isValidJSON ? L10n.tr("preview.json.footer_raw") : L10n.tr("preview.json.footer_invalid")
-        default: return L10n.tr("preview.json.footer_formatted")
+        case 1: return L10n.tr("preview.json.footer_formatted")
+        case 2: return L10n.tr("preview.json.footer_minified")
+        default: return isValidJSON ? L10n.tr("preview.json.footer_raw") : L10n.tr("preview.json.footer_invalid")
         }
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 头部：JSON 胶囊 + 分段控件（同原型）
+            // 头部：原文/美化/压缩分段控件 + 复制图标 + 右侧 JSON 胶囊
             HStack(spacing: 7) {
-                PillView(text: "JSON", isAccent: true)
-                copyButton
-                Spacer(minLength: 0)
                 HStack(spacing: 2) {
-                    ForEach(Array([L10n.tr("preview.json.pretty"), L10n.tr("preview.json.minify"), L10n.tr("preview.json.raw")].enumerated()), id: \.offset) { index, label in
+                    ForEach(Array([L10n.tr("preview.json.raw"), L10n.tr("preview.json.pretty"), L10n.tr("preview.json.minify")].enumerated()), id: \.offset) { index, label in
                         let selected = effectiveSegment == index
-                        let enabled = isValidJSON || index == 2
+                        let enabled = isValidJSON || index == 0
                         Text(label)
                             .font(selected ? .nookClipMetaMedium : .nookClipMeta)
                             .foregroundStyle(selected ? NookClip.textPrimary : NookClip.textSecondary)
@@ -91,6 +89,9 @@ struct JSONPreviewCard: View {
                 .padding(2)
                 .background(NookClip.bgInset)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                copyButton
+                Spacer(minLength: 0)
+                PillView(text: "JSON", isAccent: true)
             }
             .padding(.horizontal, 2)
             .padding(.bottom, 9)

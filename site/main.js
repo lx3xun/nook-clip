@@ -4,6 +4,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  let interactivePrototype = null;
+
   // 1. 多语言国际化系统 (i18n)
   initI18n();
 
@@ -18,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (savedTheme === 'light' || savedTheme === 'dark') {
     setTheme(savedTheme, false);
   } else {
-    setTheme('auto', false);
+    setTheme('dark', false);
   }
 
   // 监听系统主题变化（当用户选择 auto 模式时）
@@ -82,6 +84,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 3. 产品交互展示窗模式切换 (Mockup Mode Switcher - 与全局主题深度联动)
+  const prototypeMount = document.getElementById('interactivePrototypeMount');
+  if (prototypeMount && window.NookClipPrototype) {
+    const isDark = (root.getAttribute('data-theme') === 'dark') ||
+      (root.getAttribute('data-theme') === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    interactivePrototype = new window.NookClipPrototype(prototypeMount, {
+      theme: isDark ? 'dark' : 'light',
+      lang: document.documentElement.lang || 'zh-Hans',
+      onThemeChange: (newTheme) => {
+        setTheme(newTheme, true);
+      }
+    });
+  }
+
   previewBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.getAttribute('data-preview-mode');
@@ -90,6 +105,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function updateMockupPreview(mode) {
+    if (interactivePrototype) {
+      interactivePrototype.setTheme(mode);
+    }
+
+    // 更新深色/浅色模式按钮激活态
+    previewBtns.forEach((btn) => {
+      const btnMode = btn.getAttribute('data-preview-mode');
+      const isActive = btnMode === mode;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    });
+
     if (!previewImg) return;
 
     if (mode === 'light') {
@@ -99,14 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
       previewImg.src = 'assets/nookclip-dark.png';
       previewImg.alt = 'NookClip 深色模式界面真实截图';
     }
-
-    // 更新 Tab 按钮激活态
-    previewBtns.forEach((btn) => {
-      const btnMode = btn.getAttribute('data-preview-mode');
-      const isActive = btnMode === mode;
-      btn.classList.toggle('is-active', isActive);
-      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
-    });
   }
 
   // 4. 一键复制源码构建命令 (Copy Command)
@@ -299,6 +318,11 @@ document.addEventListener('DOMContentLoaded', () => {
           el.innerHTML = dict[key];
         }
       });
+
+      // 同步测试台语言
+      if (interactivePrototype && typeof interactivePrototype.setLanguage === 'function') {
+        interactivePrototype.setLanguage(lang);
+      }
 
       // 同步所有选项按钮的 active 状态
       langOptions.forEach((btn) => {

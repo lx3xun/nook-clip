@@ -19,6 +19,22 @@ struct TimeGroup<Item: TimelineItem>: Identifiable {
     let items: [Item]
 }
 enum Timeline {
+    public static func localizedTitle(for bucket: TimeBucketKey) -> String {
+        switch bucket {
+        case .today:
+            return L10n.tr("timeline.today")
+        case .yesterday:
+            return L10n.tr("timeline.yesterday")
+        case .thisWeek:
+            return L10n.tr("timeline.this_week")
+        case .lastWeek:
+            return L10n.tr("timeline.last_week")
+        case .month(_, let month):
+            return monthTitle(Int(month))
+        case .year(let year):
+            return L10n.tr("timeline.year", String(year))
+        }
+    }
 
     /// 分组规则（周界跟随系统区域设置，可用 calendar 参数注入测试夹具）：
     /// ① 今天 ② 昨天 ③ 本周（与 now 同周，排除今天/昨天）④ 上周（前一自然周）

@@ -198,6 +198,10 @@ enum NookClip {
     static var searchHighlightOnSolidAccent: Color {
         isWarmAccentColor ? highlightCharcoalDark : highlightFluorescentYellow
     }
+    /// 搜索命中关键词黄底（#FFE633，经典明亮黄底）
+    static let searchHighlightBackground = Color(hex: 0xFFE633)
+    /// 搜索命中关键词文字颜色（#1A1A1A，深炭黑字色）
+    static let searchHighlightForeground = Color(hex: 0x1A1A1A)
     /// 判断当前系统强调色是否为黄色或橙色系（防撞色检测）
     static var isWarmAccentColor: Bool {
         if let appleAccent = UserDefaults.standard.object(forKey: "AppleAccentColor") as? Int,

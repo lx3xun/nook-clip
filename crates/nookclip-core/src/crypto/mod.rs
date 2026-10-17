@@ -1,3 +1,5 @@
+pub mod key_manager;
+
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -5,6 +7,8 @@ use aes_gcm::{
 use rand::RngCore;
 
 use crate::error::{CoreError, Result};
+
+pub use key_manager::{KeyVaultBackupProvider, KeyVaultReadStatus, MasterKeyManager};
 
 pub struct CryptoEngine {
     cipher: Aes256Gcm,

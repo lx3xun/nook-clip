@@ -37,6 +37,7 @@ struct CodePreviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
+                Spacer(minLength: 0)
                 PillView(text: fallbackPillTitle, isAccent: true)
             }
             .padding(.horizontal, 2)

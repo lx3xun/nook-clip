@@ -1,0 +1,1690 @@
+/**
+ * NookClip 100% 原生界面还原样式 (Exact Replica Stylesheet)
+ * 像素级对齐官方实际截图: site/assets/nookclip-light.png & nookclip-dark.png
+ */
+
+/* ==========================================================================
+   1. 基础令牌与双模色彩定义
+   ========================================================================== */
+
+:root {
+  --nook-w-list-col: 310px;
+  --nook-h-search: 42px;
+  --nook-h-cat-bar: 28px;
+  --nook-h-group-header: 26px;
+  --nook-h-row: 48px;
+  --nook-h-toolbar: 42px;
+  --nook-h-footer: 24px;
+  --nook-radius-panel: 14px;
+  --nook-radius-card: 8px;
+  --nook-radius-chip: 6px;
+
+  --nook-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, sans-serif;
+  --nook-font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+/* 默认深色模式 (nookclip-dark.png) */
+:root,
+.nook-theme-dark,
+[data-theme="dark"] .nook-window,
+[data-theme="dark"] .nook-sandbox-wrapper {
+  --nook-win-bg: #161618;
+  --nook-win-border: rgba(255, 255, 255, 0.12);
+  --nook-list-bg: #1F1F23;
+  --nook-preview-bg: #161618;
+  --nook-divider: rgba(255, 255, 255, 0.10);
+  --nook-card-bg: rgba(255, 255, 255, 0.06);
+  --nook-card-border: rgba(255, 255, 255, 0.10);
+
+  --nook-text-primary: #F5F5F7;
+  --nook-text-secondary: rgba(235, 235, 245, 0.72);
+  --nook-text-tertiary: rgba(235, 235, 245, 0.48);
+
+  --nook-accent-solid: #0A84FF;
+  --nook-chip-bg-selected: #1754B5;
+  --nook-chip-text-selected: #FFFFFF;
+  --nook-chip-text-idle: rgba(235, 235, 245, 0.72);
+
+  --nook-row-hover: rgba(255, 255, 255, 0.055);
+  --nook-tile-bg-default: rgba(255, 255, 255, 0.08);
+
+  --nook-color-star: #FFD60A;
+  --nook-color-sensitive: #FF9F0A;
+  --nook-badge-sensitive-bg: rgba(255, 159, 10, 0.20);
+  --nook-badge-json-bg: rgba(10, 132, 255, 0.20);
+  --nook-badge-json-text: #0A84FF;
+  --nook-badge-grey-bg: rgba(255, 255, 255, 0.10);
+  --nook-badge-grey-text: rgba(235, 235, 245, 0.65);
+
+  --nook-star-btn-bg: rgba(255, 214, 10, 0.16);
+  --nook-star-btn-text: #FFD60A;
+
+  --nook-shadow-window: 0 24px 64px rgba(0, 0, 0, 0.50), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* 浅色模式 (nookclip-light.png) */
+.nook-theme-light,
+[data-theme="light"] .nook-window,
+[data-theme="light"] .nook-sandbox-wrapper {
+  --nook-win-bg: #FFFFFF;
+  --nook-win-border: rgba(0, 0, 0, 0.10);
+  --nook-list-bg: #F8F9FA;
+  --nook-preview-bg: #FFFFFF;
+  --nook-divider: rgba(0, 0, 0, 0.08);
+  --nook-card-bg: rgba(0, 0, 0, 0.04);
+  --nook-card-border: rgba(0, 0, 0, 0.07);
+
+  --nook-text-primary: #1D1D1F;
+  --nook-text-secondary: #6E6E73;
+  --nook-text-tertiary: #8E8E93;
+
+  --nook-accent-solid: #007AFF;
+  --nook-chip-bg-selected: #D6E6FF;
+  --nook-chip-text-selected: #0066DB;
+  --nook-chip-text-idle: #3C3C43;
+
+  --nook-row-hover: rgba(0, 0, 0, 0.045);
+  --nook-tile-bg-default: rgba(0, 0, 0, 0.05);
+
+  --nook-color-star: #F59E0B;
+  --nook-color-sensitive: #C75000;
+  --nook-badge-sensitive-bg: rgba(199, 80, 0, 0.12);
+  --nook-badge-json-bg: rgba(0, 122, 255, 0.12);
+  --nook-badge-json-text: #007AFF;
+  --nook-badge-grey-bg: rgba(0, 0, 0, 0.06);
+  --nook-badge-grey-text: #8E8E93;
+
+  --nook-star-btn-bg: rgba(245, 158, 11, 0.15);
+  --nook-star-btn-text: #F59E0B;
+
+  --nook-shadow-window: 0 24px 60px rgba(0, 0, 0, 0.14), 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+/* ==========================================================================
+   2. 宿主容器与窗口骨架
+   ========================================================================== */
+
+.nook-sandbox-wrapper {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.nook-window {
+  width: 100%;
+  max-width: 780px;
+  height: 615px;
+  display: flex;
+  flex-direction: row;
+  border-radius: var(--nook-radius-panel);
+  background: var(--nook-win-bg);
+  border: 1px solid var(--nook-win-border);
+  box-shadow: var(--nook-shadow-window);
+  overflow: hidden;
+  position: relative;
+  user-select: none;
+  font-family: var(--nook-font-sans);
+  text-align: left;
+  outline: none;
+  transition: box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.nook-window:focus-within {
+  box-shadow: var(--nook-shadow-window), 0 0 0 1.5px rgba(0, 122, 255, 0.35);
+}
+
+/* ==========================================================================
+   3. 左侧列表列 (310px)
+   ========================================================================== */
+
+.nook-list-col {
+  width: var(--nook-w-list-col);
+  height: 100%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--nook-list-bg);
+  border-right: 1px solid var(--nook-divider);
+  position: relative;
+  z-index: 2;
+}
+
+/* 3.1 搜索栏 (对齐截图: "搜索剪贴板或应用..." + ⌘F) */
+.nook-search-bar {
+  height: var(--nook-h-search);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 8px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.nook-search-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--nook-text-tertiary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nook-search-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--nook-text-primary);
+  font-size: 13px;
+  font-family: var(--nook-font-sans);
+  outline: none;
+  padding: 0;
+}
+
+.nook-search-input::placeholder {
+  color: var(--nook-text-tertiary);
+}
+
+.nook-search-badge {
+  font-family: var(--nook-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nook-text-tertiary);
+  pointer-events: none;
+}
+
+.nook-search-clear {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--nook-text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 3.2 分类筛选条 (对齐截图: 全部 72、收藏、文本、链接 ▾) */
+.nook-category-bar {
+  height: var(--nook-h-cat-bar);
+  padding: 0 10px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.nook-chip {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: var(--nook-radius-chip);
+  background: transparent;
+  color: var(--nook-chip-text-idle);
+  font-size: 12px;
+  font-weight: 400;
+  border: none;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
+.nook-chip:hover {
+  background: var(--nook-row-hover);
+}
+
+.nook-chip.is-active {
+  background: var(--nook-chip-bg-selected);
+  color: var(--nook-chip-text-selected);
+  font-weight: 500;
+}
+
+.nook-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nook-chip-count {
+  font-family: var(--nook-font-sans);
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+.nook-chip-chevron {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+/* 3.3 下拉菜单 (分类菜单 / 时间菜单) */
+.nook-category-dropdown,
+.nook-time-dropdown {
+  position: absolute;
+  top: 72px;
+  left: 10px;
+  width: 200px;
+  background: var(--nook-list-bg);
+  border: 1px solid var(--nook-divider);
+  border-radius: var(--nook-radius-card);
+  box-shadow: var(--nook-shadow-window);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 100;
+}
+
+.nook-time-dropdown {
+  top: 98px;
+  left: auto;
+  right: 12px;
+  width: 140px;
+}
+
+.nook-dropdown-item {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--nook-text-primary);
+  font-size: 12px;
+  width: 100%;
+}
+
+.nook-dropdown-item:hover, .nook-dropdown-item.is-selected {
+  background: var(--nook-chip-bg-selected);
+  color: var(--nook-chip-text-selected);
+}
+
+.nook-dropdown-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+}
+
+/* 3.4 时间线分组头 (对齐截图: 今天 · 60 + ⇅) */
+.nook-group-header {
+  height: var(--nook-h-group-header);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nook-text-tertiary);
+  flex-shrink: 0;
+}
+
+.nook-group-header-title {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.nook-group-header-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--nook-text-tertiary);
+  cursor: pointer;
+}
+
+.nook-group-header-btn:hover {
+  background: var(--nook-row-hover);
+  color: var(--nook-text-primary);
+}
+
+.nook-subgroup-header {
+  height: 22px;
+  padding: 0 8px;
+  margin: 6px 0 2px 0;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nook-text-tertiary);
+  border-top: 0.5px solid var(--nook-divider);
+  border-bottom: 0.5px solid var(--nook-divider);
+  background: var(--nook-list-bg);
+}
+/* 3.5 历史列表滚动区 (无缝完整容纳 10 条数据) */
+.nook-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 6px;
+  scrollbar-width: none;
+}
+
+.nook-list-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* 3.6 列表数据行 (行高 48px · 对齐截图实色蓝底选中态) */
+.nook-row {
+  height: var(--nook-h-row);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+  position: relative;
+  margin-bottom: 1px;
+}
+
+.nook-row:hover {
+  background: var(--nook-row-hover);
+}
+
+/* 100% 对齐截图: 选中态为实色电光蓝背景，内部文字完全反白 */
+.nook-row.is-selected {
+  background: var(--nook-accent-solid) !important;
+}
+
+.nook-row.is-selected .nook-row-title {
+  color: #FFFFFF !important;
+  font-weight: 500;
+}
+
+.nook-row.is-selected .nook-row-summary {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.nook-row.is-selected .nook-row-meta {
+  color: rgba(255, 255, 255, 0.76) !important;
+}
+
+.nook-row.is-selected .nook-row-star {
+  color: #FFFFFF !important;
+}
+
+.nook-row.is-selected .nook-row-tile {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #FFFFFF !important;
+}
+
+.nook-row.is-selected .nook-row-tile-icon svg {
+  stroke: #FFFFFF !important;
+  color: #FFFFFF !important;
+}
+
+/* 3.7 前置 30x30 图标瓦片 */
+.nook-row-tile {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--nook-tile-bg-default);
+  transition: all 0.12s ease;
+  overflow: hidden;
+}
+
+.nook-row-tile.tile-sensitive {
+  background: var(--nook-badge-sensitive-bg);
+}
+
+.nook-row-tile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nook-row-tile-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.nook-thumbnail-svg {
+  width: 30px;
+  height: 30px;
+  display: block;
+}
+
+/* 3.8 行文字内容 */
+.nook-row-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nook-row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.nook-row-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--nook-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.nook-row-title.is-sensitive-title {
+  color: var(--nook-color-sensitive);
+}
+
+.nook-row-title-input {
+  width: 100%;
+  font-size: 12px;
+  background: var(--nook-win-bg);
+  border: 1px solid var(--nook-accent-solid);
+  color: var(--nook-text-primary);
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+.nook-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 2px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 3px;
+  white-space: nowrap;
+  background: transparent !important;
+}
+
+.nook-badge.badge-orange {
+  color: var(--nook-color-sensitive);
+}
+
+.nook-badge.badge-blue {
+  color: var(--nook-badge-json-text);
+}
+
+.nook-badge.badge-grey {
+  color: var(--nook-badge-grey-text);
+}
+
+.nook-row.is-selected .nook-badge {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.nook-row-star {
+  color: var(--nook-color-star);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.nook-row-sub-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+  width: 100%;
+}
+
+.nook-row-app-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.nook-row-app-badge svg,
+.nook-row-app-badge img,
+.nook-row-app-badge .nook-app-icon-img {
+  width: 12px;
+  height: 12px;
+  border-radius: 2.5px;
+  display: block;
+  object-fit: contain;
+}
+
+.nook-row-summary {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  color: var(--nook-text-tertiary);
+}
+
+.nook-row-meta {
+  font-size: 11px;
+  flex-shrink: 0;
+  color: var(--nook-text-tertiary);
+  margin-left: auto;
+}
+
+/* 3.9 底部常驻提示栏 (对齐原生 GroupAndFooter.swift: 快捷键提示居中 + 绝对定位右侧帮助按钮) */
+.nook-hints-footer {
+  height: var(--nook-h-footer);
+  background: var(--nook-list-bg);
+  border-top: 1px solid var(--nook-divider);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 30px;
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+  flex-shrink: 0;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.nook-hints-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.nook-hint-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.nook-hint-kbd {
+  font-family: var(--nook-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--nook-text-secondary);
+  letter-spacing: -0.2px;
+}
+
+.nook-hint-label {
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+}
+
+.nook-help-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--nook-text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+  z-index: 2;
+}
+
+.nook-help-btn:hover,
+.nook-help-btn.is-active {
+  color: var(--nook-text-primary);
+  background: rgba(128, 128, 128, 0.12);
+}
+.nook-help-popover {
+  position: absolute;
+  right: 10px;
+  bottom: 28px;
+  width: 210px;
+  background: var(--nook-win-bg);
+  border: 1px solid var(--nook-win-border);
+  border-radius: var(--nook-radius-card);
+  box-shadow: var(--nook-shadow-window);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 100;
+}
+
+.nook-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.nook-kbd {
+  font-family: var(--nook-font-mono);
+  font-size: 10px;
+  background: rgba(128, 128, 128, 0.15);
+  border: 0.5px solid rgba(128, 128, 128, 0.25);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* ==========================================================================
+   4. 右侧详细预览区 (470px)
+   ========================================================================== */
+
+.nook-preview-pane {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--nook-preview-bg);
+  overflow: hidden;
+  position: relative;
+}
+
+/* 4.1 顶栏 (对齐截图: 备忘录 · 今天 11:29 · 复制 2 次 | 7 行 · 208 字符 | ★ | 🗑) */
+.nook-preview-toolbar {
+  height: var(--nook-h-toolbar);
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--nook-divider);
+  flex-shrink: 0;
+}
+
+.nook-preview-meta-leading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--nook-text-secondary);
+}
+
+.nook-preview-app-icon {
+  display: flex;
+  align-items: center;
+}
+
+.nook-preview-app-icon svg,
+.nook-preview-app-icon img,
+.nook-preview-app-icon .nook-app-icon-img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3.5px;
+  display: block;
+  object-fit: contain;
+}
+
+.nook-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nook-preview-stat {
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+  font-family: var(--nook-font-mono);
+}
+
+.nook-toolbar-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: var(--nook-text-tertiary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  padding: 0;
+}
+
+.nook-toolbar-btn:hover {
+  background: var(--nook-row-hover);
+  color: var(--nook-text-primary);
+}
+
+.nook-toolbar-btn.btn-star {
+  background: var(--nook-star-btn-bg);
+  color: var(--nook-star-btn-text);
+}
+
+.nook-toolbar-btn.btn-delete:hover {
+  color: #FF453A;
+  background: rgba(255, 69, 58, 0.12);
+}
+
+/* 4.2 预览正文区 (对齐截图大标题与排版) */
+.nook-preview-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 22px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nook-preview-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--nook-text-primary);
+  line-height: 1.35;
+  margin: 0 0 14px 0;
+  letter-spacing: -0.015em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nook-preview-title.is-sensitive-title {
+  color: var(--nook-color-sensitive);
+  font-family: var(--nook-font-mono);
+}
+
+.nook-title-lock {
+  width: 16px;
+  height: 16px;
+  color: var(--nook-color-sensitive);
+  display: inline-flex;
+}
+
+/* 速查卡正文样式 (对齐截图排版，行高紧凑精致) */
+.nook-preview-prose {
+  font-size: 13px;
+  color: var(--nook-text-primary);
+  line-height: 1.5;
+}
+
+.nook-prose-lead {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.nook-shortcuts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nook-sc-row-full {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.nook-sc-row-pair {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .nook-sc-row-pair {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+.nook-sensitive-card {
+  border-radius: var(--nook-radius-card);
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.nook-sensitive-shield-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--nook-color-sensitive);
+}
+
+.nook-sensitive-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--nook-text-primary);
+}
+
+.nook-sensitive-masked-text {
+  font-family: var(--nook-font-mono);
+  font-size: 14px;
+  color: var(--nook-text-secondary);
+  background: rgba(128, 128, 128, 0.12);
+  padding: 6px 14px;
+  border-radius: 6px;
+  user-select: text;
+}
+
+.nook-sensitive-revealed-text {
+  font-family: var(--nook-font-mono);
+  font-size: 13px;
+  color: var(--nook-text-primary);
+  background: rgba(128, 128, 128, 0.12);
+  padding: 8px 14px;
+  border-radius: 6px;
+  user-select: text;
+  word-break: break-all;
+}
+
+.nook-sensitive-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: var(--nook-badge-sensitive-bg);
+  color: var(--nook-color-sensitive);
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.nook-sensitive-hint {
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+}
+
+.nook-code-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.nook-code-tabs {
+  display: inline-flex;
+  background: rgba(128, 128, 128, 0.1);
+  padding: 2px;
+  border-radius: 6px;
+  gap: 2px;
+}
+
+.nook-code-tab {
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--nook-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.nook-code-tab.is-active {
+  background: var(--nook-win-bg);
+  color: var(--nook-text-primary);
+  font-weight: 500;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.nook-code-block {
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  border-radius: var(--nook-radius-card);
+  padding: 12px;
+  font-family: var(--nook-font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  user-select: text;
+}
+
+.nook-code-line {
+  display: flex;
+  gap: 12px;
+}
+
+.nook-line-num {
+  width: 20px;
+  color: var(--nook-text-tertiary);
+  text-align: right;
+  user-select: none;
+}
+
+.nook-line-text {
+  color: var(--nook-text-primary);
+  white-space: pre;
+}
+
+.nook-syn-key { color: #AD3DA4; }
+.nook-syn-string { color: #FF6A5E; }
+.nook-syn-num { color: #5856D6; }
+.nook-syn-bool { color: #007AFF; }
+
+.nook-url-card {
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  border-radius: var(--nook-radius-card);
+  padding: 14px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nook-url-host-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nook-url-host {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--nook-text-primary);
+}
+
+.nook-url-text {
+  font-family: var(--nook-font-mono);
+  font-size: 12px;
+  color: var(--nook-text-secondary);
+  word-break: break-all;
+  user-select: text;
+}
+
+.nook-qrcode-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  border-radius: var(--nook-radius-card);
+}
+
+.nook-qrcode-img-box {
+  width: 136px;
+  height: 136px;
+  background: #FFFFFF;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+/* 色彩胶囊卡片 (对齐 ColorPreviewCard.swift) */
+.nook-color-card {
+  background: var(--nook-card-bg);
+  border-radius: var(--nook-radius-card);
+  border: 1px solid var(--nook-card-border);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nook-color-large-swatch {
+  height: 88px;
+  width: 100%;
+  border-radius: var(--nook-radius-card);
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.nook-color-values-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nook-color-row {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s ease;
+}
+
+.nook-color-row:hover {
+  background: var(--nook-row-hover);
+}
+
+.nook-color-label {
+  font-family: var(--nook-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--nook-text-tertiary);
+  width: 32px;
+  letter-spacing: 0.4px;
+}
+
+.nook-color-val {
+  font-family: var(--nook-font-mono);
+  font-size: 13px;
+  color: var(--nook-text-primary);
+  flex: 1;
+  user-select: text;
+}
+
+.nook-color-feedback {
+  font-size: 10px;
+  color: #30D158;
+  margin-right: 4px;
+}
+
+.nook-color-icon-box {
+  width: 16px;
+  height: 16px;
+  color: var(--nook-text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nook-color-row:hover .nook-color-icon-box {
+  color: var(--nook-text-secondary);
+}
+
+.nook-color-hint {
+  font-size: 10px;
+  color: var(--nook-text-tertiary);
+  line-height: 1.4;
+  padding: 4px 2px 0;
+}
+
+/* 文件预览卡片 (对齐 FilePreviewCard.swift) */
+.nook-file-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nook-file-meta-header {
+  font-size: 11px;
+  color: var(--nook-text-secondary);
+  font-weight: 400;
+}
+
+.nook-file-card {
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  border-radius: var(--nook-radius-card);
+  padding: 2px 0;
+  overflow: hidden;
+}
+
+.nook-file-row {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transition: background 0.12s ease;
+}
+
+.nook-file-row:hover {
+  background: var(--nook-row-hover);
+}
+
+.nook-file-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nook-file-icon-box {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nook-file-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--nook-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.nook-file-size {
+  font-family: var(--nook-font-mono);
+  font-size: 10px;
+  color: var(--nook-text-tertiary);
+  flex-shrink: 0;
+}
+
+.nook-file-copy-btn {
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  color: var(--nook-text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.nook-file-row:hover .nook-file-copy-btn,
+.nook-file-copy-btn.is-copied {
+  opacity: 1;
+}
+
+.nook-file-copy-btn:hover {
+  color: var(--nook-text-primary);
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.nook-file-path {
+  font-family: var(--nook-font-mono);
+  font-size: 10px;
+  color: var(--nook-text-tertiary);
+  padding-left: 28px;
+  word-break: break-all;
+  user-select: text;
+}
+
+.nook-file-divider {
+  height: 0.5px;
+  background: var(--nook-divider);
+  margin: 0;
+}
+/* 图片与离线 OCR 卡片 (对齐 ImagePreviewCard & OCRPreviewCard) */
+.nook-image-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nook-image-card {
+  position: relative;
+  border-radius: var(--nook-radius-card);
+  overflow: hidden;
+  background: #0F172A;
+  border: 1px solid var(--nook-divider);
+}
+
+.nook-image-preview {
+  width: 100%;
+  display: block;
+}
+
+.nook-image-scan-laser {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: linear-gradient(180deg, rgba(10,132,255,0) 0%, rgba(10,132,255,0.2) 60%, rgba(10,132,255,0.85) 100%);
+  border-bottom: 2px solid #0A84FF;
+  box-shadow: 0 0 10px #0A84FF;
+  display: none;
+  pointer-events: none;
+}
+
+.nook-image-scan-laser.is-scanning {
+  display: block;
+  animation: nookScanLaser 1.4s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes nookScanLaser {
+  0% { transform: translateY(0); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(220px); opacity: 0; }
+}
+
+/* 原生实况文本 (Live Text) 26x26 毛玻璃悬浮按钮 */
+.nook-livetext-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #FFFFFF;
+  border: 0.5px solid rgba(255, 255, 255, 0.28);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.nook-livetext-btn:hover {
+  background: rgba(0, 0, 0, 0.65);
+  transform: scale(1.05);
+}
+
+.nook-image-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+  font-family: var(--nook-font-mono);
+  padding: 8px 0 12px;
+}
+
+.nook-ocr-result-card {
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  border-radius: var(--nook-radius-card);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.nook-ocr-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nook-ocr-title-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nook-ocr-icon-symbol {
+  width: 14px;
+  height: 14px;
+  color: var(--nook-text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.nook-ocr-title-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nook-text-primary);
+}
+
+.nook-pill-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(128, 128, 128, 0.14);
+  color: var(--nook-text-tertiary);
+  font-weight: 500;
+}
+
+.nook-ocr-copy-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--nook-chip-bg-selected);
+  color: var(--nook-accent-solid);
+  border: 0.5px solid var(--nook-row-selected-border);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.12s ease;
+}
+
+.nook-ocr-copy-btn:hover {
+  background: var(--nook-accent-solid);
+  color: #FFFFFF;
+}
+
+.nook-ocr-copy-btn.is-copied {
+  background: rgba(48, 209, 88, 0.15);
+  color: #30D158;
+  border-color: rgba(48, 209, 88, 0.3);
+}
+.nook-ocr-rules-toggle {
+  font-size: 10.5px;
+  color: var(--nook-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nook-ocr-rules-toggle:hover {
+  color: var(--nook-text-primary);
+}
+
+.nook-ocr-rules-banner {
+  background: rgba(128, 128, 128, 0.06);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 0.5px solid var(--nook-divider);
+}
+
+.nook-ocr-rule-line {
+  font-size: 11px;
+  color: var(--nook-text-secondary);
+  line-height: 1.4;
+}
+
+.nook-ocr-text {
+  font-family: var(--nook-font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--nook-text-primary);
+  user-select: text;
+}
+
+.nook-ocr-content-area {
+  padding-top: 10px;
+}
+
+.nook-ocr-not-scanned-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.nook-ocr-not-scanned-text {
+  font-size: 12px;
+  color: var(--nook-text-tertiary);
+}
+
+.nook-btn-recognize {
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nook-text-primary);
+  background: var(--nook-card-bg);
+  border: 1px solid var(--nook-card-border);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.nook-btn-recognize:hover {
+  background: var(--nook-row-hover);
+}
+
+.nook-ocr-footer-hint {
+  font-size: 10.5px;
+  color: var(--nook-text-tertiary);
+  margin-top: 4px;
+}
+
+.nook-ocr-scanning-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: var(--nook-chip-bg-selected);
+  color: var(--nook-accent-solid);
+  font-weight: 500;
+}
+
+.nook-ocr-scanning-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--nook-accent-solid);
+  padding: 8px 0;
+}
+
+.nook-spinner {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--nook-accent-solid);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: nookSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes nookSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* 纯文本段落排版 (对齐原生文字排版: 13px / 22px line-height, pre-wrap) */
+.nook-text-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.nook-text-body {
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--nook-text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+.nook-btn-tool:hover {
+  background: var(--nook-row-hover);
+  color: var(--nook-text-primary);
+}
+
+/* 4.4 粘贴提示 HUD */
+.nook-paste-hud {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  padding: 8px 16px;
+  background: rgba(20, 20, 24, 0.95);
+  backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 200;
+}
+
+.nook-paste-hud.is-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* 4.5 搜索高亮与删除撤销 */
+mark.nook-highlight {
+  background: #FFE633;
+  color: #1A1A1A;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.nook-undo-toast {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 26px;
+  height: 32px;
+  background: var(--nook-win-bg);
+  border: 1px solid var(--nook-win-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  z-index: 20;
+}
+
+.nook-undo-toast-text {
+  font-size: 11px;
+  color: var(--nook-text-primary);
+}
+
+.nook-undo-toast-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  background: var(--nook-chip-bg-selected);
+  color: var(--nook-accent-solid);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.nook-undo-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--nook-accent-solid);
+}
+
+.nook-batch-bar {
+  height: 50px;
+  padding: 6px 12px;
+  background: var(--nook-list-bg);
+  border-top: 1px solid var(--nook-divider);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.nook-batch-bar-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--nook-text-secondary);
+}
+
+.nook-batch-bar-bottom {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nook-btn-batch {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
+.nook-btn-batch-primary {
+  background: var(--nook-chip-bg-selected);
+  color: var(--nook-accent-solid);
+}
+
+.nook-btn-batch-danger {
+  background: rgba(255, 69, 58, 0.16);
+  color: #FF453A;
+}
+
+.nook-app-launcher-section {
+  padding: 0 6px 4px 6px;
+  border-bottom: 1px solid var(--nook-divider);
+}
+
+.nook-app-launcher-header {
+  height: var(--nook-h-group-header);
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nook-text-tertiary);
+}
+
+.nook-app-launcher-count {
+  font-size: 11px;
+  color: var(--nook-text-tertiary);
+}
+
+.nook-row.nook-app-row {
+  margin-bottom: 0;
+  background: transparent;
+}
+
+.nook-app-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.nook-app-row-icon img,
+.nook-app-row-icon .nook-app-icon-img {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: block;
+  object-fit: contain;
+}
+
+.nook-app-open-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: var(--nook-chip-bg);
+  color: var(--nook-text-tertiary);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.nook-row.nook-app-row:hover {
+  background: var(--nook-row-hover);
+}
+
+.nook-row.nook-app-row:hover .nook-app-open-badge {
+  color: var(--nook-accent-solid);
+}

@@ -26,6 +26,7 @@ struct PreviewPane: View {
 
     @State private var isRevealed = false
     @State private var revealedPlainText: String?
+    @State private var countdownSeconds = 0
     @State private var revealTask: Task<Void, Never>?
     @State private var revealFailure: ClipboardItem.RevealFailure?
     /// 链接二维码展示状态（切换选中条目时重置）
@@ -124,6 +125,7 @@ struct PreviewPane: View {
                     .foregroundStyle(NookClip.colorSensitive)
             }
             SearchHighlight.text(item.displayTitle, keywords: highlightKeywords)
+                .searchHighlightRenderer()
                 .font(item.titleMono ? .nookClipTitleMono : .nookClipTitle)
                 .foregroundStyle(item.isSensitive ? NookClip.colorSensitive : NookClip.textPrimary)
                 .lineLimit(2)
@@ -172,6 +174,7 @@ struct PreviewPane: View {
         let displayed = Array(allLines.prefix(Self.plainTextMaxLines))
         return VStack(alignment: .leading, spacing: 6) {
             SearchHighlight.text(displayed.joined(separator: "\n"), keywords: highlightKeywords)
+                .searchHighlightRenderer()
                 .font(.nookClipBody)
                 .foregroundStyle(NookClip.textPrimary)
                 .lineSpacing(6)
@@ -212,9 +215,10 @@ struct PreviewPane: View {
             }
 
             SensitiveMaskCard(
-                maskedText: item.displayTitle,
+                maskedText: item.summary.isEmpty ? item.displayTitle : item.summary,
                 revealedText: revealedPlainText,
                 isRevealed: isRevealed,
+                countdownSeconds: countdownSeconds,
                 revealFailure: revealFailure
             ) {
                 toggleReveal(item)
@@ -434,10 +438,14 @@ struct PreviewPane: View {
         revealFailure = nil
         revealedPlainText = plain
         isRevealed = true
+        countdownSeconds = 30
         revealTask?.cancel()
         revealTask = Task {
-            try? await Task.sleep(for: .seconds(30))
-            guard !Task.isCancelled else { return }
+            while countdownSeconds > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                countdownSeconds -= 1
+            }
             maskSensitive(clearClipboard: true)
         }
     }
@@ -447,6 +455,7 @@ struct PreviewPane: View {
         revealTask = nil
         let plain = revealedPlainText
         isRevealed = false
+        countdownSeconds = 0
         revealedPlainText = nil
         // 仅当系统剪贴板仍为该明文时清空（PasteService 契约 C2）
         if clearClipboard, let plain {

@@ -7,11 +7,13 @@ final class PasteService {
     /// （AppDependencies.live / PreviewDataProvider.live）取引用本身。
     nonisolated static let shared = PasteService()
     nonisolated(unsafe) var defaults: UserDefaults = .standard
+    nonisolated(unsafe) var rustEngine: NookClipHistoryEngine?
 
     /// 非隔离指定初始化器：仅赋默认值（autoClearWorkItem = nil），不触碰
     /// 隔离状态；供 nonisolated(unsafe) shared 初始化使用
-    nonisolated init(defaults: UserDefaults = .standard) {
+    nonisolated init(defaults: UserDefaults = .standard, rustEngine: NookClipHistoryEngine? = nil) {
         self.defaults = defaults
+        self.rustEngine = rustEngine
     }
     /// 测试钩子：可替换辅助功能信任态判定与授权弹窗触发，避免测试中弹真实系统框
     nonisolated(unsafe) static var accessibilityTrustChecker: () -> Bool = { AXIsProcessTrusted() }
@@ -137,58 +139,52 @@ final class PasteService {
 
     @discardableResult
     func copyOnly(_ item: ClipboardItem, plainTextOnly: Bool = false) -> Bool {
-        // 所有载荷先校验、后清空剪贴板：任一校验失败都不触碰系统剪贴板现状
-        // （文件条目契约原文，图片/敏感条目补齐同等保护——审计 BUG-020/021）
+        let engine = rustEngine ?? AppDependencies.live.rustHistoryStore.engine
+        do {
+            let payload = try engine.preparePastePayload(id: item.id.uuidString, plainTextOnly: plainTextOnly)
+            return writePreparedPayload(payload, fallbackSummary: item.summary, plainTextOnly: plainTextOnly)
+        } catch let error as NookClipError {
+            switch error {
+            case .NotFound:
+                break
+            case .StaleFiles, .CorruptedImagePayload, .DecryptionFailed:
+                return false
+            default:
+                break
+            }
+        } catch {}
 
-        // 1. 文件条目：失效引用不清空、不写入，保留剪贴板现状
+        // 内存中尚未持久化或测试临时构造的条目（兜底执行原生系统剪贴板写入与校验）
+        if item.isSensitive {
+            guard case .success = item.revealPlainContentResult() else {
+                return false
+            }
+        }
         if item.type == .file {
             let paths = Self.referencedFilePaths(item)
-            guard !paths.isEmpty,
-                  paths.allSatisfy({ FileManager.default.fileExists(atPath: $0) }) else {
+            guard !paths.isEmpty, paths.allSatisfy({ FileManager.default.fileExists(atPath: $0) }) else {
+                return false
+            }
+        } else if item.type == .image {
+            guard let path = item.payloadPath, FileStore.shared.load(path: path) != nil else {
                 return false
             }
         }
-
-        // 2. 图片条目：载荷缺失/损坏时不清空剪贴板（原实现先 clearContents 后校验，
-        //    失败路径会把用户当前剪贴板内容清掉且无法恢复——审计 BUG-020）
-        var imageData: Data?
-        if item.type == .image {
-            guard let path = item.payloadPath,
-                  let data = FileStore.shared.load(path: path) else {
-                return false
-            }
-            imageData = data
-        }
-
-        // 3. 敏感条目：先解密，失败即中止——绝不把掩码占位符当作正文写入剪贴板
-        //    并模拟粘贴（用户会误以为粘贴了密钥，实际污染目标文档——审计 BUG-021）
-        var sensitivePlainText: String?
-        if item.isSensitive {
-            switch item.revealPlainContentResult() {
-            case .success(let plain):
-                sensitivePlainText = plain
-            case .failure:
-                return false
-            }
-        }
-
+        let plainText = item.isSensitive ? (item.revealPlainContent() ?? item.summary) : item.summary
         let pasteboard = PasteboardAccess.general
         pasteboard.clearContents()
         let success: Bool
+
         switch item.type {
-        case .text:
-            let plainText = sensitivePlainText ?? item.summary
+        case .text, .url:
             success = pasteboard.setString(plainText, forType: .string)
             if !item.isSensitive && !plainTextOnly, let path = item.payloadPath, path.lowercased().hasSuffix(".rtf"),
                let data = FileStore.shared.load(path: path) {
                 pasteboard.setData(data, forType: .rtf)
             }
-        case .url:
-            // 敏感 URL（查询参数含 token）：解密还原完整链接，而非掩码
-            success = pasteboard.setString(sensitivePlainText ?? item.summary, forType: .string)
         case .file:
             let filePaths = Self.referencedFilePaths(item)
-            let joinedPath = sensitivePlainText ?? filePaths.joined(separator: "\n")
+            let joinedPath = item.isSensitive ? plainText : filePaths.joined(separator: "\n")
             if plainTextOnly {
                 success = pasteboard.setString(joinedPath, forType: .string)
             } else {
@@ -213,22 +209,85 @@ final class PasteService {
                 success = writeObjSuccess
             }
         case .image:
-            guard let data = imageData else { return false }
-            success = pasteboard.setData(data, forType: item.payloadPath?.lowercased().hasSuffix(".png") == true ? .png : .tiff)
+            if let path = item.payloadPath, let data = FileStore.shared.load(path: path) {
+                let type: NSPasteboard.PasteboardType = path.lowercased().hasSuffix(".png") ? .png : .tiff
+                success = pasteboard.setData(data, forType: type)
+            } else {
+                success = false
+            }
         }
+
         if success {
             finalizeClipboardWrite(
                 pasteboard: pasteboard,
                 containsSensitive: item.isSensitive,
-                plainText: sensitivePlainText ?? item.summary
+                plainText: plainText
             )
         }
         return success
     }
-    /// - Parameter containsSensitive: 合并文本是否含敏感明文（批量合并粘贴场景）。
-    ///   含敏感时写入 transient/concealed 标记（密码管理器识别用）并调度 30s 自毁，
-    ///   与单条敏感粘贴（copyOnly）同等保护（审计 BUG-052）
-    @discardableResult
+
+    private func writePreparedPayload(_ payload: PreparedPastePayload, fallbackSummary: String, plainTextOnly: Bool) -> Bool {
+        switch payload.itemType {
+        case "text", "url", "file":
+            guard payload.plainText != nil else { return false }
+        case "image":
+            guard payload.imageData != nil else { return false }
+        default:
+            return false
+        }
+
+        let pasteboard = PasteboardAccess.general
+        pasteboard.clearContents()
+        let success: Bool
+        switch payload.itemType {
+        case "text", "url":
+            guard let text = payload.plainText else { return false }
+            let writeSuccess = pasteboard.setString(text, forType: .string)
+            if let rtf = payload.rtfData, !plainTextOnly {
+                pasteboard.setData(rtf, forType: .rtf)
+            }
+            success = writeSuccess
+        case "file":
+            guard let joinedPath = payload.plainText else { return false }
+            if plainTextOnly {
+                success = pasteboard.setString(joinedPath, forType: .string)
+            } else {
+                let urls = payload.filePaths.map { URL(fileURLWithPath: $0) as NSURL }
+                let writeObjSuccess = pasteboard.writeObjects(urls)
+                pasteboard.setString(joinedPath, forType: .string)
+                if payload.isSingleImageFile, let singlePath = payload.filePaths.first,
+                   let fileData = try? Data(contentsOf: URL(fileURLWithPath: singlePath)) {
+                    let ext = (singlePath as NSString).pathExtension.lowercased()
+                    if ext == "png" {
+                        pasteboard.setData(fileData, forType: .png)
+                    } else if ext == "tiff" || ext == "tif" {
+                        pasteboard.setData(fileData, forType: .tiff)
+                    }
+                    if let image = NSImage(contentsOfFile: singlePath),
+                       let tiff = image.tiffRepresentation {
+                        pasteboard.setData(tiff, forType: .tiff)
+                    }
+                }
+                success = writeObjSuccess
+            }
+        case "image":
+            guard let data = payload.imageData else { return false }
+            let type: NSPasteboard.PasteboardType = payload.imageFormat == "png" ? .png : .tiff
+            success = pasteboard.setData(data, forType: type)
+        default:
+            success = false
+        }
+
+        if success {
+            finalizeClipboardWrite(
+                pasteboard: pasteboard,
+                containsSensitive: payload.isSensitive,
+                plainText: payload.plainText ?? fallbackSummary
+            )
+        }
+        return success
+    }
     func copyText(_ text: String, containsSensitive: Bool = false) -> Bool {
         let pasteboard = PasteboardAccess.general
         pasteboard.clearContents()

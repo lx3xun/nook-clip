@@ -68,6 +68,42 @@ final class UIComponentTests: XCTestCase {
         XCTAssertEqual(revealedCard.revealedText, "sk-proj-full-plaintext")
         XCTAssertNotNil(renderView(revealedCard))
     }
+    func testSensitiveMaskCardCountdownButtonText() {
+        let cardWithCountdown = SensitiveMaskCard(
+            maskedText: "sk-••••",
+            revealedText: "sk-proj-plaintext",
+            isRevealed: true,
+            countdownSeconds: 25,
+            revealFailure: nil,
+            onToggle: {}
+        )
+        XCTAssertTrue(cardWithCountdown.isRevealed)
+        XCTAssertEqual(cardWithCountdown.countdownSeconds, 25)
+        XCTAssertNotNil(renderView(cardWithCountdown))
+    }
+
+    func testSensitivePreviewCardShowsSummaryWhenAliasIsSet() {
+        let itemWithAlias = ClipboardItem(
+            type: .text,
+            title: "My OpenAI Secret Alias",
+            summary: "sk-••••••••7890",
+            isSensitive: true
+        )
+        let row = ClipboardRowModel(item: itemWithAlias)
+        XCTAssertEqual(row.displayTitle, "My OpenAI Secret Alias")
+        XCTAssertEqual(row.summary, "sk-••••••••7890")
+
+        let maskedText = row.summary.isEmpty ? row.displayTitle : row.summary
+        let card = SensitiveMaskCard(
+            maskedText: maskedText,
+            revealedText: nil,
+            isRevealed: false,
+            revealFailure: nil,
+            onToggle: {}
+        )
+        XCTAssertEqual(card.maskedText, "sk-••••••••7890", "设置别名后，脱敏卡片仍必须展示脱敏摘要而非别名")
+    }
+
 
     // MARK: - BatchBar 测试
 

@@ -169,31 +169,15 @@ extension MainView {
 
     /// 根据可见行坐标实时同步顶部所属时间分组（供独立顶部组头栏与右侧时间刻度轨同步显示）
     func updateActiveStickyGroupFromVisibleRows(_ frames: [String: CGRect]) {
-        guard !groups.isEmpty else {
+        if let resolved = MainViewFilterState.resolveStickyGroupID(
+            groups: groups,
+            frames: frames,
+            bounds: listContentSafeBoundsY,
+            selectedID: selectionCoordinator.selectedID
+        ) {
+            filterState.updateStickyGroup(resolved)
+        } else if groups.isEmpty {
             filterState.updateStickyGroup(nil)
-            return
-        }
-        let bounds = listContentSafeBoundsY
-        // 1) 若当前选中行已确定所属分组，且该行在可视区内（或尚未上报坐标），优先跟随选中行分组
-        if let selectedID = selectionCoordinator.selectedID,
-           let selectedGroup = groups.first(where: { grp in grp.items.contains { $0.id == selectedID } }) {
-            if let rect = frames[selectedID.uuidString] {
-                if rect.maxY > bounds.top + 1 && rect.minY < bounds.bottom - 1 {
-                    filterState.updateStickyGroup(selectedGroup.id)
-                    return
-                }
-            } else {
-                filterState.updateStickyGroup(selectedGroup.id)
-                return
-            }
-        }
-        // 2) 鼠标滚轮自由滚动（选中行已滚出视口）或当前焦点在上方应用区时，跟随剪贴板视口顶部可见首行所属分组
-        let topVisibleCandidate = frames
-            .filter { $0.value.maxY > bounds.top + 2 }
-            .min { $0.value.minY < $1.value.minY }
-        if let topKey = topVisibleCandidate?.key,
-           let group = groups.first(where: { grp in grp.items.contains { $0.id.uuidString == topKey } }) {
-            filterState.updateStickyGroup(group.id)
         }
     }
 

@@ -129,11 +129,11 @@ struct OCRPreviewCard: View {
     private var contentArea: some View {
         if hasText {
             SearchHighlight.text(ocrText ?? "", keywords: highlightKeywords)
+                .searchHighlightRenderer()
                 .textSelection(.enabled)
                 .foregroundStyle(NookClip.codeText)
         } else if isScanning {
             OCRProgressLogView(activeStage: currentStage ?? .loadingEngine)
-                .padding(.vertical, 4)
         } else if hasAttemptedScan {
             // 识别完成但无文字反馈
             VStack(alignment: .leading, spacing: 8) {

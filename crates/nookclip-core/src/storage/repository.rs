@@ -97,6 +97,10 @@ impl StorageRepository {
         })
     }
 
+    pub fn crypto(&self) -> &CryptoEngine {
+        &self.crypto
+    }
+
     /// 主密钥轮换：用当前密钥解密全部密文载荷，改用新密钥重新加密落盘。
     /// 仅迁移场景调用（如从旧版固定密钥迁移到钥匙串密钥）；调用方应在
     /// 轮换后用新密钥重新打开引擎（本实例的内存密钥不随之切换）。
@@ -129,6 +133,15 @@ impl StorageRepository {
 
         tx.commit()?;
         Ok(count)
+    }
+    pub fn has_encrypted_payloads(&self) -> Result<bool> {
+        let conn = self.conn.lock();
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM clip_payloads WHERE encrypted_content IS NOT NULL LIMIT 1)",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(exists)
     }
 
     pub fn save_item(
@@ -363,31 +376,39 @@ impl StorageRepository {
             },
         )?;
 
-        // 6. Update clip_fts (exclude sensitive plaintexts)
+        // 6. Update clip_fts:
         // FTS5 按 rowid 定位：clip_id 是 UNINDEXED 列，按其删除/更新需全表扫描（O(N)，
-        // 批量场景退化为 O(N²)）。不变量：clip_fts.rowid == clip_items.rowid，
-        // 存量库由 schema 初始化时的一次性重建对齐。
+        // 批量场景退化为 O(N²)）。不变量：clip_fts.rowid == clip_items.rowid。
+        // 敏感条目收录 title 供别名检索，正文/OCR/来源全部留空以防明文泄密。
         tx.execute(
             "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
             params![&target_id],
         )?;
-        if !item.is_sensitive {
-            tx.execute(
-                r#"
-                INSERT INTO clip_fts (
-                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, ?3, ?4, ?5, ?6)
-                "#,
-                params![
-                    &persisted.title,
-                    &persisted.summary,
-                    persisted.ocr_text.as_deref().unwrap_or(""),
-                    persisted.source_app_name.as_deref().unwrap_or(""),
-                    persisted.source_app_bundle_id.as_deref().unwrap_or(""),
-                    &target_id,
-                ],
-            )?;
-        }
+        let (fts_summary, fts_ocr, fts_app_name, fts_bundle_id) = if persisted.is_sensitive {
+            ("", "", "", "")
+        } else {
+            (
+                persisted.summary.as_str(),
+                persisted.ocr_text.as_deref().unwrap_or(""),
+                persisted.source_app_name.as_deref().unwrap_or(""),
+                persisted.source_app_bundle_id.as_deref().unwrap_or(""),
+            )
+        };
+        tx.execute(
+            r#"
+            INSERT INTO clip_fts (
+                rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+            ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+            params![
+                &persisted.title,
+                fts_summary,
+                fts_ocr,
+                fts_app_name,
+                fts_bundle_id,
+                &target_id,
+            ],
+        )?;
 
         Ok(persisted)
     }
@@ -828,6 +849,16 @@ impl StorageRepository {
                 "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
                 params![id],
             )?;
+            tx.execute(
+                r#"
+                INSERT INTO clip_fts (
+                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+                )
+                SELECT rowid, title, '', '', '', '', id
+                FROM clip_items WHERE id = ?1
+                "#,
+                params![id],
+            )?;
         } else {
             let plain = match (encrypted_content, nonce) {
                 (Some(c), Some(n)) => self.crypto.decrypt(&c, &n)?,
@@ -1044,27 +1075,50 @@ impl StorageRepository {
 
         if let Some(record) = item {
             tx.execute("DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)", params![id])?;
-            if !record.is_sensitive {
-                tx.execute(
-                    r#"
-                    INSERT INTO clip_fts (
-                        rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                    ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, ?3, ?4, ?5, ?6)
-                    "#,
-                    params![
-                        &record.title,
-                        &record.summary,
-                        ocr_text,
-                        &record.app_name.as_deref().unwrap_or(""),
-                        &record.app_bundle.as_deref().unwrap_or(""),
-                        id,
-                    ],
-                )?;
-            }
+            let (fts_summary, fts_ocr, fts_app_name, fts_bundle_id) = if record.is_sensitive {
+                ("", "", "", "")
+            } else {
+                (
+                    record.summary.as_str(),
+                    ocr_text,
+                    record.app_name.as_deref().unwrap_or(""),
+                    record.app_bundle.as_deref().unwrap_or(""),
+                )
+            };
+            tx.execute(
+                r#"
+                INSERT INTO clip_fts (
+                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+                ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, ?3, ?4, ?5, ?6)
+                "#,
+                params![
+                    &record.title,
+                    fts_summary,
+                    fts_ocr,
+                    fts_app_name,
+                    fts_bundle_id,
+                    id,
+                ],
+            )?;
         }
 
         tx.commit()?;
         Ok(())
+    }
+    pub fn update_ocr_text_masked(&self, id: &str, raw_ocr_text: &str) -> Result<Option<String>> {
+        let trimmed = raw_ocr_text.trim();
+        if trimmed.is_empty() {
+            return Ok(None);
+        }
+        let detection = crate::algorithms::sensitive::detect_sensitive(trimmed);
+        let storable = if detection.is_sensitive {
+            detection.masked_text
+        } else {
+            trimmed.to_string()
+        };
+
+        self.update_ocr_text(id, &storable)?;
+        Ok(Some(storable))
     }
     pub fn update_title(&self, id: &str, title: &str) -> Result<()> {
         let mut conn = self.conn.lock();
@@ -1074,11 +1128,29 @@ impl StorageRepository {
             "UPDATE clip_items SET title = ?1, updated_at = ?2 WHERE id = ?3",
             params![title, Self::unix_now(), id],
         )?;
-        tx.execute(
+        let updated_fts = tx.execute(
             "UPDATE clip_fts SET title = ?1 WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?2)",
             params![title, id],
         )?;
-
+        if updated_fts == 0 {
+            tx.execute(
+                r#"
+                INSERT INTO clip_fts (
+                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+                )
+                SELECT ci.rowid, ?1,
+                       CASE WHEN ci.is_sensitive = 1 THEN '' ELSE ci.summary END,
+                       CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
+                       CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
+                       CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+                       ci.id
+                FROM clip_items ci
+                LEFT JOIN clip_payloads cp ON ci.id = cp.id
+                WHERE ci.id = ?2
+                "#,
+                params![title, id],
+            )?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -1350,16 +1422,10 @@ impl StorageRepository {
             // 附件池：仅受管载荷目录内的文件随 pack 同步（content-addressed 文件名）；
             // 用户原始文件路径（file 类条目）绝不外发
             let asset_file_name = payload_path.as_deref().and_then(|p| {
-                let dir = assets_dir?;
-                // 追加分隔符防同前缀目录（如 assets-backup）混入附件池
-                let dir_prefix = if dir.ends_with('/') {
-                    dir.to_string()
-                } else {
-                    format!("{}/", dir)
-                };
-                if p.starts_with(&dir_prefix) {
-                    std::path::Path::new(p)
-                        .file_name()
+                let dir = std::path::Path::new(assets_dir?);
+                let path = std::path::Path::new(p);
+                if path.starts_with(dir) {
+                    path.file_name()
                         .and_then(|n| n.to_str())
                         .map(|n| n.to_string())
                 } else {
@@ -1509,19 +1575,23 @@ impl StorageRepository {
                             "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
                             params![&item.id],
                         )?;
-                        if !item.is_sensitive && item.deleted_at.is_none() {
+                        if item.deleted_at.is_none() {
+                            let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
                             tx.execute(
                                 r#"
                                 INSERT INTO clip_fts (
                                     rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
                                 )
-                                SELECT ci.rowid, ?1, ?2, COALESCE(cp.ocr_text, ''),
-                                       COALESCE(ci.source_app_name, ''), COALESCE(ci.source_app_bundle_id, ''), ci.id
+                                SELECT ci.rowid, ?1, ?2,
+                                       CASE WHEN ?4 = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
+                                       CASE WHEN ?4 = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
+                                       CASE WHEN ?4 = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+                                       ci.id
                                 FROM clip_items ci
                                 LEFT JOIN clip_payloads cp ON ci.id = cp.id
                                 WHERE ci.id = ?3
                                 "#,
-                                params![&item.title, &item.summary, &item.id],
+                                params![&item.title, fts_summary, &item.id, if item.is_sensitive { 1 } else { 0 }],
                             )?;
                         }
                         if let Some(text) = &item.raw_text {
@@ -1605,14 +1675,15 @@ impl StorageRepository {
                             params![&item.id, &item.raw_text, resolved_meta.as_deref()],
                         )?;
                     }
-                    if !item.is_sensitive && item.deleted_at.is_none() {
+                    if item.deleted_at.is_none() {
+                        let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
                         tx.execute(
                             r#"
                             INSERT INTO clip_fts (
                                 rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
                             ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?3), ?1, ?2, '', '', '', ?3)
                             "#,
-                            params![&item.title, &item.summary, &item.id],
+                            params![&item.title, fts_summary, &item.id],
                         )?;
                     }
                     merged_count += 1;
@@ -1822,16 +1893,15 @@ impl StorageRepository {
                 params![&item.id, &stored_raw, &encrypted_content, &nonce, resolved_meta.as_deref()],
             )?;
 
-            if !item.is_sensitive {
-                tx.execute(
-                    r#"
-                    INSERT INTO clip_fts (
-                        rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                    ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?3), ?1, ?2, '', '', '', ?3)
-                    "#,
-                    params![&item.title, &item.summary, &item.id],
-                )?;
-            }
+            let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
+            tx.execute(
+                r#"
+                INSERT INTO clip_fts (
+                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+                ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?3), ?1, ?2, '', '', '', ?3)
+                "#,
+                params![&item.title, fts_summary, &item.id],
+            )?;
             report.imported_count += 1;
         }
 
