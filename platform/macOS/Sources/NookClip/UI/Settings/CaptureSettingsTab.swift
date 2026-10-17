@@ -35,17 +35,6 @@ struct CaptureSettingsTab: View {
                 }
             }
 
-            // 离线图片文字识别 (OCR)
-            SettingsSectionView(title: L10n.tr("settings.ocr.title")) {
-                SettingsRowView(
-                    title: L10n.tr("settings.ocr.engine_title"),
-                    subtitle: L10n.tr("settings.ocr.engine_desc"),
-                    showDivider: false
-                ) {
-                    PillView(text: L10n.tr("preview.ocr.badge"))
-                }
-            }
-
             // 排除应用列表
             ExcludedAppsView()
         }

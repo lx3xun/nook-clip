@@ -193,6 +193,7 @@ private final class SettingsWindowController: NSWindowController, NSWindowDelega
         window.title = L10n.tr("settings.window_title")
         window.setContentSize(NSSize(width: 580, height: 520))
         window.isReleasedWhenClosed = false
+        window.level = .floating
         super.init(window: window)
         window.delegate = self
 

@@ -377,9 +377,6 @@
 "preview.ocr.stage.reclaiming" = "辨識完成，正在釋放神經網路快取並回收記憶體…";
 "preview.ocr.copied" = "已複製到剪貼簿";
 "preview.ocr.copy" = "一鍵複製辨識文字";
-"settings.ocr.title" = "離線文字辨識 (OCR)";
-"settings.ocr.engine_title" = "Apple Vision 離線引擎";
-"settings.ocr.engine_desc" = "採用系統原生神經網路模型按需離線辨識圖片文字，資料不出裝置；辨識完成後自動釋放模型記憶體，零常駐開銷。";
 "preview.color.hint" = "點擊行可複製對應格式 · 行內色點與列表條目即時同步";
 
 /* New UI - Sidebar / Search / Toolbar */

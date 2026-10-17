@@ -64,6 +64,7 @@ final class AppDelegateAndMenuBarTests: XCTestCase {
         XCTAssertEqual(settingsWindow?.contentView?.frame.width, 580, "设置窗口内容宽度必须为 580")
         XCTAssertEqual(settingsWindow?.contentView?.frame.height, 520, "设置窗口内容高度必须为 520")
         XCTAssertFalse(settingsWindow?.isReleasedWhenClosed ?? true, "设置窗口关闭时不应被自动释放")
+        XCTAssertEqual(settingsWindow?.level, .floating, "作为 LSUIElement 应用的设置窗口应为 floating 层级以防点击外部被覆盖消失")
 
         // 关闭设置窗口后应自动释放宿主视图树以回收内存，再次发送 .openSettings 应能无缝重建
         settingsWindow?.close()
