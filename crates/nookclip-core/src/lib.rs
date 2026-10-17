@@ -1,9 +1,12 @@
 pub mod algorithms;
+pub mod clipboard;
 pub mod crypto;
 pub mod error;
 pub mod exchange;
 pub mod model;
+pub mod maintenance;
 pub mod search;
 pub mod storage;
+pub mod pipeline;
 pub mod sync;
 pub use error::CoreError;

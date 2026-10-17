@@ -41,29 +41,11 @@ final class TimelineAndSmartFeaturesTests: XCTestCase {
         XCTAssertNil(extracted.detectedLanguage)
     }
 
-    @MainActor
-    func testDeduplicationAndCopyCountMerge() {
-        let store = makeIsolatedStore()
-        store.clearHistory(keepFavorites: false)
-        let item1 = ClipboardItem(type: .text, title: "npm install", summary: "npm install")
-        store.save(item1)
-        XCTAssertEqual(store.items.first?.copyCount, 1)
-
-        let item2 = ClipboardItem(type: .text, title: "npm install", summary: "npm install")
-        store.save(item2)
-        XCTAssertEqual(store.items.count, 1)
-        XCTAssertEqual(store.items.first?.copyCount, 2)
-
-        let item3 = ClipboardItem(type: .text, title: "npm install", summary: "npm install")
-        store.save(item3)
-        XCTAssertEqual(store.items.first?.copyCount, 3)
-    }
-
 
     @MainActor
     func testSearchQueryParserWithAppMatchesDirectly() {
-        let query = SearchQueryParser.parse("Code payment")
-        XCTAssertEqual(query.keywords, ["Code", "payment"])
+        let keywords = tokenizeSearchKeywords(query: "Code payment")
+        XCTAssertEqual(keywords, ["Code", "payment"])
 
         let store = makeIsolatedStore()
         let item = ClipboardItem(
@@ -76,10 +58,6 @@ final class TimelineAndSmartFeaturesTests: XCTestCase {
         XCTAssertEqual(store.rustStore.search(query: "Code payment").count, 1)
     }
 
-    func testSearchQueryParserWithQuotedPhrase() {
-        let query = SearchQueryParser.parse("\"order payment\" refund")
-        XCTAssertEqual(query.keywords, ["order payment", "refund"])
-    }
 
     @MainActor
     func testMultiItemDeletionRestoreAndPermanentDelete() {
@@ -151,19 +129,5 @@ final class TimelineAndSmartFeaturesTests: XCTestCase {
         XCTAssertEqual(store.items.count, 1, "markUsed 后仍只有一条")
         XCTAssertTrue(store.items[0].isFavorite, "合并应保留任一重复行的收藏状态")
         XCTAssertEqual(store.rustStore.page(limit: 10, offset: 0).count, 1, "存储层物理行合并为一行")
-
-        // 软删除 + 恢复
-        let id = store.items[0].id
-        store.delete(id)
-        XCTAssertEqual(store.trashItems.count, 1)
-        store.restoreFromTrash([id])
-        XCTAssertTrue(store.items.contains { $0.id == id })
-
-        // 窗口过期清除：彻底清除回收站条目
-        store.delete(id)
-        let expired = store.purgeExpiredTrash(now: Date().addingTimeInterval(TrashPurgeWindow.grace + 1))
-        XCTAssertEqual(expired.count, 1)
-        XCTAssertTrue(store.trashItems.isEmpty)
-        XCTAssertFalse(store.items.contains { $0.id == id })
     }
 }

@@ -55,6 +55,30 @@ final class MainViewFilterState {
         stickyGroupID = id
     }
 
+    /// 根据可见行坐标与当前选中项计算顶部所属时间分组 ID：
+    /// 1) 优先取剪贴板视口顶部第一条可见行所属分组（鼠标滚轮滚动时实时跟随视口顶部）
+    /// 2) 仅当尚未上报任何可见行坐标（如初始布局首帧）时，回退到 selectedID 所属分组或首组
+    static func resolveStickyGroupID<Item: TimelineItem>(
+        groups: [TimeGroup<Item>],
+        frames: [String: CGRect],
+        bounds: (top: CGFloat, bottom: CGFloat),
+        selectedID: UUID?
+    ) -> String? where Item.ID == UUID {
+        guard !groups.isEmpty else { return nil }
+        let topVisibleCandidate = frames
+            .filter { $0.value.maxY > bounds.top + 2 && $0.value.minY < bounds.bottom }
+            .min { $0.value.minY < $1.value.minY }
+        if let topKey = topVisibleCandidate?.key,
+           let group = groups.first(where: { grp in grp.items.contains { $0.id.uuidString == topKey } }) {
+            return group.id
+        }
+        if let selectedID,
+           let selectedGroup = groups.first(where: { grp in grp.items.contains { $0.id == selectedID } }) {
+            return selectedGroup.id
+        }
+        return groups.first?.id
+    }
+
     // MARK: 选中动作（含钩子副作用）
 
     func selectCategory(_ id: Int) {

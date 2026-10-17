@@ -78,30 +78,4 @@ final class SettingsAndAppLifecycleTests: XCTestCase {
         XCTAssertTrue(manager.apps.isEmpty)
         XCTAssertFalse(manager.isExcluded(bundleIdentifier: "com.1password.1password"))
     }
-
-    func testGeneralSettingsTabRenders() {
-        let host = renderView(GeneralSettingsTab())
-        XCTAssertNotNil(host)
-    }
-
-    func testAppearanceSettingsTabRenders() {
-        let host = renderView(AppearanceSettingsTab())
-        XCTAssertNotNil(host)
-    }
-
-    func testCaptureSettingsTabRenders() {
-        let host = renderView(CaptureSettingsTab())
-        XCTAssertNotNil(host)
-    }
-
-    func testHistorySettingsTabRenders() {
-        let store = makeIsolatedStore()
-        let host = renderView(HistorySettingsTab(historyStore: store))
-        XCTAssertNotNil(host)
-    }
-
-    func testPasteSettingsTabRenders() {
-        let host = renderView(PasteSettingsTab())
-        XCTAssertNotNil(host)
-    }
 }

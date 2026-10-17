@@ -59,17 +59,20 @@ final class SearchHighlightTests: XCTestCase {
     func testAttributedContentPreservedAndHitsMarked() {
         let attr = SearchHighlight.attributed("hello world", keywords: ["world"])!
         XCTAssertEqual(String(attr.characters), "hello world")
-        // 命中段系统蓝前景 + 加粗语义，未命中段无额外属性（继承外层 modifier）
+        // 命中段黄底(#FFE633) + 前景字色(#1A1A1A)，无粗体语义，无底部横线
         var hits = 0
         var plain = 0
         for run in attr.runs {
             if run.foregroundColor != nil {
                 hits += 1
-                XCTAssertEqual(run.inlinePresentationIntent, .stronglyEmphasized)
-                XCTAssertNil(run.backgroundColor)
+                XCTAssertNil(run.inlinePresentationIntent, "不应添加粗体强调")
+                XCTAssertNil(run.underlineStyle, "不应添加底部横线")
+                XCTAssertEqual(run.backgroundColor, NookClip.searchHighlightBackground)
+                XCTAssertEqual(run.foregroundColor, NookClip.searchHighlightForeground)
             } else {
                 plain += 1
                 XCTAssertNil(run.backgroundColor)
+                XCTAssertNil(run.underlineStyle)
                 XCTAssertNil(run.inlinePresentationIntent)
             }
         }
@@ -85,18 +88,18 @@ final class SearchHighlightTests: XCTestCase {
         XCTAssertEqual(attr.runs.filter { $0.foregroundColor != nil }.count, 3)
     }
 
-    func testAttributedOnAccentUsesFluorescentYellowWithUnderlineAndNoBackground() {
+    func testAttributedOnAccentAlsoUsesYellowBackgroundAndDarkTextWithoutUnderlineOrBold() {
         let attr = SearchHighlight.attributed("hello world", keywords: ["world"], isOnAccent: true)!
         XCTAssertEqual(String(attr.characters), "hello world")
         var hits = 0
         var plain = 0
         for run in attr.runs {
-            if run.underlineStyle != nil {
+            if run.foregroundColor != nil {
                 hits += 1
-                XCTAssertEqual(run.foregroundColor, NookClip.searchHighlightOnSolidAccent)
-                XCTAssertNil(run.backgroundColor)
-                XCTAssertEqual(run.underlineStyle, Text.LineStyle(pattern: .solid, color: NookClip.searchHighlightOnSolidAccent))
-                XCTAssertEqual(run.inlinePresentationIntent, .stronglyEmphasized)
+                XCTAssertEqual(run.backgroundColor, NookClip.searchHighlightBackground)
+                XCTAssertEqual(run.foregroundColor, NookClip.searchHighlightForeground)
+                XCTAssertNil(run.underlineStyle, "选中态也不加横线")
+                XCTAssertNil(run.inlinePresentationIntent, "选中态也不加粗体")
             } else {
                 plain += 1
                 XCTAssertNil(run.backgroundColor)
@@ -119,5 +122,16 @@ final class SearchHighlightTests: XCTestCase {
         _ = SearchHighlight.text("abc", keywords: nil)
         _ = SearchHighlight.text("abc", keywords: ["xyz"])
         _ = SearchHighlight.text("abc", keywords: ["a"])
+    }
+
+    func testSearchHighlightRendererCustomAttributeAndLayout() {
+        let text = SearchHighlight.text("hello world", keywords: ["world"])
+        if #available(macOS 15.0, *) {
+            let host = NSHostingView(rootView: text.searchHighlightRenderer())
+            host.frame = NSRect(x: 0, y: 0, width: 200, height: 40)
+            let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds)!
+            host.cacheDisplay(in: host.bounds, to: rep)
+            XCTAssertGreaterThan(rep.size.width, 0)
+        }
     }
 }

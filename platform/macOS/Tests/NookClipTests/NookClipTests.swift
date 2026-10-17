@@ -23,7 +23,7 @@ final class NookClipTests: XCTestCase {
         let awsResult = SensitiveDataDetector.detect(text: awsKey)
         XCTAssertNotNil(awsResult)
         XCTAssertEqual(awsResult!.category, "AWS")
-        XCTAssertEqual(awsResult!.maskedText, "AKIA...MPLE")
+        XCTAssertEqual(awsResult!.maskedText, "AKIA••••••••MPLE")
 
         let dbURL = "postgres://root:supersecret123@10.0.0.1:5432/production"
         let dbResult = SensitiveDataDetector.detect(text: dbURL)
@@ -483,32 +483,40 @@ final class NookClipTests: XCTestCase {
 
     // MARK: - 图片默认标题命名（URL 文件名 / url-name / 尺寸回退）
 
-    private static func tinyPNGData() -> Data {
+    private static func tinyPNGData(pixel: UInt8 = 0) -> Data {
+        let w = 4 + Int(pixel % 4)
         let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4,
+            bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: 4,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
             isPlanar: false, colorSpaceName: .deviceRGB,
             bytesPerRow: 0, bitsPerPixel: 0
         )!
         return rep.representation(using: .png, properties: [:])!
     }
-
     @MainActor
     func testClipboardMonitorImageTitleFromURLFilename() async throws {
         let monitor = ClipboardMonitor()
         var captured: ClipboardItem?
         monitor.onChange = { captured = $0 }
         monitor.start()
-        defer { monitor.stop() }
-
+        defer {
+            monitor.stop()
+            PasteboardAccess.general.clearContents()
+        }
+        let exp1 = expectation(description: "captured filename title")
+        monitor.onChange = { item in
+            captured = item
+            exp1.fulfill()
+        }
         try await withPasteboardLock {
+            captured = nil
             let pb = PasteboardAccess.general
             pb.clearContents()
-            XCTAssertTrue(pb.setData(Self.tinyPNGData(), forType: .png))
+            XCTAssertTrue(pb.setData(Self.tinyPNGData(pixel: 0x98), forType: .png))
             XCTAssertTrue(pb.writeObjects([URL(string: "https://example.com/img/my%20photo.jpg")! as NSURL]))
-            try await Task.sleep(nanoseconds: 1_200_000_000)
+            monitor.poll()
+            await fulfillment(of: [exp1], timeout: 2.0)
         }
-
         XCTAssertEqual(captured?.type, .image)
         XCTAssertEqual(captured?.title, "my photo.jpg", "URL 文件名（百分号解码后）作为图片默认标题")
     }
@@ -563,18 +571,26 @@ final class NookClipTests: XCTestCase {
         var captured: ClipboardItem?
         monitor.onChange = { captured = $0 }
         monitor.start()
-        defer { monitor.stop() }
-
+        defer {
+            monitor.stop()
+            PasteboardAccess.general.clearContents()
+        }
+        let exp2 = expectation(description: "captured urlName title")
+        monitor.onChange = { item in
+            captured = item
+            exp2.fulfill()
+        }
         try await withPasteboardLock {
+            captured = nil
             let pb = PasteboardAccess.general
             pb.clearContents()
             let urlNameType = NSPasteboard.PasteboardType("public.url-name")
             pb.declareTypes([.png, urlNameType], owner: nil)
-            XCTAssertTrue(pb.setData(Self.tinyPNGData(), forType: .png))
+            XCTAssertTrue(pb.setData(Self.tinyPNGData(pixel: 0x99), forType: .png))
             XCTAssertTrue(pb.setString("链接里的图名", forType: urlNameType))
-            try await Task.sleep(nanoseconds: 1_200_000_000)
+            monitor.poll()
+            await fulfillment(of: [exp2], timeout: 2.0)
         }
-
         XCTAssertEqual(captured?.type, .image)
         XCTAssertEqual(captured?.title, "链接里的图名", "粘贴板自带的 url-name 优先于 URL 文件名")
     }
@@ -585,14 +601,18 @@ final class NookClipTests: XCTestCase {
         var captured: ClipboardItem?
         monitor.onChange = { captured = $0 }
         monitor.start()
-        defer { monitor.stop() }
+        defer {
+            monitor.stop()
+            PasteboardAccess.general.clearContents()
+        }
 
         try await withPasteboardLock {
             let pb = PasteboardAccess.general
             pb.clearContents()
-            XCTAssertTrue(pb.setData(Self.tinyPNGData(), forType: .png))
+            XCTAssertTrue(pb.setData(Self.tinyPNGData(pixel: 0x97), forType: .png))
             // 无扩展名 slug（"def"）不作为标题来源
             XCTAssertTrue(pb.writeObjects([URL(string: "https://example.com/abc/def")! as NSURL]))
+            monitor.poll()
             try await Task.sleep(nanoseconds: 1_200_000_000)
         }
 
@@ -1917,6 +1937,67 @@ final class NookClipTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(image!.size.width, 100)
         // 空白文本不生成
         XCTAssertNil(QRCodeGenerator.image(for: "   \n "))
+    }
+
+    @MainActor
+    func testStickyGroupFollowsTopVisibleRowDuringMouseScroll() {
+        let todayItem = ClipboardItem(type: .text, title: "today", summary: "today", lastUsedAt: Date())
+        let yesterdayDate = Date().addingTimeInterval(-86_400)
+        let yesterdayItem = ClipboardItem(type: .text, title: "yesterday", summary: "yesterday", lastUsedAt: yesterdayDate)
+        let lastWeekDate = Date().addingTimeInterval(-8 * 86_400)
+        let lastWeekItem = ClipboardItem(type: .text, title: "last-week", summary: "last-week", lastUsedAt: lastWeekDate)
+
+        let groups: [TimeGroup<ClipboardItem>] = [
+            TimeGroup(id: "today", title: "今天", items: [todayItem]),
+            TimeGroup(id: "yesterday", title: "昨天", items: [yesterdayItem]),
+            TimeGroup(id: "last-week", title: "上周", items: [lastWeekItem])
+        ]
+        let bounds: (top: CGFloat, bottom: CGFloat) = (top: 102, bottom: 602)
+
+        // 场景 1：鼠标滚轮向下滚动，「今天」已被滚出视口并被 LazyVStack 回收卸载（不在 frames 中），
+        // 视口顶部第一条可见行是「昨天」，但 selectedID 仍停留在「今天」首行
+        let scrolledFramesUnloaded: [String: CGRect] = [
+            yesterdayItem.id.uuidString: CGRect(x: 0, y: 110, width: 310, height: 50),
+            lastWeekItem.id.uuidString: CGRect(x: 0, y: 160, width: 310, height: 50)
+        ]
+        let resolvedWhenUnloaded = MainViewFilterState.resolveStickyGroupID(
+            groups: groups,
+            frames: scrolledFramesUnloaded,
+            bounds: bounds,
+            selectedID: todayItem.id
+        )
+        XCTAssertEqual(
+            resolvedWhenUnloaded,
+            "yesterday",
+            "当选中行滚出视口被 LazyVStack 卸载后，时间导航必须跟随当前视口顶部可见行（yesterday），不能死锁在 today"
+        )
+
+        // 场景 2：用户选中了列表靠下的「上周」行（仍在屏幕底部 y=520 可见），
+        // 随后向上滚动鼠标使「昨天」位于视口顶部（y=105）
+        let framesWithSelectedAtBottom: [String: CGRect] = [
+            yesterdayItem.id.uuidString: CGRect(x: 0, y: 105, width: 310, height: 50),
+            lastWeekItem.id.uuidString: CGRect(x: 0, y: 520, width: 310, height: 50)
+        ]
+        let resolvedWithSelectedAtBottom = MainViewFilterState.resolveStickyGroupID(
+            groups: groups,
+            frames: framesWithSelectedAtBottom,
+            bounds: bounds,
+            selectedID: lastWeekItem.id
+        )
+        XCTAssertEqual(
+            resolvedWithSelectedAtBottom,
+            "yesterday",
+            "滚动时时间导航应反映视口顶部可见分组（yesterday），而非视口底部的选中行分组"
+        )
+
+        // 场景 3：初始尚未上报任何可见行坐标时，回退到 selectedID 所属分组
+        let resolvedInitialFallback = MainViewFilterState.resolveStickyGroupID(
+            groups: groups,
+            frames: [:],
+            bounds: bounds,
+            selectedID: yesterdayItem.id
+        )
+        XCTAssertEqual(resolvedInitialFallback, "yesterday")
     }
 }
 

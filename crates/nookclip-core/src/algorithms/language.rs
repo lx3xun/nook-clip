@@ -919,54 +919,160 @@ fn looks_like_toml(lines: &[&str]) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_classify_rust() {
-        let code = r#"
-            pub fn greet(name: &str) -> String {
-                let mut message = String::from("Hello, ");
-                message.push_str(name);
-                message
-            }
-        "#;
-        assert_eq!(classify_language(code), Some("rust".to_string()));
+    fn assert_lang(code: &str, expected: &str) {
+        assert_eq!(
+            classify_language(code).as_deref(),
+            Some(expected),
+            "expected language '{expected}' for sample:\n{code}"
+        );
     }
 
     #[test]
-    fn test_classify_python() {
-        let code = r#"
-            def fetch_data(url):
-                print(f"Fetching {url}")
-                with open("log.txt", "w") as f:
-                    f.write("done")
-                return None
-        "#;
-        assert_eq!(classify_language(code), Some("python".to_string()));
+    fn test_classify_all_31_supported_languages() {
+        assert_lang(
+            "package com.example.demo;\nimport java.util.List;\npublic class UserService {\n    private final UserRepository repository;\n    public User findById(Long id) {\n        return repository.findById(id).orElseThrow();\n    }\n}",
+            "java",
+        );
+        assert_lang(
+            "data class User(val name: String, val age: Int)\nfun main() {\n    println(User(\"Alice\", 30))\n}",
+            "kotlin",
+        );
+        assert_lang(
+            "import SwiftUI\nstruct CounterView: View {\n    @State private var count = 0\n    func increment() -> Int {\n        return count + 1\n    }\n}",
+            "swift",
+        );
+        assert_lang(
+            "#import <Foundation/Foundation.h>\n@interface User : NSObject\n@property (nonatomic, strong) NSString *name;\n@end",
+            "objc",
+        );
+        assert_lang(
+            "import numpy as np\ndef process_data(items):\n    result = [x * 2 for x in items]\n    return np.array(result)",
+            "python",
+        );
+        assert_lang(
+            "const arr = [1, 2, 3];\nconst doubled = arr.map(x => x * 2);\nconsole.log(doubled);",
+            "javascript",
+        );
+        assert_lang(
+            "interface User {\n    name: string;\n    age: number;\n}\nfunction greet(user: User): string {\n    return `Hello ${user.name}`;\n}",
+            "typescript",
+        );
+        assert_lang(
+            "import React, { useState } from 'react';\nfunction Counter() {\n  const [count, setCount] = useState(0);\n  return <div className=\"counter\"><button onClick={() => setCount(count + 1)}>Click</button></div>;\n}",
+            "jsx",
+        );
+        assert_lang(
+            "<template>\n  <div>{{ msg }}</div>\n</template>\n<script>\nexport default {}\n</script>",
+            "vue",
+        );
+        assert_lang(
+            "package main\nimport \"fmt\"\nfunc main() {\n    ch := make(chan int, 1)\n    defer close(ch)\n    fmt.Println(\"hello\", ch)\n}",
+            "go",
+        );
+        assert_lang(
+            "use std::collections::HashMap;\nfn main() {\n    let mut map = HashMap::new();\n    map.insert(\"key\", 42);\n    println!(\"{}\", map.len());\n}",
+            "rust",
+        );
+        assert_lang(
+            "#include <stdio.h>\nint main() {\n    printf(\"Hello, World!\\n\");\n    return 0;\n}",
+            "c",
+        );
+        assert_lang(
+            "#include <iostream>\nusing namespace std;\nint main() {\n    cout << \"Hello\" << endl;\n    return 0;\n}",
+            "cpp",
+        );
+        assert_lang(
+            "using System;\nnamespace Demo { public class Program { static void Main(string[] args) { Console.WriteLine(\"Hi\"); } } }",
+            "csharp",
+        );
+        assert_lang(
+            "class User < ApplicationRecord\n  def initialize(name)\n    @name = name\n  end\n  def greet\n    puts \"Hello #{@name}\"\n  end\nend",
+            "ruby",
+        );
+        assert_lang(
+            "<?php\nfunction greet($name) {\n    echo \"Hello \" . $name;\n    return true;\n}\n?>",
+            "php",
+        );
+        assert_lang(
+            "#!/bin/bash\nset -e\nfor f in *.txt; do\n  echo \"Processing $f\"\ndone",
+            "shell",
+        );
+        assert_lang(
+            "SELECT id, title, created_at FROM items\nWHERE is_favorite = 1\nORDER BY last_used_at DESC",
+            "sql",
+        );
+        assert_lang(
+            "<!DOCTYPE html>\n<html>\n<head><title>Test</title></head>\n<body>\n  <div class=\"container\">Hello</div>\n</body>\n</html>",
+            "html",
+        );
+        assert_lang(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root>\n  <item id=\"1\">hello</item>\n</root>",
+            "xml",
+        );
+        assert_lang(
+            "{\"name\":\"NookClip\",\"version\":2,\"features\":[\"clipboard\",\"ocr\"]}",
+            "json",
+        );
+        assert_lang(
+            "name: nook\nversion: 1.0.0\ndependencies:\n  - swift\n  - rust",
+            "yaml",
+        );
+        assert_lang(
+            "[package]\nname = \"nook\"\nversion = \"0.1.0\"",
+            "toml",
+        );
+        assert_lang(
+            ".card {\n  display: flex;\n  padding: 16px;\n  color: #333;\n  border-radius: 8px;\n}",
+            "css",
+        );
+        assert_lang(
+            "class User {\n  final String name;\n  User(this.name);\n  void greet() => print('Hello $name');\n}",
+            "dart",
+        );
+        assert_lang(
+            "local function greet(name)\n  print(\"Hello, \" .. name)\nend",
+            "lua",
+        );
+        assert_lang(
+            "library(ggplot2)\ndf <- data.frame(x = c(1, 2, 3))\nggplot(df, aes(x)) + geom_point()",
+            "r",
+        );
+        assert_lang(
+            "object Main extends App {\n  def greet(name: String): Unit = println(s\"hello $name\")\n}",
+            "scala",
+        );
+        assert_lang(
+            "Module Program\n    Sub Main()\n        Console.WriteLine(\"Hello\")\n    End Sub\nEnd Module",
+            "vb",
+        );
+        assert_lang(
+            "function y = square(x)\n    y = x.^2;\n    disp(y)\nend",
+            "matlab",
+        );
+        assert_lang(
+            "def message = ['hello', 'world']\nprintln message.join(' ')",
+            "groovy",
+        );
     }
 
     #[test]
-    fn test_classify_additional_languages_and_heuristics() {
-        let objc = "#import <Foundation/Foundation.h>\n@interface User : NSObject\n@property (nonatomic, strong) NSString *name;\n@end";
-        assert_eq!(classify_language(objc), Some("objc".to_string()));
+    fn test_negative_samples_and_strict_confidence_heuristics() {
+        // Chinese prose and key:value notes
+        assert_eq!(classify_language("今天下午三点开会，请大家准时到二楼会议室参加项目评审。"), None);
+        assert!(!is_code_like("今天下午三点开会，请大家准时到二楼会议室参加项目评审。"));
+        assert!(!is_code_like("时间: 下午三点\n地点: 二楼会议室\n议题: 项目评审"));
 
-        let csharp = "using System;\nnamespace Demo { public class Program { static void Main(string[] args) { Console.WriteLine(\"Hi\"); } } }";
-        assert_eq!(classify_language(csharp), Some("csharp".to_string()));
+        // English prose including Lua weak keywords (until/then)
+        let prose = "Please wait until the build finishes, then close the terminal window.";
+        assert_eq!(classify_language(prose), None);
+        assert!(!is_code_like(prose));
 
-        let vue = "<template>\n  <div>{{ msg }}</div>\n</template>\n<script>\nexport default {}\n</script>";
-        assert_eq!(classify_language(vue), Some("vue".to_string()));
-
-        let jsx = "import React, { useState } from 'react';\nfunction Counter() {\n  const [count, setCount] = useState(0);\n  return <div className=\"counter\"><button onClick={() => setCount(count + 1)}>Click</button></div>;\n}";
-        assert_eq!(classify_language(jsx), Some("jsx".to_string()));
-
-        let yaml = "name: nook\nversion: 1.0.0\ndependencies:\n  - swift\n  - rust";
-        assert_eq!(classify_language(yaml), Some("yaml".to_string()));
-
-        let toml = "[package]\nname = \"nook\"\nversion = \"0.1.0\"";
-        assert_eq!(classify_language(toml), Some("toml".to_string()));
-
-        // Terminal output with box-drawing characters should not be classified as code
+        // Terminal box-drawing banner and ANSI escape output
         let banner = "┌─────────┐\n│ Recent  │\n└─────────┘\nWait until the sync finishes, then check.";
         assert_eq!(classify_language(banner), None);
         assert!(!is_code_like(banner));
+        let ansi = "\u{1B}[32mSuccess\u{1B}[0m\n\u{1B}[31mError: timeout\u{1B}[0m\nDone in 2s";
+        assert!(!is_code_like(ansi));
 
         // Structural fallback: multi-line code with rich symbols but ambiguous language
         let ambiguous = "foo(a, b) {\n  x = bar[0];\n  return x;\n}";

@@ -114,28 +114,410 @@ final class ClipboardMonitorTests: XCTestCase {
         }
     }
 
-    func testMonitorCapturesValidPlainText() async throws {
-        let defaults = makeIsolatedDefaults()
-        let monitor = ClipboardMonitor(defaults: defaults)
-        var captured: ClipboardItem?
-        monitor.onChange = { captured = $0 }
 
-        let text = "Valid Plain Text \(UUID().uuidString)"
+    func testMonitorCapturedItemHasCurrentTimestampAndRanksFirstInStore() async throws {
+        let defaults = makeIsolatedDefaults()
+        let store = makeIsolatedStore(defaults: defaults)
+        // 预置一条 2 小时前的历史记录
+        let olderDate = Date().addingTimeInterval(-7200)
+        store.save(ClipboardItem(
+            type: .text,
+            title: "",
+            summary: "Older history item",
+            createdAt: olderDate,
+            lastUsedAt: olderDate
+        ))
+
+        let monitor = ClipboardMonitor(
+            rustEngine: store.rustStore.engine,
+            defaults: defaults
+        )
+        let exp = expectation(description: "captured and saved to store")
+        monitor.onChange = { item in
+            store.save(item)
+            exp.fulfill()
+        }
+
+        let text = "Freshly copied item \(UUID().uuidString)"
+        let beforeCopy = Date().addingTimeInterval(-5)
         try await withPasteboardLock {
             let pb = PasteboardAccess.general
             pb.clearContents()
             pb.setString(text, forType: .string)
-
             monitor.poll()
-            // 等待捕获链后台处理完成派发
-            let start = Date()
-            while captured == nil && Date().timeIntervalSince(start) < 1.0 {
-                try await Task.sleep(nanoseconds: 20_000_000)
+            await fulfillment(of: [exp], timeout: 2.0)
+        }
+
+        // 1. 新复制条目位于 store 顶部，且时间戳为当前时间（绝不能是 1970 年 0.0）
+        XCTAssertEqual(store.items.first?.summary, text)
+        XCTAssertGreaterThan(store.items.first?.lastUsedAt ?? .distantPast, beforeCopy)
+        XCTAssertGreaterThan(store.items.first?.createdAt ?? .distantPast, beforeCopy)
+
+        // 2. 数据库分页查询中同样位于第 1 位，且执行 30 天过期清理不会被误删
+        let pruned = store.rustStore.pruneExpired(days: 30, maxCount: nil)
+        XCTAssertTrue(pruned.isEmpty, "刚复制的条目绝不能因时间戳为 0 被 30 天保留策略误删")
+        let queried = store.rustStore.page(limit: 10, offset: 0)
+        XCTAssertEqual(queried.first?.summary, text)
+    }
+
+    /// 独立端到端测试：向系统剪贴板（NSPasteboard.general）写入复制内容后，
+    /// 启动真实轮询监听（monitor.start()）验证系统自动捕获并落库到 HistoryStore
+    func testSystemCopyIsCapturedAutomaticallyByRunningMonitor() async throws {
+        let defaults = makeIsolatedDefaults()
+        let store = makeIsolatedStore(defaults: defaults)
+        let monitor = ClipboardMonitor(
+            rustEngine: store.rustStore.engine,
+            defaults: defaults
+        )
+        let capturedExp = expectation(description: "system copy captured by running monitor")
+        monitor.onChange = { item in
+            store.save(item)
+            capturedExp.fulfill()
+        }
+        monitor.start()
+        defer { monitor.stop() }
+
+        let copiedText = "SystemCopyCaptureCheck-\(UUID().uuidString)"
+        await withPasteboardLock {
+            let pb = PasteboardAccess.general
+            pb.clearContents()
+            XCTAssertTrue(pb.setString(copiedText, forType: .string))
+            await fulfillment(of: [capturedExp], timeout: 2.0)
+        }
+
+        XCTAssertEqual(store.items.first?.summary, copiedText, "复制后应被运行中的监听器自动捕获并排在历史记录首位")
+        XCTAssertEqual(store.rustStore.page(limit: 1, offset: 0).first?.summary, copiedText, "捕获到的记录应已持久化写入底层数据库")
+    }
+
+    /// 核心端到端流程 1（P0）：复制 → 列表上屏 → 关键词检索选中 → 粘贴回写主循环（含防自激重入验证）
+    func testEndToEndCopySearchSelectAndPasteLoopWithoutSelfReentry() async throws {
+        let defaults = makeIsolatedDefaults()
+        let store = makeIsolatedStore(defaults: defaults)
+        let monitor = ClipboardMonitor(
+            rustEngine: store.rustStore.engine,
+            defaults: defaults
+        )
+        let listState = MainViewListState(store: store)
+        let pasteService = PasteService(defaults: defaults, rustEngine: store.rustStore.engine)
+        let pasteWorkflow = ClipboardWorkflow(store: store, clipboardWriter: pasteService)
+
+        var captureCount = 0
+        let firstCopyExp = expectation(description: "first copy captured")
+        let secondCopyExp = expectation(description: "second copy captured")
+        monitor.onChange = { item in
+            captureCount += 1
+            store.save(item)
+            listState.refresh(dataVersion: store.dataVersion)
+            if captureCount == 1 {
+                firstCopyExp.fulfill()
+            } else if captureCount == 2 {
+                secondCopyExp.fulfill()
             }
         }
 
-        XCTAssertNotNil(captured, "有效纯文本应当被成功捕获")
-        XCTAssertEqual(captured?.summary, text)
+        let targetText = "OrderNumber-E2E-8848-\(UUID().uuidString)"
+        let distractorText = "DistractorNote-\(UUID().uuidString)"
+
+        try await withPasteboardLock {
+            let pb = PasteboardAccess.general
+
+            // 1. 外部先后复制两条记录（targetText 与 distractorText）
+            pb.clearContents()
+            XCTAssertTrue(pb.setString(targetText, forType: .string))
+            monitor.poll()
+            await fulfillment(of: [firstCopyExp], timeout: 2.0)
+            try await Task.sleep(nanoseconds: 10_000_000)
+            pb.clearContents()
+            XCTAssertTrue(pb.setString(distractorText, forType: .string))
+            monitor.poll()
+            await fulfillment(of: [secondCopyExp], timeout: 2.0)
+
+            // 等待列表管线刷新上屏（2 条记录，distractor 在首位）
+            for _ in 0..<80 where listState.flatRows.count != 2 || listState.isRunning {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            XCTAssertEqual(listState.flatRows.count, 2)
+            XCTAssertEqual(listState.flatRows.first?.summary, distractorText)
+
+            // 2. 用户在搜索框输入关键词 "8848" 检索，列表过滤并自动选中 targetText
+            listState.setSearchText("8848", dataVersion: store.dataVersion)
+            // 等待 120ms 搜索防抖 + 异步查询管线彻底完成
+            try await Task.sleep(nanoseconds: 180_000_000)
+            for _ in 0..<80 where listState.isRunning || listState.flatRows.count != 1 {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            XCTAssertEqual(listState.flatRows.count, 1)
+            let selectedID = try XCTUnwrap(listState.flatRows.first?.id)
+            XCTAssertEqual(listState.flatRows.first?.summary, targetText)
+
+            // 3. 用户按下回车执行粘贴（ClipboardWorkflow -> 真实 PasteService 写回系统剪贴板）
+            var panelClosed = false
+            let outcome = pasteWorkflow.copySingle(id: selectedID, plainTextOnly: false) {
+                panelClosed = true
+            }
+            XCTAssertEqual(outcome, .pasted)
+            XCTAssertTrue(panelClosed, "粘贴/拷贝完成后面板应关闭")
+            XCTAssertEqual(pb.string(forType: .string), targetText, "目标条目内容必须真实写回系统剪贴板")
+            XCTAssertGreaterThanOrEqual(store.item(withID: selectedID)?.copyCount ?? 0, 2, "粘贴后使用次数 copyCount 应递增")
+            XCTAssertEqual(store.items.first?.id, selectedID, "被粘贴的条目应刷新 lastUsedAt 并置顶")
+
+            // 4. 关键不变量：Monitor 再次轮询时，不得把自身刚粘贴写回剪贴板的内容当成新复制重复入库
+            monitor.poll()
+            try await Task.sleep(nanoseconds: 80_000_000)
+            XCTAssertEqual(captureCount, 2, "自身粘贴写回系统剪贴板带 internalMarker，绝不能触发重复捕获")
+            XCTAssertEqual(store.items.count, 2)
+        }
+    }
+
+    /// 核心端到端流程 2（P0）：敏感凭据「复制捕获脱敏 → FTS5 明文搜索隔离 → 解密粘贴还原」全生命周期
+    func testEndToEndSensitiveCredentialCaptureSearchIsolationAndDecryptPaste() async throws {
+        let defaults = makeIsolatedDefaults()
+        defaults.set(true, forKey: "enableSensitiveProtection")
+        let store = makeIsolatedStore(defaults: defaults)
+        let monitor = ClipboardMonitor(
+            rustEngine: store.rustStore.engine,
+            defaults: defaults
+        )
+        let pasteService = PasteService(defaults: defaults, rustEngine: store.rustStore.engine)
+        let pasteWorkflow = ClipboardWorkflow(store: store, clipboardWriter: pasteService)
+
+        let capturedExp = expectation(description: "sensitive credential captured")
+        monitor.onChange = { item in
+            store.save(item)
+            capturedExp.fulfill()
+        }
+
+        let secretToken = "sk-proj-e2eSecretVaultKey998877665544332211"
+        try await withPasteboardLock {
+            let pb = PasteboardAccess.general
+            pb.clearContents()
+            XCTAssertTrue(pb.setString(secretToken, forType: .string))
+            monitor.poll()
+            await fulfillment(of: [capturedExp], timeout: 2.0)
+
+            // 1. 捕获入库后：列表项标记为敏感，summary 仅存 •••• 掩码，绝不含完整明文
+            let savedItem = try XCTUnwrap(store.items.first)
+            XCTAssertTrue(savedItem.isSensitive, "API Key 必须被自动识别为敏感条目")
+            XCTAssertTrue(savedItem.summary.contains("••••"), "列表摘要必须脱敏掩码展示")
+            XCTAssertFalse(savedItem.summary.contains("e2eSecretVaultKey"), "列表摘要严禁包含明文核心片段")
+
+            // 2. FTS5 搜索隔离：用明文核心片段搜索必须返回 0 条（敏感明文不进 FTS5 索引）
+            let ftsHits = store.rustStore.search(query: "e2eSecretVaultKey")
+            XCTAssertTrue(ftsHits.isEmpty, "敏感条目的明文绝不能进入 FTS5 全文索引被搜出")
+
+            // 3. 粘贴还原：通过 ClipboardWorkflow + PasteService 粘贴该敏感条目，
+            //    系统剪贴板必须解密还原出完整原始明文，且自动打上 Concealed/Transient 保护标记
+            pb.clearContents()
+            let outcome = pasteWorkflow.copySingle(id: savedItem.id, plainTextOnly: false)
+            XCTAssertEqual(outcome, .pasted)
+            XCTAssertEqual(pb.string(forType: .string), secretToken, "粘贴敏感条目时必须解密还原完整明文到剪贴板")
+            XCTAssertEqual(
+                pb.types?.contains(NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")),
+                true,
+                "写回敏感明文时必须附带 ConcealedType 标记保护"
+            )
+        }
+    }
+
+    /// 核心端到端流程 3（P1）：删除 → 10 秒撤销（Undo）恢复 vs 超时彻底清除 + 本地受管图片载荷文件物理回收
+    func testEndToEndDeleteUndoRestoreAndExpiredPurgeWithPayloadCleanup() async throws {
+        let defaults = makeIsolatedDefaults()
+        let payloadDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("nook-e2e-payload-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: payloadDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: payloadDir) }
+
+        let isolatedFileStore = FileStore(directory: payloadDir)
+        let tempDB = NSTemporaryDirectory() + "nook_e2e_del_\(UUID().uuidString).sqlite"
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: tempDB) }
+        let rustStore = try RustHistoryStore(path: tempDB, encryptionKey: Data(repeating: 0x42, count: 32))
+        defaults.set(true, forKey: InMemoryHistoryStore.demoSeededKey)
+        let store = InMemoryHistoryStore(
+            rustStore: rustStore,
+            syncEngine: makeDisabledSyncEngine(),
+            defaults: defaults,
+            payloadStore: isolatedFileStore
+        )
+        let monitor = ClipboardMonitor(
+            payloadStore: isolatedFileStore,
+            rustEngine: rustStore.engine,
+            defaults: defaults
+        )
+        let deletionWorkflow = DeletionWorkflow(store: store)
+        let listState = MainViewListState(store: store)
+
+        // 构造一张 4x4 PNG 图片写入系统剪贴板并捕获
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        let pngData = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+
+        let capturedExp = expectation(description: "image captured to store")
+        monitor.onChange = { item in
+            store.save(item)
+            listState.refresh(dataVersion: store.dataVersion)
+            capturedExp.fulfill()
+        }
+
+        try await withPasteboardLock {
+            let pb = PasteboardAccess.general
+            pb.clearContents()
+            XCTAssertTrue(pb.setData(pngData, forType: .png))
+            monitor.poll()
+            await fulfillment(of: [capturedExp], timeout: 2.0)
+        }
+
+        for _ in 0..<80 where listState.isRunning || listState.flatRows.count != 1 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let capturedImageItem = try XCTUnwrap(store.items.first)
+        let payloadPath = try XCTUnwrap(capturedImageItem.payloadPath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: payloadPath), "捕获图片后受管载荷文件应落盘")
+
+        // 分支 A：执行删除 → 列表立即隐藏、进入待撤销窗口 → 点击撤销（Undo）完整恢复条目与载荷文件
+        deletionWorkflow.delete([capturedImageItem.id])
+        listState.refresh(dataVersion: store.dataVersion)
+        for _ in 0..<80 where listState.isRunning || !listState.flatRows.isEmpty {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(store.items.isEmpty, "软删除后活跃列表应立即隐藏该条目")
+        XCTAssertTrue(deletionWorkflow.pendingUndoIDs.contains(capturedImageItem.id), "条目应处于 10s 撤销窗口内")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: payloadPath), "撤销宽限期内图片物理文件不得提前删除")
+
+        let restoredIDs = deletionWorkflow.undoDelete()
+        listState.refresh(dataVersion: store.dataVersion)
+        for _ in 0..<80 where listState.isRunning || listState.flatRows.count != 1 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(restoredIDs, [capturedImageItem.id])
+        XCTAssertEqual(listState.flatRows.first?.id, capturedImageItem.id, "点击撤销后列表应恢复展示该图片条目")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: payloadPath), "撤销恢复后图片载荷文件完好可用")
+
+        // 分支 B：再次删除并模拟超过撤销宽限期 → 数据库记录与磁盘受管载荷文件同步物理清除
+        deletionWorkflow.delete([capturedImageItem.id])
+        let futureBeyondGrace = Date().addingTimeInterval(TrashPurgeWindow.grace + 5)
+        let purged = store.purgeExpiredTrash(now: futureBeyondGrace)
+        XCTAssertEqual(purged.map(\.id), [capturedImageItem.id], "超过宽限期后应彻底清除软删除条目")
+        XCTAssertNil(store.rustStore.item(id: capturedImageItem.id), "数据库内记录应已物理删除")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: payloadPath), "彻底清除后受管目录内的图片载荷文件必须同步回收")
+    }
+
+    /// 核心端到端流程 4（P1）：双设备云同步（设备 A 复制捕获带图片附件 → 导出同步包 → 设备 B 拉取合并 → 列表上屏且附件可读）
+    func testEndToEndDualDeviceCaptureAndSyncWithAssetTransfer() async throws {
+        let syncDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("nook-e2e-sync-\(UUID().uuidString)", isDirectory: true)
+        let assetsDirA = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("nook-e2e-assets-A-\(UUID().uuidString)", isDirectory: true)
+        let assetsDirB = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("nook-e2e-assets-B-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: syncDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: assetsDirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: assetsDirB, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: syncDir)
+            try? FileManager.default.removeItem(at: assetsDirA)
+            try? FileManager.default.removeItem(at: assetsDirB)
+        }
+
+        // 组装设备 A（独立数据库 + 独立载荷目录 + 开启同步）
+        let defaultsA = makeIsolatedDefaults()
+        defaultsA.set("Device-A", forKey: "nook.sync.deviceID")
+        defaultsA.set(true, forKey: InMemoryHistoryStore.demoSeededKey)
+        let engineA = ICloudDriveSyncEngine(customBaseURL: syncDir, defaults: defaultsA)
+        engineA.isEnabled = true
+        let fileStoreA = FileStore(directory: assetsDirA)
+        let dbPathA = NSTemporaryDirectory() + "nook_e2e_syncA_\(UUID().uuidString).sqlite"
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: dbPathA) }
+        let rustStoreA = try RustHistoryStore(path: dbPathA, encryptionKey: Data(repeating: 0x42, count: 32))
+        let storeA = InMemoryHistoryStore(
+            rustStore: rustStoreA,
+            syncEngine: engineA,
+            defaults: defaultsA,
+            payloadStore: fileStoreA
+        )
+        let monitorA = ClipboardMonitor(
+            payloadStore: fileStoreA,
+            rustEngine: rustStoreA.engine,
+            defaults: defaultsA
+        )
+
+        // 组装设备 B（独立数据库 + 独立载荷目录 + 开启同步 + 绑定列表状态机）
+        let defaultsB = makeIsolatedDefaults()
+        defaultsB.set("Device-B", forKey: "nook.sync.deviceID")
+        defaultsB.set(true, forKey: InMemoryHistoryStore.demoSeededKey)
+        let engineB = ICloudDriveSyncEngine(customBaseURL: syncDir, defaults: defaultsB)
+        engineB.isEnabled = true
+        let fileStoreB = FileStore(directory: assetsDirB)
+        let dbPathB = NSTemporaryDirectory() + "nook_e2e_syncB_\(UUID().uuidString).sqlite"
+        addTeardownBlock { try? FileManager.default.removeItem(atPath: dbPathB) }
+        let rustStoreB = try RustHistoryStore(path: dbPathB, encryptionKey: Data(repeating: 0x42, count: 32))
+        let storeB = InMemoryHistoryStore(
+            rustStore: rustStoreB,
+            syncEngine: engineB,
+            defaults: defaultsB,
+            payloadStore: fileStoreB
+        )
+        let listStateB = MainViewListState(store: storeB)
+
+        // 1. 设备 A 从系统剪贴板捕获一条图片记录与一条文本记录
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 6, pixelsHigh: 4,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        let pngData = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        let syncedText = "CrossDeviceSyncedText-\(UUID().uuidString)"
+
+        var countA = 0
+        let firstExp = expectation(description: "device A captured image")
+        let secondExp = expectation(description: "device A captured text")
+        monitorA.onChange = { item in
+            countA += 1
+            storeA.save(item)
+            if countA == 1 {
+                firstExp.fulfill()
+            } else if countA == 2 {
+                secondExp.fulfill()
+            }
+        }
+
+        try await withPasteboardLock {
+            let pb = PasteboardAccess.general
+            pb.clearContents()
+            XCTAssertTrue(pb.setData(pngData, forType: .png))
+            monitorA.poll()
+            await fulfillment(of: [firstExp], timeout: 2.0)
+
+            pb.clearContents()
+            XCTAssertTrue(pb.setString(syncedText, forType: .string))
+            monitorA.poll()
+            await fulfillment(of: [secondExp], timeout: 2.0)
+        }
+
+        XCTAssertEqual(storeA.items.count, 2)
+        let imageItemA = try XCTUnwrap(storeA.items.first { $0.type == .image })
+        let imagePathA = try XCTUnwrap(imageItemA.payloadPath)
+        let savedImageBytesA = try Data(contentsOf: URL(fileURLWithPath: imagePathA))
+        // 2. 设备 A 执行云同步推送，设备 B 执行云同步拉取并刷新 UI 列表状态
+        await storeA.syncNow()
+        await storeB.syncNow()
+        listStateB.refresh(dataVersion: storeB.dataVersion)
+        for _ in 0..<80 where listStateB.isRunning || listStateB.flatRows.count != 2 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        // 3. 验证设备 B 列表已上屏两条记录，且图片的本地附件已自动跨设备落地到 assetsDirB
+        XCTAssertEqual(listStateB.flatRows.count, 2, "设备 B 拉取同步包后列表应展示同步过来的 2 条记录")
+        XCTAssertTrue(listStateB.flatRows.contains { $0.summary == syncedText })
+        let syncedImageB = try XCTUnwrap(storeB.items.first { $0.id == imageItemA.id })
+        let syncedImagePathB = try XCTUnwrap(syncedImageB.payloadPath)
+        XCTAssertTrue(syncedImagePathB.hasPrefix(assetsDirB.path), "设备 B 的图片 payloadPath 应指向设备 B 本地的受管目录")
+        XCTAssertEqual(try? Data(contentsOf: URL(fileURLWithPath: syncedImagePathB)), savedImageBytesA, "设备 B 同步落地的图片载荷字节应与设备 A 落盘的原图载荷完全一致")
+        XCTAssertNotNil(NSImage(contentsOfFile: syncedImagePathB), "设备 B 同步落地的图片文件必须可正常解码为 NSImage")
     }
 }
 

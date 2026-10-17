@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod pack;
+pub mod backend;
 
 pub use engine::SyncEngine;
 pub use pack::{DeviceSyncPack, SyncItemRecord};

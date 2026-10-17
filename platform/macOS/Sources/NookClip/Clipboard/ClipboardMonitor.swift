@@ -28,7 +28,7 @@ final class ClipboardMonitor {
     private var timer: Timer?
     /// 捕获处理链（后台串行，保持轮询顺序）
     private var captureChain: Task<Void, Never> = Task {}
-    private var lastChangeCount = PasteboardAccess.general.changeCount
+    private var lastChangeCount = -1
     private var sourceResolver = SourceAppResolver()
     private var activateObserver: NSObjectProtocol?
 
@@ -41,6 +41,7 @@ final class ClipboardMonitor {
     ]
 
     func start() {
+        lastChangeCount = PasteboardAccess.general.changeCount
         let timer = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.poll()
@@ -120,20 +121,108 @@ final class ClipboardMonitor {
 
         // 5. 捕获链：后台串行处理（保持轮询顺序，前一个未完成时后续排队），
         //    结果回主线程派发 onChange
-        let payloadStore = self.payloadStore
         let engine = rustEngine ?? AppDependencies.live.rustHistoryStore.engine
         let protectionEnabled = isSensitiveProtectionEnabled
+        let lastPastedSummary = PasteService.lastPastedSummary
+        let lastPastedTime = PasteService.lastPastedTime?.timeIntervalSince1970
+        let payloadStore = self.payloadStore
         let previous = captureChain
         captureChain = Task.detached(priority: .utility) {
             await previous.value
-            guard let item = Self.buildCaptureItem(
-                from: snapshot,
-                payloadStore: payloadStore,
-                engine: engine,
-                protectionEnabled: protectionEnabled
-            ) else { return }
+
+            let isCustomPayloadStore = !(payloadStore is FileStore)
+            var rtfDataForIngest = snapshot.rtfData
+            if isCustomPayloadStore {
+                if let rtf = snapshot.rtfData {
+                    if (try? payloadStore.save(data: rtf, preferredExtension: "rtf")) == nil {
+                        rtfDataForIngest = nil // 自定义 store 保存 RTF 失败时降级为纯文本
+                    }
+                }
+                if let img = snapshot.imageData {
+                    let ext = snapshot.isTIFF ? "tiff" : "png"
+                    guard (try? payloadStore.save(data: img, preferredExtension: ext)) != nil else {
+                        return // 载荷保存失败拒存该条目
+                    }
+                }
+            }
+
+            let rawSnapshot = RawClipboardSnapshot(
+                plainText: snapshot.text,
+                html: snapshot.html,
+                rtfData: rtfDataForIngest,
+                imageData: snapshot.imageData,
+                imageExtension: snapshot.imageData != nil ? (snapshot.isTIFF ? "tiff" : "png") : nil,
+                filePaths: snapshot.fileURLs.filter { $0.isFileURL }.map(\.path),
+                urlCandidates: snapshot.fileURLs.filter { !$0.isFileURL }.map(\.absoluteString),
+                urlTitle: snapshot.urlName,
+                sourceBundleId: snapshot.sourceBundleId,
+                sourceAppName: snapshot.sourceAppName,
+                hasConcealedMarker: false
+            )
+            let assetsDir = payloadStore.directory.path
+            let multiTitleTemplate = L10n.tr("item.file_multi_title", "%1$@", 2).replacingOccurrences(of: "2", with: "%2$d")
+            let config = IngestConfig(
+                sensitiveProtectionEnabled: protectionEnabled,
+                excludedBundleIds: [],
+                localAssetsDir: assetsDir,
+                fileMultiTitleTemplate: multiTitleTemplate,
+                defaultImageTitle: L10n.tr("item.type_image")
+            )
+
+            let outcome: IngestOutcome
+            do {
+                outcome = try engine.ingestClipboardSnapshot(
+                    snapshot: rawSnapshot,
+                    config: config,
+                    lastPastedSummary: lastPastedSummary,
+                    lastPastedTime: lastPastedTime,
+                    nowTs: Date().timeIntervalSince1970
+                )
+            } catch {
+                Self.logger.error("ingestClipboardSnapshot failed: \(error.localizedDescription)")
+                return
+            }
+
+            guard case .saved(let summary) = outcome else {
+                return
+            }
+
+            var metadata = ClipboardMetadata()
+            if let json = summary.metadataJson, let data = json.data(using: .utf8) {
+                metadata = (try? JSONDecoder().decode(ClipboardMetadata.self, from: data)) ?? ClipboardMetadata()
+            }
+
+            var encryptedContent: Data? = nil
+            if summary.isSensitive {
+                if let detail = try? engine.getItemDetail(id: summary.id),
+                   let plain = detail.rawText {
+                    encryptedContent = KeychainCryptoService.shared.encrypt(text: plain)
+                } else if let text = snapshot.text {
+                    encryptedContent = KeychainCryptoService.shared.encrypt(text: text)
+                }
+            }
+
+            var item = ClipboardItem(
+                id: UUID(uuidString: summary.id) ?? UUID(),
+                type: ClipboardItemType(rawValue: summary.itemType) ?? .text,
+                title: summary.title,
+                summary: summary.summary,
+                createdAt: Date(timeIntervalSince1970: summary.createdAt),
+                lastUsedAt: Date(timeIntervalSince1970: summary.lastUsedAt),
+                copyCount: Int(summary.copyCount),
+                isFavorite: summary.favorite,
+                payloadPath: summary.payloadPath,
+                ocrText: summary.ocrText,
+                sourceAppBundleId: summary.sourceAppBundleId,
+                sourceAppName: summary.sourceAppName,
+                isSensitive: summary.isSensitive,
+                encryptedContent: encryptedContent,
+                metadata: metadata
+            )
+            item.persistedKind = summary.kind.isEmpty ? nil : summary.kind
+            let finalItem = item
             await MainActor.run { [weak self] in
-                self?.onChange?(item)
+                self?.onChange?(finalItem)
             }
         }
     }
@@ -169,7 +258,7 @@ final class ClipboardMonitor {
         return PasteboardSnapshot(
             text: text,
             rtfData: text != nil ? pasteboard.data(forType: .rtf) : nil,
-            fileURLs: (pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL]) ?? [],
+            fileURLs: ((pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL])?.compactMap { $0 as URL }) ?? [],
             imageData: tiffData ?? pngData,
             isTIFF: tiffData != nil,
             urlName: pasteboard.string(forType: NSPasteboard.PasteboardType("public.url-name"))?
@@ -187,237 +276,6 @@ final class ClipboardMonitor {
         defaults.object(forKey: "enableSensitiveProtection") as? Bool ?? true
     }
 
-    /// 捕获条目构造（后台执行）：文件 → 文本/链接 → 图片，依序尝试。
-    /// 纯函数：只依赖快照与注入依赖，不触达 NSPasteboard 与主线程状态
-    nonisolated private static func buildCaptureItem(
-        from snapshot: PasteboardSnapshot,
-        payloadStore: any PayloadStore,
-        engine: NookClipHistoryEngine,
-        protectionEnabled: Bool
-    ) -> ClipboardItem? {
-        if let item = buildFileItem(from: snapshot, protectionEnabled: protectionEnabled) {
-            return item
-        }
-        if let item = buildTextItem(from: snapshot, payloadStore: payloadStore, engine: engine, protectionEnabled: protectionEnabled) {
-            return item
-        }
-        return buildImageItem(from: snapshot, payloadStore: payloadStore)
-    }
-
-    /// 文件捕获：Finder 多选复制会放入多个文件 URL，全部记录（换行拼接），粘贴时整体还原。
-    /// 无法捕获（含敏感加密失败拒存）时返回 nil，由调用方依序尝试后续载荷类型。
-    nonisolated private static func buildFileItem(from snapshot: PasteboardSnapshot, protectionEnabled: Bool) -> ClipboardItem? {
-        guard snapshot.fileURLs.contains(where: { $0.isFileURL }) else { return nil }
-        let paths = snapshot.fileURLs.filter { $0.isFileURL }.map(\.path)
-        let joined = paths.joined(separator: "\n")
-        let title = paths.count == 1
-            ? (paths[0] as NSString).lastPathComponent
-            : L10n.tr("item.file_multi_title", (paths[0] as NSString).lastPathComponent, paths.count)
-        // 文件名/路径同样可能含凭据（如把密钥存进文件名）：与文本同规则脱敏加密，
-        // 路径明文不落盘（payloadPath = nil），粘贴时经 revealPlainContent 解密还原
-        if let detection = SensitiveDataDetector.detect(text: joined) {
-            guard protectionEnabled else {
-                // 关闭敏感保护：敏感内容不进入历史；系统剪贴板原样保留，可直接 ⌘V 粘贴
-                Self.logger.notice("Sensitive file item skipped: protection disabled, pasteboard untouched")
-                return nil
-            }
-            // 加密失败时不能落盘只含掩码、无法还原的条目，跳过并记录错误
-            guard let cipherData = KeychainCryptoService.shared.encrypt(text: joined) else {
-                Self.logger.error("Sensitive file item dropped: master key unavailable, refusing to store unrecoverable masked-only entry")
-                return nil
-            }
-            return ClipboardItem(
-                type: .file,
-                title: "",
-                summary: detection.maskedText,
-                payloadPath: nil,
-                sourceAppBundleId: snapshot.sourceBundleId,
-                sourceAppName: snapshot.sourceAppName,
-                isSensitive: true,
-                encryptedContent: cipherData
-            )
-        }
-        return ClipboardItem(
-            type: .file,
-            title: title,
-            summary: joined,
-            payloadPath: joined,
-            sourceAppBundleId: snapshot.sourceBundleId,
-            sourceAppName: snapshot.sourceAppName
-        )
-    }
-
-    /// 文本/链接捕获：URL 判定、敏感脱敏加密、RTF 富文本保存、标题与 metadata 构造。
-    /// 标题只取捕获值（粘贴板 url-name 优先，其次富文本锚文本），捕获不到置空；
-    /// 纯本地解析，不发起任何网络请求。
-    nonisolated private static func buildTextItem(
-        from snapshot: PasteboardSnapshot,
-        payloadStore: any PayloadStore,
-        engine: NookClipHistoryEngine,
-        protectionEnabled: Bool
-    ) -> ClipboardItem? {
-        guard let text = snapshot.text,
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        let isURL = Self.isWebURL(text)
-        let type: ClipboardItemType = isURL ? .url : .text
-
-        // 敏感数据检测与加密脱敏防护。URL 不再整体豁免：查询参数/片段常携带
-        // token（密码重置、OAuth 回调、webhook），命中即整条加密（明文不入库、
-        // 不入 FTS 索引、不上传 iCloud——审计 BUG-006）；粘贴时解密还原完整链接。
-        // 关闭敏感保护时：敏感内容不进入历史；系统剪贴板原样保留，可直接 ⌘V 粘贴
-        if let detection = SensitiveDataDetector.detect(text: text) {
-            guard protectionEnabled else {
-                Self.logger.notice("Sensitive item skipped: protection disabled, pasteboard untouched")
-                return nil
-            }
-            // 加密失败时不能落盘只含掩码、无法还原的敏感条目（明文既不保存也不上传），跳过并记录错误
-            guard let cipherData = KeychainCryptoService.shared.encrypt(text: text) else {
-                Self.logger.error("Sensitive item dropped: master key unavailable, refusing to store unrecoverable masked-only entry")
-                return nil
-            }
-            return ClipboardItem(
-                type: type,
-                title: "",
-                summary: detection.maskedText,
-                payloadPath: nil,
-                sourceAppBundleId: snapshot.sourceBundleId,
-                sourceAppName: snapshot.sourceAppName,
-                isSensitive: true,
-                encryptedContent: cipherData
-            )
-        }
-
-        // 特征提取统一通过 Rust analyze_content
-        let detection = engine.analyzeContent(text: text)
-        // 捕获型标题：url-name > 富文本锚文本 > 置空（文本/代码/纯 URL 不再有推断标题）
-        let effectiveTitle = snapshot.urlName
-            .flatMap { $0.isEmpty ? nil : $0 }
-            ?? (isURL ? Self.anchorText(inHTML: snapshot.html) : nil)
-            ?? ""
-        let metadata = ClipboardMetadata(
-            language: isURL ? nil : detection.detectedLanguage,
-            url: isURL ? text.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
-            hasEmail: isURL ? false : detection.hasEmail
-        )
-        var rtfPath: String? = nil
-        if !isURL, let rtfData = snapshot.rtfData {
-            // RTF 载荷保存失败保留降级为纯文本（条目仍可用），但必须留痕（R8/FR-011）
-            do {
-                rtfPath = try payloadStore.save(data: rtfData, preferredExtension: "rtf")
-            } catch {
-                Self.logger.error("RTF payload save failed, falling back to plain text: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-
-        return ClipboardItem(
-            type: type,
-            title: effectiveTitle,
-            summary: text,
-            payloadPath: rtfPath,
-            sourceAppBundleId: snapshot.sourceBundleId,
-            sourceAppName: snapshot.sourceAppName,
-            metadata: metadata
-        )
-    }
-
-    /// 富文本/HTML 剪贴板中链接的锚文本（`<a>` 标签文字）：从浏览器复制带文字的
-    /// 链接时粘贴板会携带 HTML，取首个非空锚文本作为捕获标题；纯 URL 复制无
-    /// 此数据 → 返回 nil（title 置空）。纯本地解析，不发起任何网络请求。
-    nonisolated private static func anchorText(inHTML html: String?) -> String? {
-        guard let html,
-              let anchor = firstAnchorText(in: html)?
-                  .trimmingCharacters(in: .whitespacesAndNewlines),
-              !anchor.isEmpty else { return nil }
-        return String(anchor.prefix(48))
-    }
-
-    /// 首个 `<a>` 标签的纯文字（剥内嵌标签 + 常见 HTML 实体解码）
-    nonisolated private static func firstAnchorText(in html: String) -> String? {
-        guard let regex = try? NSRegularExpression(
-            pattern: #"<a\b[^>]*>(.*?)</a>"#,
-            options: [.caseInsensitive, .dotMatchesLineSeparators]
-        ) else { return nil }
-        let range = NSRange(html.startIndex..., in: html)
-        guard let match = regex.firstMatch(in: html, options: [], range: range),
-              match.numberOfRanges > 1,
-              let innerRange = Range(match.range(at: 1), in: html) else { return nil }
-        let inner = String(html[innerRange])
-        let decoded = inner
-            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-        return decoded
-    }
-
-    /// 图片捕获：TIFF 优先 PNG、SHA-256 摘要、payload 保存、尺寸与字节数摘要。
-    nonisolated private static func buildImageItem(from snapshot: PasteboardSnapshot, payloadStore: any PayloadStore) -> ClipboardItem? {
-        guard let data = snapshot.imageData else { return nil }
-        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        let extensionName = snapshot.isTIFF ? "tiff" : "png"
-        // 载荷保存失败时拒存该条目：图片无纯文本降级形式，入库会产生无法还原的死链；
-        // 对齐敏感加密失败的拒存模式（同文件上方），直接 return 不中断轮询循环（R8/FR-011）
-        let path: String
-        do {
-            path = try payloadStore.save(data: data, preferredExtension: extensionName)
-        } catch {
-            Self.logger.error("Image payload save failed, refusing to store unrecoverable entry: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-
-        var dimDetail = ""
-        if let image = NSImage(data: data) {
-            let w = Int(image.size.width)
-            let h = Int(image.size.height)
-            dimDetail = L10n.tr("general.pixels", w, h)
-        }
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        let formattedSize = formatter.string(fromByteCount: Int64(data.count))
-        let desc = [dimDetail, formattedSize].filter { !$0.isEmpty }.joined(separator: " · ")
-
-        return ClipboardItem(
-            type: .image,
-            title: Self.imageTitle(urlName: snapshot.urlName, urls: snapshot.fileURLs) ?? L10n.tr("item.type_image"),
-            summary: "\(desc) #\(hash.prefix(8))",
-            payloadPath: path,
-            sourceAppBundleId: snapshot.sourceBundleId,
-            sourceAppName: snapshot.sourceAppName
-        )
-    }
-
-    /// 图片捕获标题（捕获值优先，非用户改名）：
-    /// 1. 粘贴板自带的 `public.url-name`（应用提供的链接标题）优先；
-    /// 2. 否则取非文件 URL 的 lastPathComponent（需带扩展名的文件名，过滤无意义 slug）；
-    /// 3. 均无 → 默认标题「图片」（截图/Photos 等纯像素来源拿不到名字）。
-    ///    图片格式以行内徽标展示（PNG/TIFF，取载荷扩展名），尺寸由副行展示。
-    nonisolated private static func imageTitle(urlName: String?, urls: [URL]) -> String? {
-        if let name = urlName, !name.isEmpty {
-            return String(name.prefix(48))
-        }
-        if let url = urls.first(where: { !$0.isFileURL }),
-           let name = url.lastPathComponent.removingPercentEncoding?
-               .trimmingCharacters(in: .whitespacesAndNewlines),
-           let dot = name.lastIndex(of: "."),
-           dot != name.startIndex, dot != name.index(before: name.endIndex) {
-            return String(name.prefix(48))
-        }
-        return nil
-    }
-
-    nonisolated private static func isWebURL(_ text: String) -> Bool {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: value),
-              let scheme = url.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              url.host != nil else {
-            return false
-        }
-        return true
-    }
 
     /// 无激活记录时的兜底：当前前台应用。前台是 NookClip 自身（刚启动即打开面板）
     /// 时如实标注为 NookClip，而非丢弃来源显示「未知来源」。

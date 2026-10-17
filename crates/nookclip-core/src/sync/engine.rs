@@ -1,6 +1,7 @@
 use crate::error::CoreError;
 use crate::storage::payload_asset::PayloadAssetStore;
 use crate::storage::repository::StorageRepository;
+use crate::sync::backend::{LocalFsBackend, SyncStorageBackend};
 use crate::sync::pack::{DeviceSyncPack, SyncItemRecord};
 use std::collections::HashMap;
 use std::fs;
@@ -17,10 +18,8 @@ pub struct SyncReport {
 }
 
 pub struct SyncEngine {
-    sync_dir: PathBuf,
+    backend: Box<dyn SyncStorageBackend>,
     device_id: String,
-    /// 本地受管载荷目录（content-addressed）：push 时上传到云端 assets/，
-    /// pull 时导入云端资产。None 时禁用附件池（纯元数据同步）。
     local_assets_dir: Option<PathBuf>,
 }
 
@@ -30,11 +29,23 @@ impl SyncEngine {
         device_id: String,
         local_assets_dir: Option<PathBuf>,
     ) -> Result<Self, CoreError> {
-        let path = sync_dir.as_ref().to_path_buf();
-        fs::create_dir_all(path.join("devices"))?;
-        fs::create_dir_all(path.join("assets"))?;
+        let backend = Box::new(LocalFsBackend::new(sync_dir));
+        backend.ensure_layout()?;
         Ok(Self {
-            sync_dir: path,
+            backend,
+            device_id,
+            local_assets_dir,
+        })
+    }
+
+    pub fn with_backend(
+        backend: Box<dyn SyncStorageBackend>,
+        device_id: String,
+        local_assets_dir: Option<PathBuf>,
+    ) -> Result<Self, CoreError> {
+        backend.ensure_layout()?;
+        Ok(Self {
+            backend,
             device_id,
             local_assets_dir,
         })
@@ -42,28 +53,14 @@ impl SyncEngine {
 
     pub fn pull(&self, repo: &StorageRepository) -> Result<SyncReport, CoreError> {
         let mut report = SyncReport::default();
-        let devices_dir = self.sync_dir.join("devices");
-        if !devices_dir.exists() {
-            return Ok(report);
-        }
+        let pack_ids = self.backend.list_device_packs()?;
 
-        let entries = fs::read_dir(devices_dir)?;
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if let Ok(file_type) = entry.file_type() {
-                if !file_type.is_file() {
-                    continue;
-                }
-            }
-            if path.extension().and_then(|e| e.to_str()) != Some("pack") {
-                continue;
-            }
-            let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+        for file_stem in pack_ids {
             if file_stem == self.device_id {
                 continue; // Do not pull own pack
             }
 
-            let data = match fs::read(&path) {
+            let data = match self.backend.read_device_pack(&file_stem) {
                 Ok(bytes) => bytes,
                 Err(e) => {
                     report.failed_packs.push(format!("{}: {}", file_stem, e));
@@ -73,13 +70,11 @@ impl SyncEngine {
             let pack = match DeviceSyncPack::deserialize_compressed(&data) {
                 Ok(p) => p,
                 Err(e) => {
-                    report
-                        .failed_packs
-                        .push(format!("{}: {}", file_stem, e));
+                    report.failed_packs.push(format!("{}: {}", file_stem, e));
                     continue;
                 }
             };
-            // 附件池：先导入云端资产得到「条目 id → 本地载荷路径」映射，再落库
+
             let asset_paths = self.import_pack_assets(&pack.items, &mut report)?;
             match repo.reconcile_sync_items(&pack.items, &asset_paths) {
                 Ok(pulled) => {
@@ -88,9 +83,7 @@ impl SyncEngine {
                         pack.items.iter().filter(|i| i.deleted_at.is_some()).count() as u32;
                 }
                 Err(e) => {
-                    report
-                        .failed_packs
-                        .push(format!("{}: {}", file_stem, e));
+                    report.failed_packs.push(format!("{}: {}", file_stem, e));
                 }
             }
         }
@@ -112,13 +105,7 @@ impl SyncEngine {
         let pack = DeviceSyncPack::new(self.device_id.clone(), items);
         let compressed = pack.serialize_compressed()?;
 
-        let target_filename = format!("{}.pack", self.device_id);
-        let target_path = self.sync_dir.join("devices").join(&target_filename);
-        let temp_filename = format!("{}.tmp.{}", target_filename, uuid::Uuid::new_v4());
-        let temp_path = self.sync_dir.join("devices").join(temp_filename);
-
-        fs::write(&temp_path, compressed)?;
-        fs::rename(&temp_path, &target_path)?;
+        self.backend.write_device_pack_atomic(&self.device_id, &compressed)?;
 
         Ok(report)
     }
@@ -135,10 +122,8 @@ impl SyncEngine {
         })
     }
 
-    /// 单附件云端同步体积上限（PRD §4.6 / 设置页承诺：单张图片 ≤ 2MB）
     pub const MAX_SYNC_ASSET_BYTES: u64 = 2 * 1024 * 1024;
 
-    /// 把本地受管载荷上传到云端 assets/ 池（content-addressed，已存在即跳过，单张 ≤ 2MB）。
     fn upload_pack_assets(
         &self,
         items: &[SyncItemRecord],
@@ -152,33 +137,25 @@ impl SyncEngine {
                 continue;
             };
             let source = assets_dir.join(&name);
-            let target = self.sync_dir.join("assets").join(&name);
-            if target.exists() {
-                continue; // content-addressed：同名即同内容
-            }
             let Ok(meta) = fs::metadata(&source) else {
-                continue; // 本地载荷缺失（被孤儿清理等）不阻塞 pack 推送
+                continue;
             };
             if meta.len() > Self::MAX_SYNC_ASSET_BYTES {
-                continue; // 超过 2MB 上限的本地资产不同步上云
+                continue;
+            }
+            if self.backend.has_asset(&name)? {
+                continue;
             }
             let data = match fs::read(&source) {
                 Ok(d) => d,
                 Err(_) => continue,
             };
-            let temp = self
-                .sync_dir
-                .join("assets")
-                .join(format!("{}.tmp.{}", name, uuid::Uuid::new_v4()));
-            fs::write(&temp, data)?;
-            fs::rename(&temp, &target)?;
+            self.backend.write_asset_atomic(&name, &data)?;
             report.assets_transferred += 1;
         }
         Ok(())
     }
 
-    /// 从云端 assets/ 池导入远端载荷到本地受管目录（SHA-256 校验去重），
-    /// 返回「条目 id → 本地载荷绝对路径」。云端资产缺失的条目跳过导入。
     fn import_pack_assets(
         &self,
         items: &[SyncItemRecord],
@@ -193,16 +170,19 @@ impl SyncEngine {
             let Some(name) = safe_asset_name(item.asset_file_name.as_deref()) else {
                 continue;
             };
-            let cloud_path = self.sync_dir.join("assets").join(&name);
-            let data = match fs::read(&cloud_path) {
+            let existing = assets_dir.join(&name);
+            if existing.exists() {
+                paths.insert(item.id.clone(), existing.to_string_lossy().to_string());
+                continue;
+            }
+            let data = match self.backend.read_asset(&name) {
                 Ok(d) => d,
-                Err(_) => continue, // 云端资产缺失：仅同步元数据，不阻塞
+                Err(_) => continue,
             };
             let ext = Path::new(&name)
                 .extension()
                 .and_then(|e| e.to_str())
                 .unwrap_or("");
-            // 重新按内容寻址落盘：云端文件名与内容哈希不符时以内容为准
             let local_path = store.save_payload_asset(&data, ext)?;
             paths.insert(item.id.clone(), local_path);
             report.assets_transferred += 1;
@@ -211,8 +191,6 @@ impl SyncEngine {
     }
 }
 
-/// 云端文件名防路径穿越：只允许纯文件名（无分隔符、无 ..）。
-/// 内容寻址格式为 <sha256>.<ext>，全部由本地 PayloadAssetStore 生成。
 fn safe_asset_name(name: Option<&str>) -> Option<String> {
     let name = name?;
     if name.is_empty()

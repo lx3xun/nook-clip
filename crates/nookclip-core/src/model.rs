@@ -76,3 +76,140 @@ pub struct DetectionResult {
     pub has_email: bool,
     pub is_url: bool,
 }
+// === 1. Pipeline & Timeline ===
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum TimeBucketKey {
+    Today,
+    Yesterday,
+    ThisWeek,
+    LastWeek,
+    Month { year: i32, month: u32 },
+    Year { year: i32 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CalendarContext {
+    pub now_ts: f64,
+    pub tz_offset_secs: i32,
+    pub first_weekday: u8,
+}
+
+impl Default for CalendarContext {
+    fn default() -> Self {
+        Self {
+            now_ts: 0.0,
+            tz_offset_secs: 0,
+            first_weekday: 1,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TimeGroupSummary {
+    pub id: String,
+    pub bucket: TimeBucketKey,
+    pub count: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeGroupSection {
+    pub id: String,
+    pub bucket: TimeBucketKey,
+    pub items: Vec<ClipItemSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueryViewSnapshot {
+    pub items: Vec<ClipItemSummary>,
+    pub groups: Vec<TimeGroupSection>,
+    pub timeline_anchors: Vec<TimeGroupSummary>,
+    pub category_counts: CategoryCounts,
+    pub search_keywords: Vec<String>,
+    pub has_more: bool,
+}
+
+// === 2. Maintenance ===
+
+#[derive(Clone, Debug, Default)]
+pub struct MaintenanceConfig {
+    pub retention: RetentionConfig,
+    pub max_disk_bytes: Option<u64>,
+    pub orphan_min_age_secs: f64,
+    pub local_assets_dir: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MaintenanceReport {
+    pub pruned_expired_count: u32,
+    pub pruned_disk_limit_count: u32,
+    pub swept_orphan_files: u32,
+    pub purged_blank_count: u32,
+    pub pruned_payload_paths: Vec<String>,
+}
+
+// === 3. Clipboard Ingest & Egress ===
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RawClipboardSnapshot {
+    pub plain_text: Option<String>,
+    pub html: Option<String>,
+    pub rtf_data: Option<Vec<u8>>,
+    pub image_data: Option<Vec<u8>>,
+    pub image_extension: Option<String>,
+    pub file_paths: Vec<String>,
+    pub url_candidates: Vec<String>,
+    pub url_title: Option<String>,
+    pub source_bundle_id: Option<String>,
+    pub source_app_name: Option<String>,
+    pub has_concealed_marker: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct IngestConfig {
+    pub sensitive_protection_enabled: bool,
+    pub excluded_bundle_ids: Vec<String>,
+    pub local_assets_dir: String,
+    pub file_multi_title_template: Option<String>,
+    pub default_image_title: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum IngestOutcome {
+    Saved { item: ClipItemSummary },
+    SkippedInternalPaste,
+    SkippedConcealed,
+    SkippedExcludedApp,
+    SkippedEmpty,
+    SkippedSensitiveProtectionDisabled,
+    DroppedEncryptionUnavailable,
+    DroppedPayloadSaveFailed,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreparedPastePayload {
+    pub item_id: String,
+    pub item_type: String,
+    pub plain_text: Option<String>,
+    pub rtf_data: Option<Vec<u8>>,
+    pub image_data: Option<Vec<u8>>,
+    pub image_format: Option<String>,
+    pub file_paths: Vec<String>,
+    pub is_single_image_file: bool,
+    pub is_sensitive: bool,
+}
+
+// === 4. Sync Backend ===
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SyncBackendConfig {
+    LocalDirectory {
+        sync_dir: String,
+    },
+    WebDav {
+        base_url: String,
+        username: String,
+        password: String,
+        timeout_secs: u64,
+    },
+}

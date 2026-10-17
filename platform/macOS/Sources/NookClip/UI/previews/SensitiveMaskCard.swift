@@ -7,6 +7,7 @@ struct SensitiveMaskCard: View {
     let maskedText: String
     let revealedText: String?
     let isRevealed: Bool
+    var countdownSeconds: Int = 0
     /// 查看失败原因（授权被拒 ≠ 密文损坏）：正文位置改显对应提示
     var revealFailure: ClipboardItem.RevealFailure?
     let onToggle: () -> Void
@@ -55,7 +56,7 @@ struct SensitiveMaskCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: isRevealed ? NookClipIcon.Sensitive.remask : NookClipIcon.Sensitive.reveal)
                         .font(.system(size: NookClipIconSize.compactMedium, weight: .medium))
-                    Text(isRevealed ? L10n.tr("preview.mask.remask") : L10n.tr("preview.mask.reveal"))
+                    Text(buttonTitle)
                 }
                 .font(.nookClipSubheadMedium)
                 .foregroundStyle(isRevealed ? NookClip.accent : NookClip.colorSensitive)
@@ -77,5 +78,12 @@ struct SensitiveMaskCard: View {
             RoundedRectangle(cornerRadius: NookClip.radiusCard, style: .continuous)
                 .fill(NookClip.bgCode)
         }
+    }
+    private var buttonTitle: String {
+        guard isRevealed else { return L10n.tr("preview.mask.reveal") }
+        if countdownSeconds > 0 {
+            return L10n.tr("preview.mask.remask_countdown", countdownSeconds)
+        }
+        return L10n.tr("preview.mask.remask")
     }
 }

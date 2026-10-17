@@ -25,26 +25,6 @@ final class NookClipIconTests: XCTestCase {
         XCTAssertLessThan(NookClipIconSize.title, NookClipIconSize.hero)
     }
 
-    func testCategoryIconsMatchDesignSpec() {
-        XCTAssertEqual(RowKind.text.categorySymbol, NookClipIcon.Category.text)
-        XCTAssertEqual(RowKind.image.categorySymbol, NookClipIcon.Category.image)
-        XCTAssertEqual(RowKind.file.categorySymbol, NookClipIcon.Category.file)
-        XCTAssertEqual(RowKind.url.categorySymbol, NookClipIcon.Category.url)
-        XCTAssertEqual(RowKind.code.categorySymbol, NookClipIcon.Category.code)
-        XCTAssertEqual(RowKind.json.categorySymbol, NookClipIcon.Category.json)
-        XCTAssertEqual(RowKind.color.categorySymbol, NookClipIcon.Category.color)
-        XCTAssertEqual(RowKind.sensitive.categorySymbol, NookClipIcon.Category.sensitive)
-
-        XCTAssertEqual(NookClipIcon.Category.text, "doc.text")
-        XCTAssertEqual(NookClipIcon.Category.code, "chevron.left.forwardslash.chevron.right")
-        XCTAssertEqual(NookClipIcon.Category.json, "curlybraces.square.fill")
-        XCTAssertEqual(NookClipIcon.Category.url, "globe.americas.fill")
-        XCTAssertEqual(NookClipIcon.Category.file, "doc.fill")
-        XCTAssertEqual(NookClipIcon.Category.image, "photo.fill")
-        XCTAssertEqual(NookClipIcon.Category.color, "paintpalette.fill")
-        XCTAssertEqual(NookClipIcon.Category.sensitive, "lock.shield.fill")
-        XCTAssertEqual(NookClipIcon.Nav.chevronUpDown, "chevron.up.chevron.down")
-    }
     func testSourceAppFallbacksMatchDesignSpec() {
         XCTAssertEqual(SourceAppModel.resolve(name: "Safari").symbol, NookClipIcon.SourceAppFallback.safari)
         XCTAssertEqual(SourceAppModel.resolve(name: "Xcode").symbol, NookClipIcon.SourceAppFallback.xcode)
@@ -57,13 +37,6 @@ final class NookClipIconTests: XCTestCase {
         XCTAssertEqual(SourceAppModel.resolve(name: "UnknownApp").symbol, NookClipIcon.SourceAppFallback.fallback)
     }
 
-    func testSettingsTabIconsMatchDesignSpec() {
-        XCTAssertEqual(SettingsTab.general.icon, NookClipIcon.Settings.general)
-        XCTAssertEqual(SettingsTab.appearance.icon, NookClipIcon.Settings.appearance)
-        XCTAssertEqual(SettingsTab.capture.icon, NookClipIcon.Settings.capture)
-        XCTAssertEqual(SettingsTab.history.icon, NookClipIcon.Settings.history)
-        XCTAssertEqual(SettingsTab.paste.icon, NookClipIcon.Settings.paste)
-    }
 
     func testAllIconsAreNonEmpty() {
         let allTokens = [

@@ -240,6 +240,7 @@ struct RowTitleView: View {
     var body: some View {
         HStack(spacing: 5) {
             SearchHighlight.text(singleLineDisplayTitle, keywords: highlightKeywords, isOnAccent: isSolidSelected)
+                .searchHighlightRenderer()
                 .lineLimit(1)
                 .truncationMode(item.kind == .url || item.kind == .file ? .middle : .tail)
                 .font(item.titleMono ? .nookClipMono(monoSize) : .nookClipBody)
@@ -314,6 +315,7 @@ struct RowSubtitleView: View {
         HStack(spacing: 4) {
             AppIconBadge(app: item.source, size: 12)
             SearchHighlight.text(sourceDisplayName, keywords: highlightKeywords, isOnAccent: isSolidSelected)
+                .searchHighlightRenderer()
                 .font(.nookClipMeta)
                 .foregroundStyle(isSolidSelected ? NookClip.textOnAccentSecondary : NookClip.textSecondary)
                 .lineLimit(1)
@@ -323,6 +325,7 @@ struct RowSubtitleView: View {
                     .font(.nookClipMeta)
                     .foregroundStyle(isSolidSelected ? NookClip.textOnAccentTertiary : NookClip.textTertiary)
                 SearchHighlight.text(detail, keywords: highlightKeywords, isOnAccent: isSolidSelected)
+                    .searchHighlightRenderer()
                     .font(.nookClipMeta)
                     .foregroundStyle(isSolidSelected ? NookClip.textOnAccentTertiary : NookClip.textTertiary)
                     .lineLimit(1)

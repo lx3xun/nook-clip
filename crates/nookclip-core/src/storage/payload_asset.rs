@@ -62,10 +62,11 @@ impl PayloadAssetStore {
         let ref_set: std::collections::HashSet<String> = referenced_filenames
             .iter()
             .filter_map(|s| {
-                Path::new(s)
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|str_val| str_val.to_string())
+                s.trim_end_matches(&['/', '\\'][..])
+                    .rsplit(&['/', '\\'][..])
+                    .next()
+                    .filter(|n| !n.is_empty())
+                    .map(|n| n.to_string())
             })
             .collect();
 

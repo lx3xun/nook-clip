@@ -48,15 +48,11 @@ final class HistoryOCRService {
     /// 返回落库的掩码文本；空文本或事务失败返回 nil（内存保持原状态）。
     @discardableResult
     func updateOCRText(_ text: String, for id: UUID) -> String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        // OCR 识别文本先过敏感检测：截图中的 API Key/私钥不得明文落库、
-        // 入 FTS 索引或上传 iCloud——命中则仅存掩码文本（可安全同步与检索，
-        // 审计 BUG-007）
-        let storable = SensitiveDataDetector.detect(text: trimmed)?.maskedText ?? trimmed
-        guard rustStore.updateOCR(id: id, ocrText: storable) else {
+        do {
+            return try rustStore.engine.commitOcrResult(id: id.uuidString, rawOcrText: text)
+        } catch {
+            Self.logger.error("commitOcrResult failed for \(id): \(error.localizedDescription)")
             return nil
         }
-        return storable
     }
 }

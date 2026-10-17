@@ -20,5 +20,13 @@ pub enum CoreError {
 
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("Missing referenced files: {missing_paths:?}")]
+    StaleFiles { missing_paths: Vec<String> },
+    #[error("Image payload is missing or unreadable")]
+    CorruptedImagePayload,
+    #[error("Failed to decrypt sensitive content")]
+    DecryptionFailed,
+    #[error("Sync transport error: {0}")]
+    SyncTransport(String),
 }
 pub type Result<T, E = CoreError> = std::result::Result<T, E>;

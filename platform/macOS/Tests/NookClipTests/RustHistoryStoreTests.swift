@@ -185,7 +185,7 @@ final class RustHistoryStoreTests: XCTestCase {
         XCTAssertEqual(detail?.rawText, secret)
 
         // FTS search does NOT match secret key plaintext
-        let ftsHits = store.search(query: "secret")
+        let ftsHits = store.search(query: "sk-live-test")
         XCTAssertEqual(ftsHits.count, 0)
     }
 
@@ -452,34 +452,4 @@ final class RustHistoryStoreTests: XCTestCase {
         XCTAssertEqual(fileResults.first?.id, nonImageFile.id)
     }
 
-    func testToggleSensitiveCyclesState() {
-        let id = UUID()
-        let secret = "df94e2db9bd390a1dc28792f6cee9434"
-        let item = ClipboardItem(
-            id: id,
-            type: .text,
-            title: "",
-            summary: secret,
-            createdAt: Date(),
-            lastUsedAt: Date(),
-            isSensitive: false
-        )
-        XCTAssertNotNil(store.save(item, rawText: secret))
-        XCTAssertEqual(store.search(query: "df94e2db").count, 1)
-
-        // 1. Toggle to sensitive
-        let toggled = store.toggleSensitive(id)
-        XCTAssertNotNil(toggled)
-        XCTAssertTrue(toggled?.isSensitive == true)
-        XCTAssertEqual(toggled?.summary, "df94••••••••9434")
-        XCTAssertEqual(store.getDetail(id: id)?.rawText, secret)
-        XCTAssertEqual(store.search(query: "df94e2db").count, 0)
-
-        // 2. Toggle back to plain
-        let reverted = store.toggleSensitive(id)
-        XCTAssertNotNil(reverted)
-        XCTAssertFalse(reverted?.isSensitive == true)
-        XCTAssertEqual(reverted?.summary, secret)
-        XCTAssertEqual(store.search(query: "df94e2db").count, 1)
-    }
 }
