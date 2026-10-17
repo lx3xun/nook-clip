@@ -72,4 +72,10 @@ extension InMemoryHistoryStore {
         let cleanQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
         return await rustStore.timeGroupTimestampsAsync(query: cleanQuery, categoryID: categoryID)
     }
+
+    /// 全局视图快照聚合（查询 + 分类统计 + 时间分桶 + 锚点单次出库）：
+    /// 替代分别调用 searchHistory、countCategories、timeGroupTimestamps 三次独立 FFI
+    nonisolated func queryViewSnapshot(queryText: String, categoryID: Int, limit: Int) async -> QueryViewSnapshot? {
+        await rustStore.queryViewSnapshotAsync(query: queryText, categoryID: categoryID, limit: limit)
+    }
 }

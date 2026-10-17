@@ -94,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         clipboardMonitor.onChange = { [weak self] item in
-            self?.historyStore.save(item)
+            self?.historyStore.applyCapturedItem(item)
         }
         clipboardMonitor.start()
 

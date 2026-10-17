@@ -23,6 +23,8 @@
 ## [Unreleased]
 
 ### 🚀 性能优化 (Performance)
+- **调整历史保留天数与磁盘限额默认值**：历史保留天数默认值调整为半年（180 天，原为 30 天）；磁盘空间上限默认值调整为 5GB（5120MB，原为无限制），防止媒体载荷长期累积占满磁盘。
+  *Default storage policy adjustments: History retention default changed to 6 months (180 days, previously 30 days); disk space limit default changed to 5GB (5120MB, previously unlimited) to prevent unbounded asset accumulation.*
 
 - **大幅降低常驻内存**：后台常驻内存从 ~106MB 优化至 ~19MB（实测峰值 181MB → 19.6MB），开启常用功能后仍稳定在 ~60MB 以内。
   *Significantly reduced idle memory from ~106MB to ~19MB (tested peak 181MB → 19.6MB), staying well within ~60MB during typical daily usage.*

@@ -10,6 +10,9 @@ use crate::{
     storage::{payload_asset::PayloadAssetStore, repository::StorageRepository},
 };
 
+/// NookClip 跨平台确定性 ID 根命名空间 (UUIDv5)
+pub const NOOK_CLIP_NAMESPACE: uuid::Uuid = uuid::uuid!("5fa6b780-6ea7-4b4d-9e12-c249a5b3901a");
+
 pub fn ingest_clipboard_snapshot(
     repo: &StorageRepository,
     crypto: Option<&CryptoEngine>,
@@ -19,6 +22,9 @@ pub fn ingest_clipboard_snapshot(
     last_pasted_time: Option<f64>,
     now_ts: f64,
 ) -> Result<IngestOutcome> {
+    if !config.local_assets_dir.is_empty() {
+        repo.set_assets_dir(Some(&config.local_assets_dir));
+    }
     // 1. 过滤密码管理器敏感标记
     if snapshot.has_concealed_marker {
         return Ok(IngestOutcome::SkippedConcealed);
@@ -109,6 +115,10 @@ fn ingest_file_item(
         (title, joined.clone(), Some(joined.clone()), false, Some(joined))
     };
 
+    let source_device_id = snapshot.source_device_id.clone().or_else(|| config.source_device_id.clone());
+    let source_device_name = snapshot.source_device_name.clone().or_else(|| config.source_device_name.clone());
+    let source_platform = snapshot.source_platform.clone().or_else(|| config.source_platform.clone());
+
     let item_summary = ClipItemSummary {
         id: uuid::Uuid::new_v4().to_string().to_uppercase(),
         item_type: "file".to_string(),
@@ -120,6 +130,9 @@ fn ingest_file_item(
         favorite: false,
         source_app_bundle_id: snapshot.source_bundle_id.clone(),
         source_app_name: snapshot.source_app_name.clone(),
+        source_device_id,
+        source_device_name,
+        source_platform,
         is_sensitive,
         deleted_at: None,
         payload_path,
@@ -127,7 +140,6 @@ fn ingest_file_item(
         metadata_json: None,
         kind: "file".to_string(),
     };
-
     let item = repo.save_item(&item_summary, raw_text.as_deref())?;
     Ok(IngestOutcome::Saved { item })
 }
@@ -205,8 +217,23 @@ fn ingest_text_or_url_item(
         (title, text.to_string(), rtf_path, false, Some(text.to_string()), metadata_str)
     };
 
+    let source_device_id = snapshot.source_device_id.clone().or_else(|| config.source_device_id.clone());
+    let source_device_name = snapshot.source_device_name.clone().or_else(|| config.source_device_name.clone());
+    let source_platform = snapshot.source_platform.clone().or_else(|| config.source_platform.clone());
+
+    // 非敏感条目使用换行符归一化后的内容哈希确定性 ID (UUIDv5)，实现跨端同内容自然置顶；敏感条目保持随机 UUID 防碰撞
+    let id = if is_sensitive {
+        uuid::Uuid::new_v4().to_string().to_uppercase()
+    } else {
+        let normalized = text.replace("\r\n", "\n");
+        let payload = format!("{}\0{}", item_type, normalized);
+        uuid::Uuid::new_v5(&NOOK_CLIP_NAMESPACE, payload.as_bytes())
+            .to_string()
+            .to_uppercase()
+    };
+
     let item_summary = ClipItemSummary {
-        id: uuid::Uuid::new_v4().to_string().to_uppercase(),
+        id,
         item_type: item_type.to_string(),
         title,
         summary,
@@ -216,6 +243,9 @@ fn ingest_text_or_url_item(
         favorite: false,
         source_app_bundle_id: snapshot.source_bundle_id.clone(),
         source_app_name: snapshot.source_app_name.clone(),
+        source_device_id,
+        source_device_name,
+        source_platform,
         is_sensitive,
         deleted_at: None,
         payload_path,
@@ -223,7 +253,6 @@ fn ingest_text_or_url_item(
         metadata_json,
         kind: item_type.to_string(),
     };
-
     let item = repo.save_item(&item_summary, raw_text.as_deref())?;
     Ok(IngestOutcome::Saved { item })
 }
@@ -282,8 +311,20 @@ fn ingest_image_item(
         })
         .unwrap_or_else(|| config.default_image_title.clone());
 
+    let source_device_id = snapshot.source_device_id.clone().or_else(|| config.source_device_id.clone());
+    let source_device_name = snapshot.source_device_name.clone().or_else(|| config.source_device_name.clone());
+    let source_platform = snapshot.source_platform.clone().or_else(|| config.source_platform.clone());
+
+    // 图片按二进制 SHA-256 哈希计算跨设备确定性 ID (UUIDv5)
+    let id = {
+        let payload = format!("image\0{}", hash_hex);
+        uuid::Uuid::new_v5(&NOOK_CLIP_NAMESPACE, payload.as_bytes())
+            .to_string()
+            .to_uppercase()
+    };
+
     let item_summary = ClipItemSummary {
-        id: uuid::Uuid::new_v4().to_string().to_uppercase(),
+        id,
         item_type: "image".to_string(),
         title,
         summary,
@@ -293,6 +334,9 @@ fn ingest_image_item(
         favorite: false,
         source_app_bundle_id: snapshot.source_bundle_id.clone(),
         source_app_name: snapshot.source_app_name.clone(),
+        source_device_id,
+        source_device_name,
+        source_platform,
         is_sensitive: false,
         deleted_at: None,
         payload_path: Some(payload_path),
@@ -300,7 +344,6 @@ fn ingest_image_item(
         metadata_json: None,
         kind: "image".to_string(),
     };
-
     let item = repo.save_item(&item_summary, None)?;
     Ok(IngestOutcome::Saved { item })
 }

@@ -39,6 +39,11 @@ fn sync_record(id: &str, title: &str, updated_at: f64, deleted_at: Option<f64>) 
         copy_count: 1,
         asset_file_name: None,
         deleted_at,
+        source_app_bundle_id: None,
+        source_app_name: None,
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     }
 }
 

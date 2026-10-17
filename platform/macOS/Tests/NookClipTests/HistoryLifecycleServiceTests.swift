@@ -92,4 +92,24 @@ final class HistoryLifecycleServiceTests: XCTestCase {
         XCTAssertNil(rustStore.item(id: oldItem.id), "被淘汰条目已从 SQLite 物理删除")
         XCTAssertNotNil(rustStore.item(id: favItem.id), "收藏条目保留")
     }
+
+    func testRetentionPolicyDefaultDaysIsHalfYear() {
+        let defaults = makeIsolatedDefaults()
+        let policy = RetentionPolicy(defaults: defaults)
+        XCTAssertEqual(policy.days, 180, "未设置 historyRetentionDays 时默认应为 180 天（半年）")
+        XCTAssertEqual(RetentionPolicy.defaultDays, 180)
+    }
+
+    func testDiskLimitPolicyDefaultLimitIs5GB() {
+        let defaults = makeIsolatedDefaults()
+        let policy = DiskLimitPolicy(defaults: defaults)
+        XCTAssertEqual(policy.limitMB, 5120, "未设置 historyDiskLimitMB 时默认应为 5120MB（5GB）")
+        XCTAssertEqual(DiskLimitPolicy.defaultLimitMB, 5120)
+        XCTAssertEqual(policy.maxDiskBytes, 5120 * 1024 * 1024)
+
+        defaults.set(0, forKey: DiskLimitPolicy.defaultsKey)
+        let unlimitedPolicy = DiskLimitPolicy(defaults: defaults)
+        XCTAssertNil(unlimitedPolicy.limitMB, "显式设置为 0 时表示无限制")
+        XCTAssertNil(unlimitedPolicy.maxDiskBytes)
+    }
 }

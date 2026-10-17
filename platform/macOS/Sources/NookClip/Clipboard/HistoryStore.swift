@@ -75,6 +75,7 @@ final class InMemoryHistoryStore {
         self.defaults = defaults
         self.syncEngine = syncEngine
         self.payloadStore = payloadStore
+        self.rustStore.engine.setAssetsDir(assetsDir: payloadStore.directory.path)
         self.ocrService = HistoryOCRService(rustStore: self.rustStore, ocrEngine: ocrEngine)
         syncEngine.onDebouncedPush = { [weak self] in
             await self?.syncNow()
@@ -132,10 +133,9 @@ final class InMemoryHistoryStore {
     /// rustStore.item(id:) 按需取回全文——粘贴/预览/回存的统一入口
     func item(withID id: UUID) -> ClipboardItem? {
         if let memory = items.first(where: { $0.id == id }) ?? trashItems.first(where: { $0.id == id }) {
-            // 敏感条目懒解密：镜像不持有 Keychain 密文；明文经库内 detail 取回。
-            // 镜像持有密文时（如捕获后未落库、测试注入损坏密文）以镜像为准，
-            // reveal 成败由该密文决定
-            if memory.isSensitive, memory.encryptedContent == nil {
+            // 敏感条目懒解密：镜像不持有明文或密文；明文经库内 detail 按需取回。
+            // 镜像显式注入密文时（如测试注入损坏密文）以镜像为准
+            if memory.isSensitive, memory.decryptedPlainText == nil, memory.encryptedContent == nil {
                 return rustStore.item(id: id)
             }
             guard memory.summaryIsTruncated else { return memory }
@@ -147,39 +147,74 @@ final class InMemoryHistoryStore {
         return rustStore.item(id: id)
     }
 
-    /// 启动维护（原 init 同步执行）：保留期清理 + 空白行清理 + 载荷清删。
-    /// FFI（prune 全表扫描 + 空白行 1000 行扫描）在后台执行，结果回
-    /// MainActor 刷新镜像并发布变更；无清理发生时不触动镜像
+    /// 统一后台维护任务入口：整合保留期清理、磁盘限额淘汰与孤儿文件清扫
+    @discardableResult
+    func runMaintenance(days: Int? = nil, limitMB: Int? = nil) async -> MaintenanceReport? {
+        let retentionDays = days ?? RetentionPolicy(defaults: defaults).days
+        let limit = limitMB ?? DiskLimitPolicy(defaults: defaults).limitMB
+        let maxDiskBytes = limit.flatMap { $0 > 0 ? UInt64($0) * 1024 * 1024 : nil }
+        let retention = RetentionConfig(
+            maxAgeDays: retentionDays.map { UInt32($0) },
+            maxItemCount: nil
+        )
+        let config = MaintenanceConfig(
+            retention: retention,
+            maxDiskBytes: maxDiskBytes,
+            orphanMinAgeSecs: 24.0 * 3600.0,
+            localAssetsDir: payloadStore.directory.path
+        )
+        let rustStore = self.rustStore
+        let payloadStore = self.payloadStore
+        do {
+            let report = try await Task.detached(priority: .utility) {
+                try rustStore.engine.runMaintenance(config: config)
+            }.value
+            for path in report.prunedPayloadPaths {
+                payloadStore.remove(path: path)
+            }
+            if report.prunedExpiredCount > 0 || report.prunedDiskLimitCount > 0 || report.purgedBlankCount > 0 {
+                items = rustStore.page(limit: Self.pageSize, offset: 0)
+                trashItems = rustStore.trashItems()
+                refreshHasMore()
+                publishMutation(scheduleSync: false)
+            }
+            return report
+        } catch {
+            Self.logger.error("runMaintenance failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     func performStartupMaintenance() async {
         let rustStore = self.rustStore
         let retentionDays = RetentionPolicy(defaults: defaults).days
-        // 保留期单一来源：nil = 无限制（用户显式设 0）；未设置 = 默认 30 天。
-        // 只清活跃条目（收藏豁免）；软删除条目按撤销宽限窗口另行清除
-        let purged: [(id: UUID, payloadPath: String?)] = await Task.detached(priority: .utility) {
-            var purged: [(id: UUID, payloadPath: String?)] = []
+        let purgedPaths = await Task.detached(priority: .utility) { () -> [String] in
+            var paths: [String] = []
             if let retentionDays {
                 let pruned = rustStore.pruneExpired(days: retentionDays, maxCount: nil)
-                purged.append(contentsOf: pruned.compactMap { record in
-                    guard let id = UUID(uuidString: record.id) else { return nil }
-                    return (id: id, payloadPath: record.payloadPath)
-                })
+                paths.append(contentsOf: pruned.compactMap(\.payloadPath))
             }
             for item in rustStore.page(limit: 1000, offset: 0) where item.isBlankText {
                 _ = rustStore.purge(item.id)
-                purged.append((id: item.id, payloadPath: item.payloadPath))
+                if let path = item.payloadPath {
+                    paths.append(path)
+                }
             }
-            return purged
+            return paths
         }.value
-        guard !purged.isEmpty else { return }
-
-        for record in purged {
-            payloadStore.remove(path: record.payloadPath)
+        for path in purgedPaths {
+            payloadStore.remove(path: path)
         }
-        // 清理属全量变更：整页重查一次可接受（低频路径）
-        items = rustStore.page(limit: Self.pageSize, offset: 0)
-        trashItems = rustStore.trashItems()
-        refreshHasMore()
-        publishMutation(scheduleSync: false)
+        let report = await runMaintenance()
+        let maintenanceMutated = (report?.prunedExpiredCount ?? 0) > 0
+            || (report?.prunedDiskLimitCount ?? 0) > 0
+            || (report?.purgedBlankCount ?? 0) > 0
+        if !purgedPaths.isEmpty && !maintenanceMutated {
+            items = rustStore.page(limit: Self.pageSize, offset: 0)
+            trashItems = rustStore.trashItems()
+            refreshHasMore()
+            publishMutation(scheduleSync: false)
+        }
     }
 
     /// 复制链写入口（最高频）：保存成功后增量应用持久化结果
@@ -189,6 +224,21 @@ final class InMemoryHistoryStore {
     func save(_ item: ClipboardItem) {
         guard !item.isBlankText else { return }
         guard let persisted = rustStore.save(item) else { return }
+        items.removeAll { $0.id == persisted.id }
+        items.insert(persisted, at: 0)
+        if items.count > Self.pageSize {
+            items.removeLast(items.count - Self.pageSize)
+        }
+        hasMoreItems = hasMoreItems || items.count == Self.pageSize
+        purgeExpiredTrash()
+        scheduleDiskLimitEnforcementIfNeeded()
+        publishMutation()
+    }
+
+    /// 捕获管线已完成数据库持久化时的内存镜像增量更新入口：
+    /// `ingestClipboardSnapshot` 已在 Rust 引擎事务中完成落盘、去重与敏感加密，
+    /// 此处直接将持久化结果置顶写入内存页，避免二次 `rustStore.save` 重复落库或用 nil 明文覆盖。
+    func applyCapturedItem(_ persisted: ClipboardItem) {
         items.removeAll { $0.id == persisted.id }
         items.insert(persisted, at: 0)
         if items.count > Self.pageSize {
@@ -421,25 +471,11 @@ final class InMemoryHistoryStore {
 
     // MARK: 磁盘空间限制
 
-    /// payload 文件总大小超限时按「最久未使用」淘汰，收藏条目豁免；回收站条目计入总量且不豁免。
     func enforceDiskLimit() {
-        let limitMB = defaults.integer(forKey: "historyDiskLimitMB")
-        guard limitMB > 0 else { return }
-        let rustStore = self.rustStore
-        let managedDir = payloadStore.directory.standardizedFileURL.path
+        let limitMB = DiskLimitPolicy(defaults: defaults).limitMB
+        guard let limitMB, limitMB > 0 else { return }
         Task { @MainActor in
-            let evicted = await Task.detached(priority: .utility) {
-                rustStore.enforceDiskLimit(managedDir: managedDir, limitMB: limitMB)
-            }.value
-            guard !evicted.isEmpty else { return }
-            let evictedIDs = Set(evicted.compactMap { UUID(uuidString: $0.id) })
-            for record in evicted {
-                payloadStore.remove(path: record.payloadPath)
-            }
-            items.removeAll { evictedIDs.contains($0.id) }
-            trashItems.removeAll { evictedIDs.contains($0.id) }
-            refreshHasMore()
-            publishMutation(scheduleSync: false)
+            await runMaintenance(limitMB: limitMB)
         }
     }
 

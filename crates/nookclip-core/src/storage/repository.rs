@@ -6,12 +6,14 @@ use crate::{
     crypto::CryptoEngine,
     error::{CoreError, Result},
     model::{ClipItemDetail, ClipItemSummary, PrunedItemRecord, QueryFilter, RetentionConfig},
-    storage::schema::initialize_database,
+    storage::{payload_asset::PayloadAssetStore, schema::initialize_database},
 };
+use std::path::{Path, PathBuf};
 
 pub struct StorageRepository {
     conn: Arc<Mutex<Connection>>,
     crypto: CryptoEngine,
+    assets_dir: Mutex<Option<PathBuf>>,
 }
 
 /// 派生分类（kind）过滤：query_items 与 time_group_timestamps 共用。
@@ -94,7 +96,39 @@ impl StorageRepository {
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             crypto,
+            assets_dir: Mutex::new(None),
         })
+    }
+
+    pub fn set_assets_dir<P: AsRef<Path>>(&self, dir: Option<P>) {
+        *self.assets_dir.lock() = dir.map(|p| p.as_ref().to_path_buf());
+    }
+
+    pub fn assets_dir(&self) -> Option<PathBuf> {
+        self.assets_dir.lock().clone()
+    }
+
+    pub fn resolve_payload_path(&self, item_type: &str, stored_path: Option<&str>) -> Option<String> {
+        let dir = self.assets_dir();
+        PayloadAssetStore::resolve_for_runtime(item_type, stored_path, dir.as_deref())
+    }
+
+    pub fn normalize_payload_path(&self, item_type: &str, payload_path: Option<&str>) -> Option<String> {
+        let dir = self.assets_dir();
+        PayloadAssetStore::normalize_for_storage(item_type, payload_path, dir.as_deref())
+    }
+
+    /// 测试与迁移诊断辅助：读取数据库内存储的原始 payload_path 字段（不做运行时目录拼接）
+    pub fn raw_stored_payload_path(&self, id: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock();
+        let val: Option<Option<String>> = conn
+            .query_row(
+                "SELECT payload_path FROM clip_items WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(val.flatten())
     }
 
     pub fn crypto(&self) -> &CryptoEngine {
@@ -149,9 +183,10 @@ impl StorageRepository {
         item: &ClipItemSummary,
         raw_text: Option<&str>,
     ) -> Result<ClipItemSummary> {
+        let assets_dir = self.assets_dir();
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
-        let saved = Self::save_item_in_tx(&tx, &self.crypto, item, raw_text)?;
+        let saved = Self::save_item_in_tx(&tx, &self.crypto, assets_dir.as_deref(), item, raw_text)?;
         tx.commit()?;
         Ok(saved)
     }
@@ -162,6 +197,7 @@ impl StorageRepository {
         &self,
         entries: &[(ClipItemSummary, Option<String>)],
     ) -> Result<Vec<ClipItemSummary>> {
+        let assets_dir = self.assets_dir();
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         let mut saved = Vec::with_capacity(entries.len());
@@ -169,6 +205,7 @@ impl StorageRepository {
             saved.push(Self::save_item_in_tx(
                 &tx,
                 &self.crypto,
+                assets_dir.as_deref(),
                 item,
                 raw_text.as_deref(),
             )?);
@@ -181,21 +218,30 @@ impl StorageRepository {
     /// 启动路径全库 page() 映射在万级数据下要数百毫秒（FFI 逐行解码 +
     /// 敏感条目 detail 解密），只取路径列则 <10ms
     pub fn all_payload_paths(&self) -> Result<Vec<String>> {
+        let assets_dir = self.assets_dir();
         let conn = self.conn.lock();
-        let mut stmt = conn
-            .prepare("SELECT payload_path FROM clip_items WHERE payload_path IS NOT NULL AND payload_path != ''")?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut stmt = conn.prepare(
+            "SELECT item_type, payload_path FROM clip_items WHERE payload_path IS NOT NULL AND payload_path != ''",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let item_type: String = row.get(0)?;
+            let stored: String = row.get(1)?;
+            Ok(
+                PayloadAssetStore::resolve_for_runtime(&item_type, Some(&stored), assets_dir.as_deref())
+                    .unwrap_or(stored),
+            )
+        })?;
         let mut paths = Vec::new();
         for row in rows {
             paths.push(row?);
         }
         Ok(paths)
     }
-
     /// save_item 的单条核心逻辑（在调用方事务内执行，不提交）
     fn save_item_in_tx(
         tx: &rusqlite::Transaction<'_>,
         crypto: &CryptoEngine,
+        assets_dir: Option<&Path>,
         item: &ClipItemSummary,
         raw_text: Option<&str>,
     ) -> Result<ClipItemSummary> {
@@ -264,22 +310,28 @@ impl StorageRepository {
             (raw_text.map(|s| s.to_string()), None, None)
         };
 
+        let normalized_payload_path = PayloadAssetStore::normalize_for_storage(
+            &item.item_type,
+            item.payload_path.as_deref(),
+            assets_dir,
+        );
+
         let (kind_str, resolved_metadata_json) = compute_kind_and_metadata(
             &item.item_type,
             item.is_sensitive,
             item.metadata_json.as_deref(),
             raw_text.unwrap_or(&item.summary),
-            item.payload_path.as_deref(),
+            normalized_payload_path.as_deref(),
         );
-
         // 3. Upsert clip_items
         tx.execute(
             r#"
             INSERT INTO clip_items (
                 id, item_type, title, summary, created_at, last_used_at,
                 copy_count, favorite, source_app_bundle_id, source_app_name,
-                is_sensitive, deleted_at, payload_path, updated_at, kind
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                is_sensitive, deleted_at, payload_path, updated_at, kind,
+                source_device_id, source_device_name, source_platform
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
             ON CONFLICT(id) DO UPDATE SET
                 last_used_at = excluded.last_used_at,
                 copy_count = excluded.copy_count,
@@ -287,7 +339,12 @@ impl StorageRepository {
                 deleted_at = NULL,
                 payload_path = COALESCE(excluded.payload_path, clip_items.payload_path),
                 updated_at = excluded.updated_at,
-                kind = excluded.kind
+                kind = excluded.kind,
+                source_device_id = COALESCE(excluded.source_device_id, clip_items.source_device_id),
+                source_device_name = COALESCE(excluded.source_device_name, clip_items.source_device_name),
+                source_platform = COALESCE(excluded.source_platform, clip_items.source_platform),
+                source_app_bundle_id = COALESCE(excluded.source_app_bundle_id, clip_items.source_app_bundle_id),
+                source_app_name = COALESCE(excluded.source_app_name, clip_items.source_app_name)
             "#,
             params![
                 &target_id,
@@ -302,9 +359,12 @@ impl StorageRepository {
                 &item.source_app_name,
                 if item.is_sensitive { 1 } else { 0 },
                 item.deleted_at,
-                &item.payload_path,
+                &normalized_payload_path,
                 Self::unix_now(),
                 kind_str,
+                &item.source_device_id,
+                &item.source_device_name,
+                &item.source_platform,
             ],
         )?;
 
@@ -348,16 +408,24 @@ impl StorageRepository {
             r#"
             SELECT ci.id, ci.item_type, ci.title, ci.summary, ci.created_at, ci.last_used_at,
                    ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
-                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind
+                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
+                   ci.source_device_id, ci.source_device_name, ci.source_platform
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE ci.id = ?1
             "#,
             params![&target_id],
             |row| {
+                let item_type: String = row.get(1)?;
+                let stored_path: Option<String> = row.get(12)?;
+                let resolved_path = PayloadAssetStore::resolve_for_runtime(
+                    &item_type,
+                    stored_path.as_deref(),
+                    assets_dir,
+                );
                 Ok(ClipItemSummary {
                     id: row.get(0)?,
-                    item_type: row.get(1)?,
+                    item_type,
                     title: row.get(2)?,
                     summary: row.get(3)?,
                     created_at: row.get(4)?,
@@ -368,10 +436,13 @@ impl StorageRepository {
                     source_app_name: row.get(9)?,
                     is_sensitive: row.get::<_, i64>(10)? == 1,
                     deleted_at: row.get(11)?,
-                    payload_path: row.get::<_, Option<String>>(12)?,
+                    payload_path: resolved_path,
                     ocr_text: row.get(13)?,
                     metadata_json: row.get(14)?,
                     kind: row.get(15)?,
+                    source_device_id: row.get(16)?,
+                    source_device_name: row.get(17)?,
+                    source_platform: row.get(18)?,
                 })
             },
         )?;
@@ -480,8 +551,8 @@ impl StorageRepository {
         (fts_join, conditions, params)
     }
     pub fn query_items(&self, filter: &QueryFilter) -> Result<Vec<ClipItemSummary>> {
+        let assets_dir = self.assets_dir();
         let conn = self.conn.lock();
-
         let (fts_join, mut conditions, params) = Self::build_search_conditions(
             filter.include_deleted,
             filter.favorite_only,
@@ -507,16 +578,18 @@ impl StorageRepository {
         // 确保同步或备份导入的长文本（summary 为摘要、raw_text 为全文）能完整读出
         let is_single_id_query = filter.id.as_deref().is_some_and(|s| !s.is_empty());
         let summary_expr = if is_single_id_query {
-            "CASE WHEN ci.is_sensitive = 0 AND cp.raw_text IS NOT NULL AND cp.raw_text != '' THEN cp.raw_text ELSE ci.summary END"
+            "CASE WHEN ci.is_sensitive = 0 AND cp.raw_text IS NOT NULL AND cp.raw_text != '' THEN cp.raw_text ELSE ci.summary END".to_string()
+        } else if let Some(max_chars) = filter.summary_max_chars.filter(|&n| n > 0) {
+            format!("SUBSTR(ci.summary, 1, {max_chars})")
         } else {
-            "ci.summary"
+            "ci.summary".to_string()
         };
-
         let sql = format!(
             r#"
             SELECT ci.id, ci.item_type, ci.title, {summary_expr}, ci.created_at, ci.last_used_at,
                    ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
-                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind
+                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
+                   ci.source_device_id, ci.source_device_name, ci.source_platform
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             {fts_join}
@@ -530,9 +603,16 @@ impl StorageRepository {
         let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
 
         let rows = stmt.query_map(param_refs.as_slice(), |row| {
+            let item_type: String = row.get(1)?;
+            let stored_path: Option<String> = row.get(12)?;
+            let resolved_path = PayloadAssetStore::resolve_for_runtime(
+                &item_type,
+                stored_path.as_deref(),
+                assets_dir.as_deref(),
+            );
             Ok(ClipItemSummary {
                 id: row.get(0)?,
-                item_type: row.get(1)?,
+                item_type,
                 title: row.get(2)?,
                 summary: row.get(3)?,
                 created_at: row.get(4)?,
@@ -543,10 +623,13 @@ impl StorageRepository {
                 source_app_name: row.get(9)?,
                 is_sensitive: row.get::<_, i64>(10)? == 1,
                 deleted_at: row.get(11)?,
-                payload_path: row.get::<_, Option<String>>(12)?,
+                payload_path: resolved_path,
                 ocr_text: row.get(13)?,
                 metadata_json: row.get(14)?,
                 kind: row.get(15)?,
+                source_device_id: row.get(16)?,
+                source_device_name: row.get(17)?,
+                source_platform: row.get(18)?,
             })
         })?;
 
@@ -969,20 +1052,28 @@ impl StorageRepository {
     }
 
     pub fn clear_all_history(&self, keep_favorites: bool) -> Result<Vec<PrunedItemRecord>> {
+        let assets_dir = self.assets_dir();
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         let now = Self::unix_now();
         let records = {
             let mut stmt = if keep_favorites {
-                tx.prepare("SELECT id, payload_path FROM clip_items WHERE favorite = 0")?
+                tx.prepare("SELECT id, item_type, payload_path FROM clip_items WHERE favorite = 0")?
             } else {
-                tx.prepare("SELECT id, payload_path FROM clip_items")?
+                tx.prepare("SELECT id, item_type, payload_path FROM clip_items")?
             };
 
             let rows = stmt.query_map([], |row| {
+                let id: String = row.get(0)?;
+                let item_type: String = row.get(1)?;
+                let stored: Option<String> = row.get(2)?;
                 Ok(PrunedItemRecord {
-                    id: row.get(0)?,
-                    payload_path: row.get::<_, Option<String>>(1)?,
+                    id,
+                    payload_path: PayloadAssetStore::resolve_for_runtime(
+                        &item_type,
+                        stored.as_deref(),
+                        assets_dir.as_deref(),
+                    ),
                 })
             })?;
 
@@ -1156,6 +1247,7 @@ impl StorageRepository {
     }
 
     pub fn prune_expired(&self, config: &RetentionConfig) -> Result<Vec<PrunedItemRecord>> {
+        let assets_dir = self.assets_dir();
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
 
@@ -1213,16 +1305,20 @@ impl StorageRepository {
 
         let mut records = Vec::new();
         for id in &candidate_ids {
-            let (rowid, payload_path): (i64, Option<String>) = tx
+            let (rowid, item_type, stored_path): (i64, String, Option<String>) = tx
                 .query_row(
-                    "SELECT rowid, payload_path FROM clip_items WHERE id = ?1",
+                    "SELECT rowid, item_type, payload_path FROM clip_items WHERE id = ?1",
                     params![id],
-                    |r| Ok((r.get(0)?, r.get(1)?)),
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )
-                .unwrap_or((-1, None));
+                .unwrap_or((-1, String::new(), None));
             records.push(PrunedItemRecord {
                 id: id.clone(),
-                payload_path,
+                payload_path: PayloadAssetStore::resolve_for_runtime(
+                    &item_type,
+                    stored_path.as_deref(),
+                    assets_dir.as_deref(),
+                ),
             });
             Self::record_tombstone_in_tx(&tx, id)?;
             if rowid >= 0 {
@@ -1248,11 +1344,11 @@ impl StorageRepository {
             return Ok(Vec::new());
         }
         let root = std::path::Path::new(managed_dir);
-        let candidates: Vec<(String, String, bool, bool, f64)> = {
+        let candidates: Vec<(String, String, String, bool, bool, f64)> = {
             let conn = self.conn.lock();
             let mut stmt = conn.prepare(
                 r#"
-                SELECT id, payload_path, favorite, deleted_at IS NOT NULL, last_used_at
+                SELECT id, item_type, payload_path, favorite, deleted_at IS NOT NULL, last_used_at
                 FROM clip_items
                 WHERE payload_path IS NOT NULL AND payload_path != ''
                 ORDER BY last_used_at ASC
@@ -1262,9 +1358,10 @@ impl StorageRepository {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)? == 1,
-                    row.get::<_, bool>(3)?,
-                    row.get::<_, f64>(4)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)? == 1,
+                    row.get::<_, bool>(4)?,
+                    row.get::<_, f64>(5)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
@@ -1273,15 +1370,21 @@ impl StorageRepository {
         let mut total_bytes: u64 = 0;
         let mut evictable: Vec<(String, String, u64, f64)> = Vec::new();
 
-        for (id, path_str, is_favorite, is_deleted, last_used_at) in candidates {
-            let path = std::path::Path::new(&path_str);
+        for (id, item_type, path_str, is_favorite, is_deleted, last_used_at) in candidates {
+            let resolved = PayloadAssetStore::resolve_for_runtime(
+                &item_type,
+                Some(&path_str),
+                Some(root),
+            )
+            .unwrap_or(path_str);
+            let path = std::path::Path::new(&resolved);
             if !path.starts_with(root) {
                 continue;
             }
             let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
             total_bytes = total_bytes.saturating_add(size);
             if is_deleted || !is_favorite {
-                evictable.push((id, path_str, size, last_used_at));
+                evictable.push((id, resolved, size, last_used_at));
             }
         }
 
@@ -1325,21 +1428,30 @@ impl StorageRepository {
     }
 
     fn get_item_summary(&self, id: &str) -> Result<ClipItemSummary> {
+        let assets_dir = self.assets_dir();
         let conn = self.conn.lock();
         conn.query_row(
             r#"
             SELECT ci.id, ci.item_type, ci.title, ci.summary, ci.created_at, ci.last_used_at,
                    ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
-                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind
+                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
+                   ci.source_device_id, ci.source_device_name, ci.source_platform
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE ci.id = ?1
             "#,
             params![id],
             |row| {
+                let item_type: String = row.get(1)?;
+                let stored_path: Option<String> = row.get(12)?;
+                let resolved_path = PayloadAssetStore::resolve_for_runtime(
+                    &item_type,
+                    stored_path.as_deref(),
+                    assets_dir.as_deref(),
+                );
                 Ok(ClipItemSummary {
                     id: row.get(0)?,
-                    item_type: row.get(1)?,
+                    item_type,
                     title: row.get(2)?,
                     summary: row.get(3)?,
                     created_at: row.get(4)?,
@@ -1350,10 +1462,13 @@ impl StorageRepository {
                     source_app_name: row.get(9)?,
                     is_sensitive: row.get::<_, i64>(10)? == 1,
                     deleted_at: row.get(11)?,
-                    payload_path: row.get::<_, Option<String>>(12)?,
+                    payload_path: resolved_path,
                     ocr_text: row.get(13)?,
                     metadata_json: row.get(14)?,
                     kind: row.get(15)?,
+                    source_device_id: row.get(16)?,
+                    source_device_name: row.get(17)?,
+                    source_platform: row.get(18)?,
                 })
             },
         )
@@ -1383,34 +1498,58 @@ impl StorageRepository {
     }
     /// 导出同步条目。安全不变量：敏感条目绝不导出（pack 仅压缩不加密）；
     /// 除活跃条目与软删墓碑外，还合并硬删除路径留下的 sync_tombstones。
+    /// 导出同步条目。默认导出最近 500 条活跃条目 + 全部收藏 + 7 天内墓碑。
     pub fn export_sync_items(
         &self,
         assets_dir: Option<&str>,
     ) -> Result<Vec<crate::sync::SyncItemRecord>> {
+        self.export_sync_items_ext(assets_dir, false, Some(500))
+    }
+
+    pub fn export_sync_items_ext(
+        &self,
+        assets_dir: Option<&str>,
+        allow_sensitive: bool,
+        max_active_items: Option<u32>,
+    ) -> Result<Vec<crate::sync::SyncItemRecord>> {
         let conn = self.conn.lock();
+        let tombstone_cutoff = Self::unix_now() - crate::sync::TOMBSTONE_RETENTION_SECS;
+        let limit_val = max_active_items.unwrap_or(500) as i64;
+        let sensitive_flag = if allow_sensitive { 1 } else { 0 };
+
         let mut stmt = conn.prepare(
             r#"
             SELECT ci.id, ci.item_type, ci.title, ci.summary, cp.raw_text,
                    ci.is_sensitive, ci.favorite, ci.created_at, ci.last_used_at, ci.deleted_at,
-                   ci.updated_at, ci.copy_count, ci.payload_path
+                   ci.updated_at, ci.copy_count, ci.payload_path,
+                   ci.source_app_bundle_id, ci.source_app_name,
+                   ci.source_device_id, ci.source_device_name, ci.source_platform,
+                   cp.encrypted_content, cp.nonce
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
-            WHERE ci.is_sensitive = 0
-              AND (ci.deleted_at IS NULL OR ci.deleted_at >= ?1)
+            WHERE (ci.is_sensitive = 0 OR ?2 = 1)
+              AND (
+                  ci.id IN (
+                      SELECT id FROM clip_items
+                      WHERE deleted_at IS NULL AND (is_sensitive = 0 OR ?2 = 1)
+                      ORDER BY last_used_at DESC LIMIT ?3
+                  )
+                  OR (ci.favorite = 1 AND ci.deleted_at IS NULL)
+                  OR (ci.deleted_at IS NOT NULL AND ci.deleted_at >= ?1)
+              )
             ORDER BY ci.last_used_at DESC
             "#
         )?;
 
-        // 墓碑保留 7 天：超期墓碑不再随 pack 推送（spec US1，T010）
-        let tombstone_cutoff = Self::unix_now() - crate::sync::TOMBSTONE_RETENTION_SECS;
         let rows = stmt.query_map(
-            params![tombstone_cutoff],
+            params![tombstone_cutoff, sensitive_flag, limit_val],
             |row| {
             let id: String = row.get(0)?;
             let item_type: String = row.get(1)?;
             let title: String = row.get(2)?;
             let summary: String = row.get(3)?;
             let raw_text: Option<String> = row.get(4)?;
+            let is_sensitive: bool = row.get::<_, i64>(5)? == 1;
             let is_favorite: bool = row.get::<_, i64>(6)? == 1;
             let created_at: f64 = row.get(7)?;
             let last_used_at: f64 = row.get(8)?;
@@ -1418,41 +1557,73 @@ impl StorageRepository {
             let updated_at: f64 = row.get(10)?;
             let copy_count: i64 = row.get(11)?;
             let payload_path: Option<String> = row.get(12)?;
+            let source_app_bundle_id: Option<String> = row.get(13)?;
+            let source_app_name: Option<String> = row.get(14)?;
+            let source_device_id: Option<String> = row.get(15)?;
+            let source_device_name: Option<String> = row.get(16)?;
+            let source_platform: Option<String> = row.get(17)?;
+            let encrypted_content: Option<Vec<u8>> = row.get(18)?;
+            let nonce: Option<Vec<u8>> = row.get(19)?;
 
-            // 附件池：仅受管载荷目录内的文件随 pack 同步（content-addressed 文件名）；
-            // 用户原始文件路径（file 类条目）绝不外发
-            let asset_file_name = payload_path.as_deref().and_then(|p| {
-                let dir = std::path::Path::new(assets_dir?);
-                let path = std::path::Path::new(p);
-                if path.starts_with(dir) {
+            // 附件池：单张附件上限 5MB，超限附件仅留存本机，不随 pack 同步
+            let asset_file_name = if item_type == "file" {
+                None
+            } else {
+                payload_path.as_deref().and_then(|p| {
+                    let dir = std::path::Path::new(assets_dir?);
+                    let target_path = if !p.contains('/') && !p.contains('\\') {
+                        let candidate = dir.join(p);
+                        if candidate.exists() { Some(candidate) } else { None }
+                    } else {
+                        let path = std::path::Path::new(p);
+                        if path.starts_with(dir) { Some(path.to_path_buf()) } else { None }
+                    };
+                    let path = target_path?;
+                    let meta = std::fs::metadata(&path).ok()?;
+                    if meta.len() > crate::sync::MAX_SYNC_ASSET_BYTES {
+                        return None;
+                    }
                     path.file_name()
                         .and_then(|n| n.to_str())
                         .map(|n| n.to_string())
-                } else {
-                    None
-                }
-            });
+                })
+            };
 
-            Ok(crate::sync::SyncItemRecord {
-                id,
-                item_type,
-                title,
-                summary,
-                raw_text,
-                is_sensitive: false,
-                is_favorite,
-                created_at,
-                last_used_at,
-                updated_at,
-                copy_count,
-                asset_file_name,
-                deleted_at,
-            })
+            Ok((
+                crate::sync::SyncItemRecord {
+                    id,
+                    item_type,
+                    title,
+                    summary,
+                    raw_text,
+                    is_sensitive,
+                    is_favorite,
+                    created_at,
+                    last_used_at,
+                    updated_at,
+                    copy_count,
+                    asset_file_name,
+                    deleted_at,
+                    source_app_bundle_id,
+                    source_app_name,
+                    source_device_id,
+                    source_device_name,
+                    source_platform,
+                },
+                encrypted_content,
+                nonce,
+            ))
         })?;
 
         let mut items = Vec::new();
-        for item in rows {
-            items.push(item?);
+        for row in rows {
+            let (mut item, encrypted_content, nonce) = row?;
+            if item.is_sensitive && item.raw_text.is_none() {
+                if let (Some(enc), Some(n)) = (encrypted_content, nonce) {
+                    item.raw_text = Some(self.crypto.decrypt(&enc, &n)?);
+                }
+            }
+            items.push(item);
         }
 
         // 硬删除墓碑：行已物理删除，只携带 id 与删除时间让对端软删同 id 条目
@@ -1477,6 +1648,11 @@ impl StorageRepository {
                     copy_count: 0,
                     asset_file_name: None,
                     deleted_at: Some(deleted_at),
+                    source_app_bundle_id: None,
+                    source_app_name: None,
+                    source_device_id: None,
+                    source_device_name: None,
+                    source_platform: None,
                 })
             })?;
             for row in rows {
@@ -1486,19 +1662,60 @@ impl StorageRepository {
 
         Ok(items)
     }
+
+    pub fn get_sync_cursor(&self, device_id: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock();
+        let res: Option<Option<String>> = conn
+            .query_row(
+                "SELECT last_fingerprint FROM sync_cursors WHERE device_id = ?1",
+                params![device_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(res.flatten())
+    }
+
+    pub fn set_sync_cursor(&self, device_id: &str, fingerprint: &str) -> Result<()> {
+        let conn = self.conn.lock();
+        let now = Self::unix_now();
+        conn.execute(
+            r#"
+            INSERT INTO sync_cursors (device_id, last_fingerprint, synced_at)
+            VALUES (?1, ?2, ?3)
+            ON CONFLICT(device_id) DO UPDATE SET
+                last_fingerprint = excluded.last_fingerprint,
+                synced_at = excluded.synced_at
+            "#,
+            params![device_id, fingerprint, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_all_sync_cursors(&self) -> Result<std::collections::HashMap<String, String>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare("SELECT device_id, last_fingerprint FROM sync_cursors WHERE last_fingerprint IS NOT NULL")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut map = std::collections::HashMap::new();
+        for r in rows {
+            let (k, v) = r?;
+            map.insert(k, v);
+        }
+        Ok(map)
+    }
     pub fn reconcile_sync_items(
         &self,
         items: &[crate::sync::SyncItemRecord],
         asset_paths: &std::collections::HashMap<String, String>,
     ) -> Result<u32> {
+        let assets_dir = self.assets_dir();
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         let mut merged_count = 0;
 
         for item in items {
-            let local: Option<(f64, Option<f64>, i64, bool, f64)> = tx
+            let local: Option<(f64, Option<f64>, i64, bool, f64, String)> = tx
                 .query_row(
-                    "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at FROM clip_items WHERE id = ?1",
+                    "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id FROM clip_items WHERE id = ?1",
                     params![&item.id],
                     |row| {
                         Ok((
@@ -1507,13 +1724,36 @@ impl StorageRepository {
                             row.get(2)?,
                             row.get::<_, i64>(3)? == 1,
                             row.get(4)?,
+                            row.get(5)?,
                         ))
                     },
                 )
                 .optional()?;
 
+            // 跨端同内容去重归并：若按 id 未命中，且为非敏感活跃条目，按 (item_type, summary) 查重归并存量行
+            let local = match local {
+                Some(l) => Some(l),
+                None if !item.is_sensitive && item.deleted_at.is_none() => {
+                    tx.query_row(
+                        "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id FROM clip_items WHERE item_type = ?1 AND summary = ?2 AND is_sensitive = 0 AND deleted_at IS NULL",
+                        params![&item.item_type, &item.summary],
+                        |row| {
+                            Ok((
+                                row.get(0)?,
+                                row.get(1)?,
+                                row.get(2)?,
+                                row.get::<_, i64>(3)? == 1,
+                                row.get(4)?,
+                                row.get(5)?,
+                            ))
+                        },
+                    ).optional()?
+                }
+                None => None,
+            };
+
             match local {
-                Some((_local_last_used, local_deleted, local_copies, _local_fav, local_updated)) => {
+                Some((_local_last_used, local_deleted, local_copies, _local_fav, local_updated, matched_id)) => {
                     // LWW（data-model §3）：元数据按 updated_at 判新；删除以 deleted_at 为准。
                     // 存量行 updated_at=0（迁移默认值），首轮远端必胜，合并后自愈。
                     let remote_time = item.deleted_at.unwrap_or(item.updated_at);
@@ -1524,14 +1764,18 @@ impl StorageRepository {
                         let (existing_meta, existing_payload_path): (Option<String>, Option<String>) = tx
                             .query_row(
                                 "SELECT cp.metadata_json, ci.payload_path FROM clip_items ci LEFT JOIN clip_payloads cp ON ci.id = cp.id WHERE ci.id = ?1",
-                                params![&item.id],
+                                params![&matched_id],
                                 |r| Ok((r.get(0)?, r.get(1)?)),
                             )
                             .optional()?
                             .unwrap_or((None, None));
-                        let merged_payload_path = asset_paths
-                            .get(&item.id)
-                            .cloned()
+                        let normalized_asset_path = PayloadAssetStore::normalize_for_storage(
+                            &item.item_type,
+                            asset_paths.get(&item.id).or_else(|| asset_paths.get(&matched_id)).map(|s| s.as_str()),
+                            assets_dir.as_deref(),
+                        );
+                        let merged_payload_path = normalized_asset_path
+                            .clone()
                             .or(existing_payload_path);
                         let (kind_str, resolved_meta) = compute_kind_and_metadata(
                             &item.item_type,
@@ -1543,19 +1787,24 @@ impl StorageRepository {
                         if resolved_meta != existing_meta {
                             tx.execute(
                                 "UPDATE clip_payloads SET metadata_json = ?1 WHERE id = ?2",
-                                params![resolved_meta.as_deref(), &item.id],
+                                params![resolved_meta.as_deref(), &matched_id],
                             )?;
                         }
                         tx.execute(
                             r#"
                             UPDATE clip_items
-                            SET title = ?1, summary = ?2, last_used_at = ?3,
+                            SET title = ?1, summary = ?2, last_used_at = MAX(last_used_at, ?3),
                                 favorite = ?4, deleted_at = ?5,
                                 copy_count = MAX(?6, copy_count),
                                 updated_at = ?7,
                                 payload_path = COALESCE(?8, payload_path),
-                                kind = ?9
-                            WHERE id = ?10
+                                kind = ?9,
+                                source_app_bundle_id = COALESCE(?10, source_app_bundle_id),
+                                source_app_name = COALESCE(?11, source_app_name),
+                                source_device_id = COALESCE(?12, source_device_id),
+                                source_device_name = COALESCE(?13, source_device_name),
+                                source_platform = COALESCE(?14, source_platform)
+                            WHERE id = ?15
                             "#,
                             params![
                                 &item.title,
@@ -1565,15 +1814,20 @@ impl StorageRepository {
                                 item.deleted_at,
                                 local_copies.max(item.copy_count),
                                 item.updated_at,
-                                asset_paths.get(&item.id),
+                                normalized_asset_path.as_deref(),
                                 kind_str,
-                                &item.id,
+                                &item.source_app_bundle_id,
+                                &item.source_app_name,
+                                &item.source_device_id,
+                                &item.source_device_name,
+                                &item.source_platform,
+                                &matched_id,
                             ],
                         )?;
-                        // 按最终状态重算 FTS 行：非敏感且未删除则重建（保留本机已有 ocr_text 与 source_app）
+                        // 按最终状态重算 FTS 行：非敏感且未删除则重建
                         tx.execute(
                             "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
-                            params![&item.id],
+                            params![&matched_id],
                         )?;
                         if item.deleted_at.is_none() {
                             let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
@@ -1591,7 +1845,7 @@ impl StorageRepository {
                                 LEFT JOIN clip_payloads cp ON ci.id = cp.id
                                 WHERE ci.id = ?3
                                 "#,
-                                params![&item.title, fts_summary, &item.id, if item.is_sensitive { 1 } else { 0 }],
+                                params![&item.title, fts_summary, &matched_id, if item.is_sensitive { 1 } else { 0 }],
                             )?;
                         }
                         if let Some(text) = &item.raw_text {
@@ -1599,12 +1853,12 @@ impl StorageRepository {
                                 let (enc, nonce) = self.crypto.encrypt(text)?;
                                 tx.execute(
                                     "UPDATE clip_payloads SET raw_text = NULL, encrypted_content = ?1, nonce = ?2 WHERE id = ?3",
-                                    params![&enc, &nonce, &item.id],
+                                    params![&enc, &nonce, &matched_id],
                                 )?;
                             } else {
                                 tx.execute(
                                     "UPDATE clip_payloads SET raw_text = ?1, encrypted_content = NULL, nonce = NULL WHERE id = ?2",
-                                    params![text, &item.id],
+                                    params![text, &matched_id],
                                 )?;
                             }
                         }
@@ -1626,21 +1880,26 @@ impl StorageRepository {
                         continue;
                     }
                     // New record
-                    let new_payload_path = asset_paths.get(&item.id);
+                    let new_payload_path = PayloadAssetStore::normalize_for_storage(
+                        &item.item_type,
+                        asset_paths.get(&item.id).map(|s| s.as_str()),
+                        assets_dir.as_deref(),
+                    );
                     let (kind_str, resolved_meta) = compute_kind_and_metadata(
                         &item.item_type,
                         item.is_sensitive,
                         None,
                         item.raw_text.as_deref().unwrap_or(&item.summary),
-                        new_payload_path.map(|s| s.as_str()),
+                        new_payload_path.as_deref(),
                     );
                     tx.execute(
                         r#"
                         INSERT INTO clip_items (
                             id, item_type, title, summary, created_at, last_used_at,
                             copy_count, favorite, source_app_bundle_id, source_app_name,
-                            is_sensitive, deleted_at, updated_at, payload_path, kind
-                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, ?9, ?10, ?11, ?12, ?13)
+                            is_sensitive, deleted_at, updated_at, payload_path, kind,
+                            source_device_id, source_device_name, source_platform
+                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
                         "#,
                         params![
                             &item.id,
@@ -1651,11 +1910,16 @@ impl StorageRepository {
                             item.last_used_at,
                             item.copy_count.max(1),
                             if item.is_favorite { 1 } else { 0 },
+                            &item.source_app_bundle_id,
+                            &item.source_app_name,
                             if item.is_sensitive { 1 } else { 0 },
                             item.deleted_at,
                             item.updated_at,
-                            new_payload_path,
+                            new_payload_path.as_deref(),
                             kind_str,
+                            &item.source_device_id,
+                            &item.source_device_name,
+                            &item.source_platform,
                         ],
                     )?;
                     if item.is_sensitive {
@@ -1677,13 +1941,15 @@ impl StorageRepository {
                     }
                     if item.deleted_at.is_none() {
                         let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
+                        let fts_app_name = if item.is_sensitive { "" } else { item.source_app_name.as_deref().unwrap_or("") };
+                        let fts_bundle_id = if item.is_sensitive { "" } else { item.source_app_bundle_id.as_deref().unwrap_or("") };
                         tx.execute(
                             r#"
                             INSERT INTO clip_fts (
                                 rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                            ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?3), ?1, ?2, '', '', '', ?3)
+                            ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, '', ?3, ?4, ?5)
                             "#,
-                            params![&item.title, fts_summary, &item.id],
+                            params![&item.title, fts_summary, fts_app_name, fts_bundle_id, &item.id, &item.id],
                         )?;
                     }
                     merged_count += 1;

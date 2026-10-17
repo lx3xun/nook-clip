@@ -3,6 +3,7 @@ use rusqlite::Connection;
 use crate::error::Result;
 
 pub fn initialize_database(conn: &Connection) -> Result<()> {
+    conn.busy_timeout(std::time::Duration::from_millis(5000))?;
     let _: String = conn.query_row("PRAGMA journal_mode = WAL;", [], |row| row.get(0))?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
@@ -26,7 +27,10 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
             deleted_at REAL,
             payload_path TEXT,
             updated_at REAL NOT NULL DEFAULT 0,
-            kind TEXT NOT NULL DEFAULT 'text'
+            kind TEXT NOT NULL DEFAULT 'text',
+            source_device_id TEXT,
+            source_device_name TEXT,
+            source_platform TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_clip_items_active_timeline
@@ -55,6 +59,13 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
             id TEXT PRIMARY KEY,
             deleted_at REAL NOT NULL
         );
+        -- 增量同步游标：记录各设备上次拉取成功的指纹（ETag / mtime），未变化时短路跳过下载
+        CREATE TABLE IF NOT EXISTS sync_cursors (
+            device_id TEXT PRIMARY KEY,
+            last_fingerprint TEXT,
+            synced_at REAL NOT NULL
+        );
+
 
         CREATE VIRTUAL TABLE IF NOT EXISTS clip_fts USING fts5(
             title,
@@ -99,6 +110,15 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_clip_items_kind ON clip_items (deleted_at, kind, last_used_at DESC);",
         [],
     )?;
+    // Soft migration for source device & platform columns
+    for col in &["source_device_id", "source_device_name", "source_platform"] {
+        if let Err(e) = conn.execute(&format!("ALTER TABLE clip_items ADD COLUMN {} TEXT;", col), []) {
+            if !e.to_string().contains("duplicate column name") {
+                return Err(e.into());
+            }
+        }
+    }
+
 
     // 索引结构 v2：clip_fts 行的 rowid 与 clip_items.rowid 一一对齐。
     // FTS5 表的 clip_id 是 UNINDEXED 列，按其删除/更新必须全表扫描（写路径 O(N)、

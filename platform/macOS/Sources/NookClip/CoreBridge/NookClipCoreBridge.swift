@@ -626,9 +626,16 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
     func queryViewSnapshot(filter: QueryFilter, calendar: CalendarContext) throws  -> QueryViewSnapshot
     
     /**
+     * 读取数据库原始 payload_path 字段（不做运行时目录拼接，供迁移/诊断/测试断言使用）
+     */
+    func rawStoredPayloadPath(id: String) throws  -> String?
+    
+    /**
      * 主密钥轮换（迁移场景）：见 StorageRepository::rekey
      */
     func rekey(newMasterKey: Data) throws  -> UInt64
+    
+    func resetSyncPassphrase(options: SyncOptions) throws  -> SyncReport
     
     func restoreDeleted(id: String) throws 
     
@@ -646,6 +653,11 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
      */
     func savePayloadAsset(storageDir: String, data: Data, preferredExtension: String) throws  -> String
     
+    /**
+     * 配置当前运行时的受管载荷目录（使相对文件名 payload_path 在查询/淘汰时自动解析为当前容器绝对路径）
+     */
+    func setAssetsDir(assetsDir: String) 
+    
     func softDelete(id: String) throws 
     
     func sweepOrphans(storageDir: String, referencedFilenames: [String], olderThanSeconds: Double) throws  -> UInt32
@@ -654,9 +666,15 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
     
     func syncPull(syncDir: String, deviceId: String, localAssetsDir: String) throws  -> SyncReport
     
+    func syncPullWithOptions(options: SyncOptions) throws  -> SyncReport
+    
     func syncPush(syncDir: String, deviceId: String, localAssetsDir: String) throws  -> SyncReport
     
+    func syncPushWithOptions(options: SyncOptions) throws  -> SyncReport
+    
     func syncWithBackend(backend: SyncBackendConfig, deviceId: String, localAssetsDir: String) throws  -> SyncReport
+    
+    func syncWithOptions(options: SyncOptions) throws  -> SyncReport
     
     func timeGroupTimestamps(filter: QueryFilter) throws  -> [Double]
     
@@ -919,12 +937,31 @@ open func queryViewSnapshot(filter: QueryFilter, calendar: CalendarContext)throw
 }
     
     /**
+     * 读取数据库原始 payload_path 字段（不做运行时目录拼接，供迁移/诊断/测试断言使用）
+     */
+open func rawStoredPayloadPath(id: String)throws  -> String? {
+    return try  FfiConverterOptionString.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_raw_stored_payload_path(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),$0
+    )
+})
+}
+    
+    /**
      * 主密钥轮换（迁移场景）：见 StorageRepository::rekey
      */
 open func rekey(newMasterKey: Data)throws  -> UInt64 {
     return try  FfiConverterUInt64.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_rekey(self.uniffiClonePointer(),
         FfiConverterData.lower(newMasterKey),$0
+    )
+})
+}
+    
+open func resetSyncPassphrase(options: SyncOptions)throws  -> SyncReport {
+    return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_reset_sync_passphrase(self.uniffiClonePointer(),
+        FfiConverterTypeSyncOptions.lower(options),$0
     )
 })
 }
@@ -970,6 +1007,16 @@ open func savePayloadAsset(storageDir: String, data: Data, preferredExtension: S
 })
 }
     
+    /**
+     * 配置当前运行时的受管载荷目录（使相对文件名 payload_path 在查询/淘汰时自动解析为当前容器绝对路径）
+     */
+open func setAssetsDir(assetsDir: String) {try! rustCall() {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_set_assets_dir(self.uniffiClonePointer(),
+        FfiConverterString.lower(assetsDir),$0
+    )
+}
+}
+    
 open func softDelete(id: String)throws  {try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_soft_delete(self.uniffiClonePointer(),
         FfiConverterString.lower(id),$0
@@ -1007,6 +1054,14 @@ open func syncPull(syncDir: String, deviceId: String, localAssetsDir: String)thr
 })
 }
     
+open func syncPullWithOptions(options: SyncOptions)throws  -> SyncReport {
+    return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_sync_pull_with_options(self.uniffiClonePointer(),
+        FfiConverterTypeSyncOptions.lower(options),$0
+    )
+})
+}
+    
 open func syncPush(syncDir: String, deviceId: String, localAssetsDir: String)throws  -> SyncReport {
     return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_sync_push(self.uniffiClonePointer(),
@@ -1017,12 +1072,28 @@ open func syncPush(syncDir: String, deviceId: String, localAssetsDir: String)thr
 })
 }
     
+open func syncPushWithOptions(options: SyncOptions)throws  -> SyncReport {
+    return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_sync_push_with_options(self.uniffiClonePointer(),
+        FfiConverterTypeSyncOptions.lower(options),$0
+    )
+})
+}
+    
 open func syncWithBackend(backend: SyncBackendConfig, deviceId: String, localAssetsDir: String)throws  -> SyncReport {
     return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_sync_with_backend(self.uniffiClonePointer(),
         FfiConverterTypeSyncBackendConfig.lower(backend),
         FfiConverterString.lower(deviceId),
         FfiConverterString.lower(localAssetsDir),$0
+    )
+})
+}
+    
+open func syncWithOptions(options: SyncOptions)throws  -> SyncReport {
+    return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_sync_with_options(self.uniffiClonePointer(),
+        FfiConverterTypeSyncOptions.lower(options),$0
     )
 })
 }
@@ -1119,6 +1190,88 @@ public func FfiConverterTypeNookClipHistoryEngine_lift(_ pointer: UnsafeMutableR
 #endif
 public func FfiConverterTypeNookClipHistoryEngine_lower(_ value: NookClipHistoryEngine) -> UnsafeMutableRawPointer {
     return FfiConverterTypeNookClipHistoryEngine.lower(value)
+}
+
+
+public struct AppActivationRecord {
+    public var bundleId: String?
+    public var name: String?
+    public var isSelf: Bool
+    public var activatedAt: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(bundleId: String?, name: String?, isSelf: Bool, activatedAt: Double) {
+        self.bundleId = bundleId
+        self.name = name
+        self.isSelf = isSelf
+        self.activatedAt = activatedAt
+    }
+}
+
+
+
+extension AppActivationRecord: Equatable, Hashable {
+    public static func ==(lhs: AppActivationRecord, rhs: AppActivationRecord) -> Bool {
+        if lhs.bundleId != rhs.bundleId {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.isSelf != rhs.isSelf {
+            return false
+        }
+        if lhs.activatedAt != rhs.activatedAt {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(bundleId)
+        hasher.combine(name)
+        hasher.combine(isSelf)
+        hasher.combine(activatedAt)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAppActivationRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppActivationRecord {
+        return
+            try AppActivationRecord(
+                bundleId: FfiConverterOptionString.read(from: &buf), 
+                name: FfiConverterOptionString.read(from: &buf), 
+                isSelf: FfiConverterBool.read(from: &buf), 
+                activatedAt: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AppActivationRecord, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.bundleId, into: &buf)
+        FfiConverterOptionString.write(value.name, into: &buf)
+        FfiConverterBool.write(value.isSelf, into: &buf)
+        FfiConverterDouble.write(value.activatedAt, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAppActivationRecord_lift(_ buf: RustBuffer) throws -> AppActivationRecord {
+    return try FfiConverterTypeAppActivationRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAppActivationRecord_lower(_ value: AppActivationRecord) -> RustBuffer {
+    return FfiConverterTypeAppActivationRecord.lower(value)
 }
 
 
@@ -1495,10 +1648,13 @@ public struct ClipItemSummary {
     public var ocrText: String?
     public var metadataJson: String?
     public var kind: String
+    public var sourceDeviceId: String?
+    public var sourceDeviceName: String?
+    public var sourcePlatform: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, itemType: String, title: String, summary: String, createdAt: Double, lastUsedAt: Double, copyCount: Int64, favorite: Bool, sourceAppBundleId: String?, sourceAppName: String?, isSensitive: Bool, deletedAt: Double?, payloadPath: String?, ocrText: String?, metadataJson: String?, kind: String = "") {
+    public init(id: String, itemType: String, title: String, summary: String, createdAt: Double, lastUsedAt: Double, copyCount: Int64, favorite: Bool, sourceAppBundleId: String?, sourceAppName: String?, isSensitive: Bool, deletedAt: Double?, payloadPath: String?, ocrText: String?, metadataJson: String?, kind: String = "", sourceDeviceId: String? = nil, sourceDeviceName: String? = nil, sourcePlatform: String? = nil) {
         self.id = id
         self.itemType = itemType
         self.title = title
@@ -1515,6 +1671,9 @@ public struct ClipItemSummary {
         self.ocrText = ocrText
         self.metadataJson = metadataJson
         self.kind = kind
+        self.sourceDeviceId = sourceDeviceId
+        self.sourceDeviceName = sourceDeviceName
+        self.sourcePlatform = sourcePlatform
     }
 }
 
@@ -1570,6 +1729,15 @@ extension ClipItemSummary: Equatable, Hashable {
         if lhs.kind != rhs.kind {
             return false
         }
+        if lhs.sourceDeviceId != rhs.sourceDeviceId {
+            return false
+        }
+        if lhs.sourceDeviceName != rhs.sourceDeviceName {
+            return false
+        }
+        if lhs.sourcePlatform != rhs.sourcePlatform {
+            return false
+        }
         return true
     }
 
@@ -1590,6 +1758,9 @@ extension ClipItemSummary: Equatable, Hashable {
         hasher.combine(ocrText)
         hasher.combine(metadataJson)
         hasher.combine(kind)
+        hasher.combine(sourceDeviceId)
+        hasher.combine(sourceDeviceName)
+        hasher.combine(sourcePlatform)
     }
 }
 
@@ -1616,7 +1787,10 @@ public struct FfiConverterTypeClipItemSummary: FfiConverterRustBuffer {
                 payloadPath: FfiConverterOptionString.read(from: &buf), 
                 ocrText: FfiConverterOptionString.read(from: &buf), 
                 metadataJson: FfiConverterOptionString.read(from: &buf), 
-                kind: FfiConverterString.read(from: &buf)
+                kind: FfiConverterString.read(from: &buf), 
+                sourceDeviceId: FfiConverterOptionString.read(from: &buf), 
+                sourceDeviceName: FfiConverterOptionString.read(from: &buf), 
+                sourcePlatform: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1637,6 +1811,9 @@ public struct FfiConverterTypeClipItemSummary: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.ocrText, into: &buf)
         FfiConverterOptionString.write(value.metadataJson, into: &buf)
         FfiConverterString.write(value.kind, into: &buf)
+        FfiConverterOptionString.write(value.sourceDeviceId, into: &buf)
+        FfiConverterOptionString.write(value.sourceDeviceName, into: &buf)
+        FfiConverterOptionString.write(value.sourcePlatform, into: &buf)
     }
 }
 
@@ -1759,6 +1936,88 @@ public func FfiConverterTypeDetectionResult_lift(_ buf: RustBuffer) throws -> De
 #endif
 public func FfiConverterTypeDetectionResult_lower(_ value: DetectionResult) -> RustBuffer {
     return FfiConverterTypeDetectionResult.lower(value)
+}
+
+
+public struct HighlightRange {
+    public var startByte: UInt32
+    public var endByte: UInt32
+    public var startChar: UInt32
+    public var endChar: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(startByte: UInt32, endByte: UInt32, startChar: UInt32, endChar: UInt32) {
+        self.startByte = startByte
+        self.endByte = endByte
+        self.startChar = startChar
+        self.endChar = endChar
+    }
+}
+
+
+
+extension HighlightRange: Equatable, Hashable {
+    public static func ==(lhs: HighlightRange, rhs: HighlightRange) -> Bool {
+        if lhs.startByte != rhs.startByte {
+            return false
+        }
+        if lhs.endByte != rhs.endByte {
+            return false
+        }
+        if lhs.startChar != rhs.startChar {
+            return false
+        }
+        if lhs.endChar != rhs.endChar {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(startByte)
+        hasher.combine(endByte)
+        hasher.combine(startChar)
+        hasher.combine(endChar)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeHighlightRange: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HighlightRange {
+        return
+            try HighlightRange(
+                startByte: FfiConverterUInt32.read(from: &buf), 
+                endByte: FfiConverterUInt32.read(from: &buf), 
+                startChar: FfiConverterUInt32.read(from: &buf), 
+                endChar: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: HighlightRange, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.startByte, into: &buf)
+        FfiConverterUInt32.write(value.endByte, into: &buf)
+        FfiConverterUInt32.write(value.startChar, into: &buf)
+        FfiConverterUInt32.write(value.endChar, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHighlightRange_lift(_ buf: RustBuffer) throws -> HighlightRange {
+    return try FfiConverterTypeHighlightRange.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHighlightRange_lower(_ value: HighlightRange) -> RustBuffer {
+    return FfiConverterTypeHighlightRange.lower(value)
 }
 
 
@@ -1914,15 +2173,21 @@ public struct IngestConfig {
     public var localAssetsDir: String
     public var fileMultiTitleTemplate: String?
     public var defaultImageTitle: String
+    public var sourceDeviceId: String?
+    public var sourceDeviceName: String?
+    public var sourcePlatform: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(sensitiveProtectionEnabled: Bool, excludedBundleIds: [String], localAssetsDir: String, fileMultiTitleTemplate: String?, defaultImageTitle: String) {
+    public init(sensitiveProtectionEnabled: Bool, excludedBundleIds: [String], localAssetsDir: String, fileMultiTitleTemplate: String?, defaultImageTitle: String, sourceDeviceId: String? = nil, sourceDeviceName: String? = nil, sourcePlatform: String? = nil) {
         self.sensitiveProtectionEnabled = sensitiveProtectionEnabled
         self.excludedBundleIds = excludedBundleIds
         self.localAssetsDir = localAssetsDir
         self.fileMultiTitleTemplate = fileMultiTitleTemplate
         self.defaultImageTitle = defaultImageTitle
+        self.sourceDeviceId = sourceDeviceId
+        self.sourceDeviceName = sourceDeviceName
+        self.sourcePlatform = sourcePlatform
     }
 }
 
@@ -1945,6 +2210,15 @@ extension IngestConfig: Equatable, Hashable {
         if lhs.defaultImageTitle != rhs.defaultImageTitle {
             return false
         }
+        if lhs.sourceDeviceId != rhs.sourceDeviceId {
+            return false
+        }
+        if lhs.sourceDeviceName != rhs.sourceDeviceName {
+            return false
+        }
+        if lhs.sourcePlatform != rhs.sourcePlatform {
+            return false
+        }
         return true
     }
 
@@ -1954,6 +2228,9 @@ extension IngestConfig: Equatable, Hashable {
         hasher.combine(localAssetsDir)
         hasher.combine(fileMultiTitleTemplate)
         hasher.combine(defaultImageTitle)
+        hasher.combine(sourceDeviceId)
+        hasher.combine(sourceDeviceName)
+        hasher.combine(sourcePlatform)
     }
 }
 
@@ -1969,7 +2246,10 @@ public struct FfiConverterTypeIngestConfig: FfiConverterRustBuffer {
                 excludedBundleIds: FfiConverterSequenceString.read(from: &buf), 
                 localAssetsDir: FfiConverterString.read(from: &buf), 
                 fileMultiTitleTemplate: FfiConverterOptionString.read(from: &buf), 
-                defaultImageTitle: FfiConverterString.read(from: &buf)
+                defaultImageTitle: FfiConverterString.read(from: &buf), 
+                sourceDeviceId: FfiConverterOptionString.read(from: &buf), 
+                sourceDeviceName: FfiConverterOptionString.read(from: &buf), 
+                sourcePlatform: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1979,6 +2259,9 @@ public struct FfiConverterTypeIngestConfig: FfiConverterRustBuffer {
         FfiConverterString.write(value.localAssetsDir, into: &buf)
         FfiConverterOptionString.write(value.fileMultiTitleTemplate, into: &buf)
         FfiConverterString.write(value.defaultImageTitle, into: &buf)
+        FfiConverterOptionString.write(value.sourceDeviceId, into: &buf)
+        FfiConverterOptionString.write(value.sourceDeviceName, into: &buf)
+        FfiConverterOptionString.write(value.sourcePlatform, into: &buf)
     }
 }
 
@@ -2167,6 +2450,96 @@ public func FfiConverterTypeMaintenanceReport_lift(_ buf: RustBuffer) throws -> 
 #endif
 public func FfiConverterTypeMaintenanceReport_lower(_ value: MaintenanceReport) -> RustBuffer {
     return FfiConverterTypeMaintenanceReport.lower(value)
+}
+
+
+public struct OcrTextBlock {
+    public var text: String
+    public var x: Double
+    public var y: Double
+    public var width: Double
+    public var height: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(text: String, x: Double, y: Double, width: Double, height: Double) {
+        self.text = text
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+}
+
+
+
+extension OcrTextBlock: Equatable, Hashable {
+    public static func ==(lhs: OcrTextBlock, rhs: OcrTextBlock) -> Bool {
+        if lhs.text != rhs.text {
+            return false
+        }
+        if lhs.x != rhs.x {
+            return false
+        }
+        if lhs.y != rhs.y {
+            return false
+        }
+        if lhs.width != rhs.width {
+            return false
+        }
+        if lhs.height != rhs.height {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(text)
+        hasher.combine(x)
+        hasher.combine(y)
+        hasher.combine(width)
+        hasher.combine(height)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeOcrTextBlock: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OcrTextBlock {
+        return
+            try OcrTextBlock(
+                text: FfiConverterString.read(from: &buf), 
+                x: FfiConverterDouble.read(from: &buf), 
+                y: FfiConverterDouble.read(from: &buf), 
+                width: FfiConverterDouble.read(from: &buf), 
+                height: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OcrTextBlock, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterDouble.write(value.x, into: &buf)
+        FfiConverterDouble.write(value.y, into: &buf)
+        FfiConverterDouble.write(value.width, into: &buf)
+        FfiConverterDouble.write(value.height, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOcrTextBlock_lift(_ buf: RustBuffer) throws -> OcrTextBlock {
+    return try FfiConverterTypeOcrTextBlock.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeOcrTextBlock_lower(_ value: OcrTextBlock) -> RustBuffer {
+    return FfiConverterTypeOcrTextBlock.lower(value)
 }
 
 
@@ -2370,13 +2743,14 @@ public struct QueryFilter {
     public var includeDeleted: Bool
     public var limit: UInt32
     public var offset: UInt32
+    public var summaryMaxChars: UInt32?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(
         /**
          * 按 id 精确取单条：Swift 侧按需取回全文 summary（列表查询只载入前缀）
-         */id: String? = nil, searchQuery: String?, itemType: String?, kind: String?, favoriteOnly: Bool, includeDeleted: Bool, limit: UInt32, offset: UInt32) {
+         */id: String? = nil, searchQuery: String?, itemType: String?, kind: String?, favoriteOnly: Bool, includeDeleted: Bool, limit: UInt32, offset: UInt32, summaryMaxChars: UInt32? = nil) {
         self.id = id
         self.searchQuery = searchQuery
         self.itemType = itemType
@@ -2385,6 +2759,7 @@ public struct QueryFilter {
         self.includeDeleted = includeDeleted
         self.limit = limit
         self.offset = offset
+        self.summaryMaxChars = summaryMaxChars
     }
 }
 
@@ -2416,6 +2791,9 @@ extension QueryFilter: Equatable, Hashable {
         if lhs.offset != rhs.offset {
             return false
         }
+        if lhs.summaryMaxChars != rhs.summaryMaxChars {
+            return false
+        }
         return true
     }
 
@@ -2428,6 +2806,7 @@ extension QueryFilter: Equatable, Hashable {
         hasher.combine(includeDeleted)
         hasher.combine(limit)
         hasher.combine(offset)
+        hasher.combine(summaryMaxChars)
     }
 }
 
@@ -2446,7 +2825,8 @@ public struct FfiConverterTypeQueryFilter: FfiConverterRustBuffer {
                 favoriteOnly: FfiConverterBool.read(from: &buf), 
                 includeDeleted: FfiConverterBool.read(from: &buf), 
                 limit: FfiConverterUInt32.read(from: &buf), 
-                offset: FfiConverterUInt32.read(from: &buf)
+                offset: FfiConverterUInt32.read(from: &buf), 
+                summaryMaxChars: FfiConverterOptionUInt32.read(from: &buf)
         )
     }
 
@@ -2459,6 +2839,7 @@ public struct FfiConverterTypeQueryFilter: FfiConverterRustBuffer {
         FfiConverterBool.write(value.includeDeleted, into: &buf)
         FfiConverterUInt32.write(value.limit, into: &buf)
         FfiConverterUInt32.write(value.offset, into: &buf)
+        FfiConverterOptionUInt32.write(value.summaryMaxChars, into: &buf)
     }
 }
 
@@ -2588,10 +2969,13 @@ public struct RawClipboardSnapshot {
     public var sourceBundleId: String?
     public var sourceAppName: String?
     public var hasConcealedMarker: Bool
+    public var sourceDeviceId: String?
+    public var sourceDeviceName: String?
+    public var sourcePlatform: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(plainText: String?, html: String?, rtfData: Data?, imageData: Data?, imageExtension: String?, filePaths: [String], urlCandidates: [String], urlTitle: String?, sourceBundleId: String?, sourceAppName: String?, hasConcealedMarker: Bool) {
+    public init(plainText: String?, html: String?, rtfData: Data?, imageData: Data?, imageExtension: String?, filePaths: [String], urlCandidates: [String], urlTitle: String?, sourceBundleId: String?, sourceAppName: String?, hasConcealedMarker: Bool, sourceDeviceId: String? = nil, sourceDeviceName: String? = nil, sourcePlatform: String? = nil) {
         self.plainText = plainText
         self.html = html
         self.rtfData = rtfData
@@ -2603,6 +2987,9 @@ public struct RawClipboardSnapshot {
         self.sourceBundleId = sourceBundleId
         self.sourceAppName = sourceAppName
         self.hasConcealedMarker = hasConcealedMarker
+        self.sourceDeviceId = sourceDeviceId
+        self.sourceDeviceName = sourceDeviceName
+        self.sourcePlatform = sourcePlatform
     }
 }
 
@@ -2643,6 +3030,15 @@ extension RawClipboardSnapshot: Equatable, Hashable {
         if lhs.hasConcealedMarker != rhs.hasConcealedMarker {
             return false
         }
+        if lhs.sourceDeviceId != rhs.sourceDeviceId {
+            return false
+        }
+        if lhs.sourceDeviceName != rhs.sourceDeviceName {
+            return false
+        }
+        if lhs.sourcePlatform != rhs.sourcePlatform {
+            return false
+        }
         return true
     }
 
@@ -2658,6 +3054,9 @@ extension RawClipboardSnapshot: Equatable, Hashable {
         hasher.combine(sourceBundleId)
         hasher.combine(sourceAppName)
         hasher.combine(hasConcealedMarker)
+        hasher.combine(sourceDeviceId)
+        hasher.combine(sourceDeviceName)
+        hasher.combine(sourcePlatform)
     }
 }
 
@@ -2679,7 +3078,10 @@ public struct FfiConverterTypeRawClipboardSnapshot: FfiConverterRustBuffer {
                 urlTitle: FfiConverterOptionString.read(from: &buf), 
                 sourceBundleId: FfiConverterOptionString.read(from: &buf), 
                 sourceAppName: FfiConverterOptionString.read(from: &buf), 
-                hasConcealedMarker: FfiConverterBool.read(from: &buf)
+                hasConcealedMarker: FfiConverterBool.read(from: &buf), 
+                sourceDeviceId: FfiConverterOptionString.read(from: &buf), 
+                sourceDeviceName: FfiConverterOptionString.read(from: &buf), 
+                sourcePlatform: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -2695,6 +3097,9 @@ public struct FfiConverterTypeRawClipboardSnapshot: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.sourceBundleId, into: &buf)
         FfiConverterOptionString.write(value.sourceAppName, into: &buf)
         FfiConverterBool.write(value.hasConcealedMarker, into: &buf)
+        FfiConverterOptionString.write(value.sourceDeviceId, into: &buf)
+        FfiConverterOptionString.write(value.sourceDeviceName, into: &buf)
+        FfiConverterOptionString.write(value.sourcePlatform, into: &buf)
     }
 }
 
@@ -2777,6 +3182,96 @@ public func FfiConverterTypeRetentionConfig_lift(_ buf: RustBuffer) throws -> Re
 #endif
 public func FfiConverterTypeRetentionConfig_lower(_ value: RetentionConfig) -> RustBuffer {
     return FfiConverterTypeRetentionConfig.lower(value)
+}
+
+
+public struct SyncOptions {
+    public var backend: SyncBackendConfig
+    public var deviceId: String
+    public var localAssetsDir: String
+    public var passphrase: String?
+    public var allowSensitive: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(backend: SyncBackendConfig, deviceId: String, localAssetsDir: String, passphrase: String? = nil, allowSensitive: Bool = false) {
+        self.backend = backend
+        self.deviceId = deviceId
+        self.localAssetsDir = localAssetsDir
+        self.passphrase = passphrase
+        self.allowSensitive = allowSensitive
+    }
+}
+
+
+
+extension SyncOptions: Equatable, Hashable {
+    public static func ==(lhs: SyncOptions, rhs: SyncOptions) -> Bool {
+        if lhs.backend != rhs.backend {
+            return false
+        }
+        if lhs.deviceId != rhs.deviceId {
+            return false
+        }
+        if lhs.localAssetsDir != rhs.localAssetsDir {
+            return false
+        }
+        if lhs.passphrase != rhs.passphrase {
+            return false
+        }
+        if lhs.allowSensitive != rhs.allowSensitive {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(backend)
+        hasher.combine(deviceId)
+        hasher.combine(localAssetsDir)
+        hasher.combine(passphrase)
+        hasher.combine(allowSensitive)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSyncOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SyncOptions {
+        return
+            try SyncOptions(
+                backend: FfiConverterTypeSyncBackendConfig.read(from: &buf), 
+                deviceId: FfiConverterString.read(from: &buf), 
+                localAssetsDir: FfiConverterString.read(from: &buf), 
+                passphrase: FfiConverterOptionString.read(from: &buf), 
+                allowSensitive: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SyncOptions, into buf: inout [UInt8]) {
+        FfiConverterTypeSyncBackendConfig.write(value.backend, into: &buf)
+        FfiConverterString.write(value.deviceId, into: &buf)
+        FfiConverterString.write(value.localAssetsDir, into: &buf)
+        FfiConverterOptionString.write(value.passphrase, into: &buf)
+        FfiConverterBool.write(value.allowSensitive, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSyncOptions_lift(_ buf: RustBuffer) throws -> SyncOptions {
+    return try FfiConverterTypeSyncOptions.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSyncOptions_lower(_ value: SyncOptions) -> RustBuffer {
+    return FfiConverterTypeSyncOptions.lower(value)
 }
 
 
@@ -3851,6 +4346,30 @@ fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeAppActivationRecord: FfiConverterRustBuffer {
+    typealias SwiftType = AppActivationRecord?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeAppActivationRecord.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeAppActivationRecord.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeImageDimensions: FfiConverterRustBuffer {
     typealias SwiftType = ImageDimensions?
 
@@ -3925,6 +4444,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeAppActivationRecord: FfiConverterRustBuffer {
+    typealias SwiftType = [AppActivationRecord]
+
+    public static func write(_ value: [AppActivationRecord], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAppActivationRecord.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AppActivationRecord] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AppActivationRecord]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAppActivationRecord.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeBatchSaveItem: FfiConverterRustBuffer {
     typealias SwiftType = [BatchSaveItem]
 
@@ -3967,6 +4511,56 @@ fileprivate struct FfiConverterSequenceTypeClipItemSummary: FfiConverterRustBuff
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeClipItemSummary.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeHighlightRange: FfiConverterRustBuffer {
+    typealias SwiftType = [HighlightRange]
+
+    public static func write(_ value: [HighlightRange], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeHighlightRange.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [HighlightRange] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [HighlightRange]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeHighlightRange.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeOcrTextBlock: FfiConverterRustBuffer {
+    typealias SwiftType = [OcrTextBlock]
+
+    public static func write(_ value: [OcrTextBlock], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeOcrTextBlock.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [OcrTextBlock] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [OcrTextBlock]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeOcrTextBlock.read(from: &buf))
         }
         return seq
     }
@@ -4053,10 +4647,25 @@ public func classifyTextContent(text: String) -> DetectionResult {
     )
 })
 }
+public func formatOcrLayoutBlocks(blocks: [OcrTextBlock]) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_format_ocr_layout_blocks(
+        FfiConverterSequenceTypeOcrTextBlock.lower(blocks),$0
+    )
+})
+}
 public func maskSensitiveText(text: String) -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_func_mask_sensitive_text(
         FfiConverterString.lower(text),$0
+    )
+})
+}
+public func matchSearchHighlightRanges(text: String, keywords: [String]) -> [HighlightRange] {
+    return try!  FfiConverterSequenceTypeHighlightRange.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_match_search_highlight_ranges(
+        FfiConverterString.lower(text),
+        FfiConverterSequenceString.lower(keywords),$0
     )
 })
 }
@@ -4071,6 +4680,25 @@ public func parseImageDimensions(data: Data) -> ImageDimensions? {
     return try!  FfiConverterOptionTypeImageDimensions.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_func_parse_image_dimensions(
         FfiConverterData.lower(data),$0
+    )
+})
+}
+public func resolveClipboardSourceApp(history: [AppActivationRecord], nowTs: Double, pollInterval: Double) -> AppActivationRecord? {
+    return try!  FfiConverterOptionTypeAppActivationRecord.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_resolve_clipboard_source_app(
+        FfiConverterSequenceTypeAppActivationRecord.lower(history),
+        FfiConverterDouble.lower(nowTs),
+        FfiConverterDouble.lower(pollInterval),$0
+    )
+})
+}
+public func resolveOrCreateMasterKey(keyFilePath: String, legacyInitialized: Bool, hasEncryptedPayloads: Bool, vaultProvider: KeyVaultBackupProvider)throws  -> Data {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_func_resolve_or_create_master_key(
+        FfiConverterString.lower(keyFilePath),
+        FfiConverterBool.lower(legacyInitialized),
+        FfiConverterBool.lower(hasEncryptedPayloads),
+        FfiConverterCallbackInterfaceKeyVaultBackupProvider.lower(vaultProvider),$0
     )
 })
 }
@@ -4089,6 +4717,24 @@ public func sweepOrphanPayloadAssets(storageDir: String, referencedFilenames: [S
         FfiConverterString.lower(storageDir),
         FfiConverterSequenceString.lower(referencedFilenames),
         FfiConverterDouble.lower(olderThanSeconds),$0
+    )
+})
+}
+public func testSyncPassphrase(backend: SyncBackendConfig, passphrase: String)throws  -> Bool {
+    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_func_test_sync_passphrase(
+        FfiConverterTypeSyncBackendConfig.lower(backend),
+        FfiConverterString.lower(passphrase),$0
+    )
+})
+}
+public func testWebdavConnection(baseUrl: String, username: String, password: String, timeoutSecs: UInt64)throws  -> Bool {
+    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_func_test_webdav_connection(
+        FfiConverterString.lower(baseUrl),
+        FfiConverterString.lower(username),
+        FfiConverterString.lower(password),
+        FfiConverterUInt64.lower(timeoutSecs),$0
     )
 })
 }
@@ -4118,7 +4764,13 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_classify_text_content() != 34131) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_format_ocr_layout_blocks() != 38903) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_mask_sensitive_text() != 30185) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_match_search_highlight_ranges() != 25427) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_parse_color_hex() != 48406) {
@@ -4127,10 +4779,22 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_parse_image_dimensions() != 61511) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_resolve_clipboard_source_app() != 55557) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_resolve_or_create_master_key() != 37743) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_save_payload_asset_file() != 2983) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_sweep_orphan_payload_assets() != 15341) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_test_sync_passphrase() != 11266) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_test_webdav_connection() != 34612) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_tokenize_search_keywords() != 11317) {
@@ -4199,7 +4863,13 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_query_view_snapshot() != 10705) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_raw_stored_payload_path() != 1954) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_rekey() != 4669) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_reset_sync_passphrase() != 1343) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_restore_deleted() != 22007) {
@@ -4214,6 +4884,9 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_save_payload_asset() != 52932) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_set_assets_dir() != 5505) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_soft_delete() != 19347) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4226,10 +4899,19 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_sync_pull() != 55594) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_sync_pull_with_options() != 13436) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_sync_push() != 15947) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_sync_push_with_options() != 45415) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_sync_with_backend() != 10481) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_sync_with_options() != 9512) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_time_group_timestamps() != 65194) {

@@ -192,10 +192,8 @@ final class MainViewListState {
     private var debounceTask: Task<Void, Never>?
     private var dataVersion = 0
     private var lastRowsKey: (text: String, category: Int, limit: Int, dataVersion: Int)?
-    private var lastCountsKey: (text: String, dataVersion: Int)?
     private var lastPipelineInput: (text: String, category: Int, dataVersion: Int)?
-    private var lastRailKey: (text: String, category: Int, dataVersion: Int)?
-    private var railTimestamps: [Date] = []
+    private var lastSnapshot: QueryViewSnapshot?
 
     // MARK: - 过滤管线输出
     private(set) var categories: [SidebarCategory] = []
@@ -348,49 +346,33 @@ final class MainViewListState {
         let dataVersion = self.dataVersion
         let effectiveLimit = limit ?? InMemoryHistoryStore.pageSize
         let rowsKey = (text: queryText, category: categoryID, limit: effectiveLimit, dataVersion: dataVersion)
-        let countsKey = (text: queryText, dataVersion: dataVersion)
-        let railKey = (text: queryText, category: categoryID, dataVersion: dataVersion)
-
-        let rowsNeeded = lastRowsKey.map { $0 != rowsKey } ?? true
-        let countsNeeded = lastCountsKey.map { $0 != countsKey } ?? true
-        let railNeeded = lastRailKey.map { $0 != railKey } ?? true
-        guard rowsNeeded || countsNeeded || railNeeded else { return }
-
+        guard lastRowsKey.map({ $0 != rowsKey }) ?? true else { return }
         generation += 1
         let currentGeneration = generation
         task?.cancel()
         task = Task { @MainActor in
-            var newResults = results
-            var newHasMore = hasMore
-            var newFailed = failed
-            if rowsNeeded {
-                let outcome = await store.searchHistory(queryText: queryText, categoryID: categoryID, limit: effectiveLimit)
+            guard let snapshot = await store.queryViewSnapshot(queryText: queryText, categoryID: categoryID, limit: effectiveLimit) else {
                 guard !Task.isCancelled, currentGeneration == generation else { return }
-                newResults = outcome.items
-                newHasMore = outcome.hasMore
-                newFailed = outcome.failed
+                self.failed = true
+                self.lastRowsKey = nil
+                self.task = nil
+                return
             }
+            guard !Task.isCancelled, currentGeneration == generation else { return }
 
-            var newCounts = categoryCounts
-            if countsNeeded {
-                newCounts = await store.countCategories(queryText: queryText)
-                guard !Task.isCancelled, currentGeneration == generation else { return }
-            }
-            if railNeeded {
-                let timestamps = await store.timeGroupTimestamps(queryText: queryText, categoryID: categoryID)
-                guard !Task.isCancelled, currentGeneration == generation else { return }
-                railTimestamps = timestamps
-                lastRailKey = railKey
-            }
-            self.failed = newFailed
-            self.results = newResults
-            self.hasMore = newHasMore
-            self.categoryCounts = newCounts
+            self.failed = false
+            self.results = snapshot.items.compactMap { store.rustStore.toClipboardItem($0) }
+            self.hasMore = snapshot.hasMore
+            self.categoryCounts = snapshot.categoryCounts
             self.lastRowsKey = rowsKey
-            self.lastCountsKey = countsKey
             self.task = nil
 
-            applyPipeline(searchText: queryText, categorySelection: categoryID, dataVersion: dataVersion)
+            applyPipeline(
+                searchText: queryText,
+                categorySelection: categoryID,
+                dataVersion: dataVersion,
+                snapshot: snapshot
+            )
         }
     }
 
@@ -400,24 +382,64 @@ final class MainViewListState {
     }
 
     /// 应用过滤管线并自愈选中态
-    private func applyPipeline(searchText: String, categorySelection: Int, dataVersion: Int) {
+    private func applyPipeline(
+        searchText: String,
+        categorySelection: Int,
+        dataVersion: Int,
+        snapshot: QueryViewSnapshot? = nil
+    ) {
         lastPipelineInput = (text: searchText, category: categorySelection, dataVersion: dataVersion)
-        let out = pipeline.update(
-            queryRows: rowCache.rows(for: results, language: LocalizationManager.shared.effectiveLanguageCode),
-            queryVersion: rowCache.version,
-            counts: categoryCounts,
-            dataVersion: dataVersion,
-            searchText: searchText,
-            categorySelection: categorySelection
-        )
-        self.categories = out.categories
-        self.effectiveCategory = out.effectiveCategory
-        self.groups = out.groups
-        // 全量时间分组跟随语言重算（标题本地化在 Timeline 内完成）
-        self.timeGroups = Timeline.groupTimestamps(railTimestamps)
-        self.flatRows = out.flatRows
-        if self.categorySelection != out.effectiveCategory {
-            self.categorySelection = out.effectiveCategory
+
+        let rowMap = rowCache.rows(for: results, language: LocalizationManager.shared.effectiveLanguageCode)
+        let rowDict = Dictionary(rowMap.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+        let activeSnapshot = snapshot ?? lastSnapshot
+        if let activeSnapshot {
+            if snapshot != nil {
+                self.lastSnapshot = snapshot
+            }
+            var mappedGroups: [TimeGroup<ClipboardRowModel>] = []
+            for sec in activeSnapshot.groups {
+                let rowItems = sec.items.compactMap { item in
+                    UUID(uuidString: item.id).flatMap { rowDict[$0] }
+                }
+                if !rowItems.isEmpty {
+                    mappedGroups.append(TimeGroup(
+                        id: sec.id,
+                        title: Timeline.localizedTitle(for: sec.bucket),
+                        items: rowItems
+                    ))
+                }
+            }
+            self.groups = mappedGroups
+            self.flatRows = mappedGroups.flatMap(\.items)
+            self.timeGroups = activeSnapshot.timelineAnchors.map {
+                Timeline.TimeGroupSummary(
+                    id: $0.id,
+                    title: Timeline.localizedTitle(for: $0.bucket),
+                    count: Int($0.count)
+                )
+            }
+            self.categories = SidebarCategories.categories(from: activeSnapshot.categoryCounts)
+            let effective = self.categories.first(where: { $0.id == categorySelection })?.id ?? 0
+            self.effectiveCategory = effective
+        } else {
+            let out = pipeline.update(
+                queryRows: rowMap,
+                queryVersion: rowCache.version,
+                counts: categoryCounts,
+                dataVersion: dataVersion,
+                searchText: searchText,
+                categorySelection: categorySelection
+            )
+            self.categories = out.categories
+            self.effectiveCategory = out.effectiveCategory
+            self.groups = out.groups
+            self.flatRows = out.flatRows
+        }
+
+        if self.categorySelection != effectiveCategory {
+            self.categorySelection = effectiveCategory
             selection.selectedID = nil
         }
 

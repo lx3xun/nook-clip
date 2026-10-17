@@ -30,35 +30,29 @@ struct SourceAppResolver {
         }
     }
 
-    /// 解析当前剪贴板变化的来源应用；无可用记录（NookClip 刚启动）返回 nil。
-    /// NookClip 自身驻留超过一个周期时如实返回 NookClip（面板内选中复制、NookClip 触发的
-    /// 钥匙串等系统弹窗均属此类，归因到之前的外部应用反而是错的）。
+    /// 解析当前剪贴板变化的来源应用（单轨化委托给 Rust 核心 algorithms::source_resolver）。
     func resolve(now: Date = Date()) -> Activation? {
-        // NookClip 面板已驻留超过一个周期：变化必然发生在 NookClip 前台期间
-        // （面板内选中复制、NookClip 触发的钥匙串等系统弹窗），如实标注为 NookClip
-        if let last = history.last,
-           last.isSelf,
-           now.timeIntervalSince(last.at) >= pollInterval {
-            return last
+        guard !history.isEmpty else { return nil }
+        let ffiHistory = history.map {
+            AppActivationRecord(
+                bundleId: $0.bundleId,
+                name: $0.name,
+                isSelf: $0.isSelf,
+                activatedAt: $0.at.timeIntervalSince1970
+            )
         }
-
-        var idx = history.index(before: history.endIndex)
-        while idx >= history.startIndex, history[idx].isSelf {
-            idx = history.index(before: idx)
+        guard let resolved = resolveClipboardSourceApp(
+            history: ffiHistory,
+            nowTs: now.timeIntervalSince1970,
+            pollInterval: pollInterval
+        ) else {
+            return nil
         }
-        guard idx >= history.startIndex else { return nil }
-        let current = history[idx]
-
-        // 当前应用已驻留超过一个轮询周期：变化必然发生在它前台期间
-        if now.timeIntervalSince(current.at) >= pollInterval {
-            return current
-        }
-
-        // 激活不足一个周期（复制后快速切换）：归因到切换前的前台应用
-        var prev = history.index(before: idx)
-        while prev >= history.startIndex, history[prev].isSelf {
-            prev = history.index(before: prev)
-        }
-        return prev >= history.startIndex ? history[prev] : current
+        return Activation(
+            bundleId: resolved.bundleId,
+            name: resolved.name,
+            isSelf: resolved.isSelf,
+            at: Date(timeIntervalSince1970: resolved.activatedAt)
+        )
     }
 }

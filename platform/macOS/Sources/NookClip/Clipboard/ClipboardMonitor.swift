@@ -192,16 +192,6 @@ final class ClipboardMonitor {
                 metadata = (try? JSONDecoder().decode(ClipboardMetadata.self, from: data)) ?? ClipboardMetadata()
             }
 
-            var encryptedContent: Data? = nil
-            if summary.isSensitive {
-                if let detail = try? engine.getItemDetail(id: summary.id),
-                   let plain = detail.rawText {
-                    encryptedContent = KeychainCryptoService.shared.encrypt(text: plain)
-                } else if let text = snapshot.text {
-                    encryptedContent = KeychainCryptoService.shared.encrypt(text: text)
-                }
-            }
-
             var item = ClipboardItem(
                 id: UUID(uuidString: summary.id) ?? UUID(),
                 type: ClipboardItemType(rawValue: summary.itemType) ?? .text,
@@ -216,9 +206,13 @@ final class ClipboardMonitor {
                 sourceAppBundleId: summary.sourceAppBundleId,
                 sourceAppName: summary.sourceAppName,
                 isSensitive: summary.isSensitive,
-                encryptedContent: encryptedContent,
+                sourceDeviceId: summary.sourceDeviceId,
+                sourceDeviceName: summary.sourceDeviceName,
+                sourcePlatform: summary.sourcePlatform,
+                encryptedContent: nil,
                 metadata: metadata
             )
+            item.decryptedPlainText = nil
             item.persistedKind = summary.kind.isEmpty ? nil : summary.kind
             let finalItem = item
             await MainActor.run { [weak self] in

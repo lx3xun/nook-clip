@@ -127,7 +127,7 @@ final class SavePathQueryBudgetTests: XCTestCase {
     /// 维护本体经 performStartupMaintenance() 显式驱动
     func test_initPerformsNoSynchronousHeavyMaintenance() throws {
         let spy = try QueryCountingHistoryStore()
-        // 默认保留期 30 天（defaults 未设置）
+        // 默认保留期（defaults 未设置）
         _ = makeIsolatedStore(rustStore: spy)
 
         XCTAssertEqual(spy.pruneExpiredCallCount, 0, "init 不得同步执行保留期清理")

@@ -68,6 +68,11 @@ fn test_sync_engine_push_and_pull_reconciliation() {
         copy_count: 5,
         asset_file_name: None,
         deleted_at: None,
+        source_app_bundle_id: None,
+        source_app_name: None,
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     };
     repo_b.reconcile_sync_items(&[item_b_update], &Default::default()).unwrap();
     sync_b.push(&repo_b).unwrap();
@@ -155,6 +160,11 @@ fn test_sync_engine_pull_resilience_to_corrupt_pack() {
         copy_count: 1,
         asset_file_name: None,
         deleted_at: None,
+        source_app_bundle_id: None,
+        source_app_name: None,
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     };
     let valid_pack = nookclip_core::sync::DeviceSyncPack::new("healthy-device".to_string(), vec![valid_item]);
     let compressed = valid_pack.serialize_compressed().unwrap();

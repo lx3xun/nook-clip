@@ -18,7 +18,12 @@ public struct ClipboardItem: Identifiable, Equatable, Codable {
     public var sourceAppBundleId: String?
     public var sourceAppName: String?
     public var isSensitive: Bool
+    public var sourceDeviceId: String? = nil
+    public var sourceDeviceName: String? = nil
+    public var sourcePlatform: String? = nil
     public var encryptedContent: Data?
+    /// Rust 引擎按需解密取回的敏感明文（仅 item(id:) 全文路径填充，不序列化、不进列表镜像，消除客户端二次加密）
+    public var decryptedPlainText: String? = nil
     public var metadata: ClipboardMetadata
     /// 软删除时间（nil = 活跃条目；非 nil = 撤销窗口内，过期按宽限彻底清除）
     public var deletedAt: Date?
@@ -28,17 +33,27 @@ public struct ClipboardItem: Identifiable, Equatable, Codable {
     /// 存储层持久化的规范分类（text / image / file / url / code / json / color / sensitive）
     public var persistedKind: String? = nil
 
+    private enum CodingKeys: String, CodingKey {
+        case id, type, title, summary, createdAt, lastUsedAt, copyCount, isFavorite
+        case payloadPath, ocrText, sourceAppBundleId, sourceAppName, isSensitive
+        case sourceDeviceId, sourceDeviceName, sourcePlatform
+        case encryptedContent, metadata, deletedAt, summaryIsTruncated, persistedKind
+    }
+
     /// 敏感明文查看失败原因：钥匙串授权被拒 ≠ 密文损坏
     public enum RevealFailure: Error {
         case keyUnavailable
         case decryptFailed
     }
 
-    /// 带失败原因的明文查看（仅预览区区分提示文案用）；
-    /// T034（契约 R4）：加密服务经参数注入（默认值保证现有调用方零改动，
-    /// 待 UI 侧接线后收口移除默认值）
+    /// 带失败原因的明文查看（仅预览区区分提示文案用）：
+    /// 优先直接读取 Rust 引擎解密的 `decryptedPlainText`（零客户端重加密）；
+    /// 兼容未落库临时条目或旧测试注入的 `encryptedContent`。
     func revealPlainContentResult(crypto: any CryptoService = KeychainCryptoService.shared) -> Result<String, RevealFailure> {
         guard isSensitive else { return .success(summary) }
+        if let plain = decryptedPlainText {
+            return .success(plain)
+        }
         guard let cipher = encryptedContent else { return .failure(.decryptFailed) }
         switch crypto.decryptResult(cipherData: cipher) {
         case .success(let text):
@@ -59,7 +74,6 @@ public struct ClipboardItem: Identifiable, Equatable, Codable {
     public func revealPlainContent() -> String? {
         revealPlainContent(crypto: KeychainCryptoService.shared)
     }
-
     /// 仅空白（空格/换行/制表符）的文本或 URL：复制空选择产生的脏数据，不应入库展示
     public var isBlankText: Bool {
         guard !isSensitive, type == .text || type == .url else { return false }
@@ -80,6 +94,9 @@ public struct ClipboardItem: Identifiable, Equatable, Codable {
         sourceAppBundleId: String? = nil,
         sourceAppName: String? = nil,
         isSensitive: Bool = false,
+        sourceDeviceId: String? = nil,
+        sourceDeviceName: String? = nil,
+        sourcePlatform: String? = nil,
         encryptedContent: Data? = nil,
         metadata: ClipboardMetadata = ClipboardMetadata(),
         deletedAt: Date? = nil
@@ -97,6 +114,9 @@ public struct ClipboardItem: Identifiable, Equatable, Codable {
         self.sourceAppBundleId = sourceAppBundleId
         self.sourceAppName = sourceAppName
         self.isSensitive = isSensitive
+        self.sourceDeviceId = sourceDeviceId
+        self.sourceDeviceName = sourceDeviceName
+        self.sourcePlatform = sourcePlatform
         self.encryptedContent = encryptedContent
         self.metadata = metadata
         self.deletedAt = deletedAt

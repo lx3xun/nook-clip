@@ -344,3 +344,76 @@ fn test_migration_from_v2_schema_without_kind_column() {
     let counts = repo.count_categories(None).unwrap();
     assert_eq!(counts.color, 1);
 }
+
+#[test]
+fn test_managed_payload_path_stored_as_relative_filename_and_resolved_across_container_moves() {
+    let temp_db = NamedTempFile::new().expect("temp db");
+    let db_path = temp_db.path().to_str().unwrap().to_string();
+    let key = [9u8; 32];
+
+    let container_v1 = tempfile::tempdir().expect("container v1");
+    let container_v2 = tempfile::tempdir().expect("container v2");
+
+    let store_v1 = nookclip_core::storage::PayloadAssetStore::new(container_v1.path()).unwrap();
+    let abs_path_v1 = store_v1.save_payload_asset(b"png-binary-payload", "png").unwrap();
+    let expected_filename = std::path::Path::new(&abs_path_v1)
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    let repo = StorageRepository::new(&db_path, &key).unwrap();
+    repo.set_assets_dir(Some(container_v1.path()));
+
+    let mut img_item = dummy_item("img-rel-1", "Screenshot", "image", 100.0);
+    img_item.payload_path = Some(abs_path_v1.clone());
+    let saved = repo.save_item(&img_item, None).unwrap();
+
+    // 1. 数据库内部仅持久化纯文件名（不含沙盒容器绝对前缀）
+    let raw_stored = repo.raw_stored_payload_path("img-rel-1").unwrap();
+    assert_eq!(raw_stored.as_deref(), Some(expected_filename.as_str()));
+    // 返回给调用方的运行时路径自动拼接 container_v1
+    assert_eq!(saved.payload_path.as_deref(), Some(abs_path_v1.as_str()));
+
+    // 2. 模拟 iOS 容器 UUID 变更或目录迁移：将文件移入 container_v2 并切换 assets_dir
+    let abs_path_v2 = container_v2.path().join(&expected_filename);
+    std::fs::copy(&abs_path_v1, &abs_path_v2).unwrap();
+    std::fs::remove_file(&abs_path_v1).unwrap();
+    repo.set_assets_dir(Some(container_v2.path()));
+
+    let queried = repo.query_items(&QueryFilter::default()).unwrap();
+    assert_eq!(
+        queried[0].payload_path.as_deref(),
+        Some(abs_path_v2.to_str().unwrap()),
+        "容器目录迁移后查询到的 payload_path 必须自动解析到新容器目录"
+    );
+}
+
+#[test]
+fn test_query_items_truncates_summary_in_sql_when_summary_max_chars_set() {
+    let (_f, repo) = create_test_repo();
+    let long_text = "中".repeat(500);
+    let mut item = dummy_item("long-1", "", "text", 100.0);
+    item.summary = long_text.clone();
+    repo.save_item(&item, Some(&long_text)).unwrap();
+
+    // 列表查询：限制 300 字符
+    let list_filter = QueryFilter {
+        limit: 10,
+        summary_max_chars: Some(300),
+        ..Default::default()
+    };
+    let list_items = repo.query_items(&list_filter).unwrap();
+    assert_eq!(list_items[0].summary.chars().count(), 300);
+
+    // 单条按 id 全文查询：忽略截断上限，返回完整 500 字符
+    let single_filter = QueryFilter {
+        id: Some("long-1".to_string()),
+        limit: 1,
+        summary_max_chars: Some(300),
+        ..Default::default()
+    };
+    let single_items = repo.query_items(&single_filter).unwrap();
+    assert_eq!(single_items[0].summary.chars().count(), 500);
+}

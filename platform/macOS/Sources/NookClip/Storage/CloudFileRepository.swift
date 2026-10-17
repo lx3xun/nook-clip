@@ -23,7 +23,36 @@ final class CloudFileRepository {
 
     // MARK: - 目录解析与安全作用域
 
-    /// 当前配置的同步根目录
+    var hasExplicitBaseDirectoryURL: Bool {
+        explicitBaseDirectoryURL != nil
+    }
+
+    var defaultICloudDirectoryURL: URL {
+        let home = fileManager.homeDirectoryForCurrentUser
+        return home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/NookClip", isDirectory: true)
+    }
+
+    var customLocalDirectoryURL: URL {
+        if let bookmarkData = defaults.data(forKey: bookmarkKey) {
+            var isStale = false
+            if let resolved = try? URL(
+                resolvingBookmarkData: bookmarkData,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) {
+                beginSecurityScope(for: resolved)
+                return resolved
+            }
+        }
+        if let customPath = defaults.string(forKey: customPathKey), !customPath.isEmpty {
+            return URL(fileURLWithPath: customPath, isDirectory: true)
+        }
+        let home = fileManager.homeDirectoryForCurrentUser
+        return home.appendingPathComponent("Documents/NookClipSync", isDirectory: true)
+    }
+
+    /// 当前配置的同步根目录（显式指定 > 安全书签 > 自定义路径 > 默认 iCloud 目录）
     var baseDirectoryURL: URL {
         if let explicit = explicitBaseDirectoryURL {
             return explicit
@@ -46,10 +75,8 @@ final class CloudFileRepository {
             return URL(fileURLWithPath: customPath, isDirectory: true)
         }
         // 3. 默认 iCloud Drive/NookClip 目录
-        let home = fileManager.homeDirectoryForCurrentUser
-        return home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/NookClip", isDirectory: true)
+        return defaultICloudDirectoryURL
     }
-
     var assetsDirectoryURL: URL {
         baseDirectoryURL.appendingPathComponent("assets", isDirectory: true)
     }
@@ -92,7 +119,6 @@ final class CloudFileRepository {
             defaults.set(bookmark, forKey: bookmarkKey)
         }
         defaults.set(url.path, forKey: customPathKey)
-        explicitBaseDirectoryURL = url
         releaseSecurityScope()
         try ensureDirectoriesExist()
     }

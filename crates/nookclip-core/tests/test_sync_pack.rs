@@ -16,6 +16,11 @@ fn test_sync_pack_serialization_and_compression_roundtrip() {
         copy_count: 3,
         asset_file_name: None,
         deleted_at: None,
+        source_app_bundle_id: Some("com.apple.Safari".to_string()),
+        source_app_name: Some("Safari".to_string()),
+        source_device_id: Some("mac-1".to_string()),
+        source_device_name: Some("MacBook Pro".to_string()),
+        source_platform: Some("macos".to_string()),
     };
 
     let item2 = SyncItemRecord {
@@ -32,6 +37,11 @@ fn test_sync_pack_serialization_and_compression_roundtrip() {
         copy_count: 1,
         asset_file_name: Some("abc123.png".to_string()),
         deleted_at: Some(500.0), // tombstone
+        source_app_bundle_id: None,
+        source_app_name: None,
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     };
 
     let pack = DeviceSyncPack::new(

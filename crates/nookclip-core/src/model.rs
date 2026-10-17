@@ -10,6 +10,9 @@ pub struct ClipItemSummary {
     pub favorite: bool,
     pub source_app_bundle_id: Option<String>,
     pub source_app_name: Option<String>,
+    pub source_device_id: Option<String>,
+    pub source_device_name: Option<String>,
+    pub source_platform: Option<String>,
     pub is_sensitive: bool,
     pub deleted_at: Option<f64>,
     pub payload_path: Option<String>,
@@ -39,6 +42,8 @@ pub struct QueryFilter {
     pub include_deleted: bool,
     pub limit: u32,
     pub offset: u32,
+    /// 列表摘要截断上限（字符数，None 或 Some(0) = 不截断，返回全文 summary）
+    pub summary_max_chars: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -162,6 +167,9 @@ pub struct RawClipboardSnapshot {
     pub url_title: Option<String>,
     pub source_bundle_id: Option<String>,
     pub source_app_name: Option<String>,
+    pub source_device_id: Option<String>,
+    pub source_device_name: Option<String>,
+    pub source_platform: Option<String>,
     pub has_concealed_marker: bool,
 }
 
@@ -172,6 +180,9 @@ pub struct IngestConfig {
     pub local_assets_dir: String,
     pub file_multi_title_template: Option<String>,
     pub default_image_title: String,
+    pub source_device_id: Option<String>,
+    pub source_device_name: Option<String>,
+    pub source_platform: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

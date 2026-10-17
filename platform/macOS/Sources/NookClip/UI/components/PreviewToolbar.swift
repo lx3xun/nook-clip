@@ -56,7 +56,7 @@ struct PreviewToolbar: View {
     private func leadingMeta(_ item: ClipboardRowModel) -> some View {
         HStack(spacing: 6) {
             AppIconBadge(app: item.source, size: 15)
-            Text(L10n.tr("preview.meta_line", item.source.name, RelativeTime.string(from: item.lastUsedAt), String(item.copyCount)))
+            Text(L10n.tr("preview.meta_line", item.sourceDisplayName, RelativeTime.string(from: item.lastUsedAt), String(item.copyCount)))
                 .font(.nookClipMeta)
                 .monospacedDigit()
                 .foregroundStyle(NookClip.textSecondary)

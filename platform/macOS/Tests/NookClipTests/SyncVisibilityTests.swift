@@ -106,8 +106,22 @@ final class SyncVisibilityTests: XCTestCase {
         guard case .failure(let reason, let date) = store.lastSyncResult.outcome else {
             return XCTFail("同步失败后必须为 failure(reason, Date)，实际：\(store.lastSyncResult.outcome)")
         }
-        XCTAssertEqual(reason, .unknown, "非 NSURLErrorDomain 错误粗分为 unknown")
+        XCTAssertFalse(reason.localizedDescription.isEmpty, "失败原因必须包含描述信息，不可为空")
         XCTAssertGreaterThan(date.timeIntervalSinceNow, -60, "failure 必须携带失败时间")
+    }
+
+    func testSyncFailureReasonFromErrors() {
+        let authErr = NookClipError.SyncTransportError("status code 401: Unauthorized")
+        XCTAssertEqual(SyncFailureReason.from(error: authErr, syncMode: .webdav), .custom(L10n.tr("sync.fail.webdav_auth")))
+
+        let notFoundErr = NookClipError.SyncTransportError("status code 404: Not Found")
+        XCTAssertEqual(SyncFailureReason.from(error: notFoundErr, syncMode: .webdav), .custom(L10n.tr("sync.fail.not_found")))
+
+        let timeoutErr = NookClipError.SyncTransportError("connection timed out")
+        XCTAssertEqual(SyncFailureReason.from(error: timeoutErr, syncMode: .webdav), .custom(L10n.tr("sync.fail.timeout")))
+
+        let cryptoErr = NookClipError.CryptoError("Passphrase mismatch")
+        XCTAssertEqual(SyncFailureReason.from(error: cryptoErr, syncMode: .webdav), .custom(L10n.tr("sync.fail.passphrase_mismatch")))
     }
 
     // MARK: - Rust Packfile Sync Cutover (Seam B & Seam C)
@@ -270,5 +284,163 @@ final class SyncVisibilityTests: XCTestCase {
         let explicitURL = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         let repoExplicit = CloudFileRepository(defaults: defaults, customBaseURL: explicitURL)
         XCTAssertEqual(repoExplicit.baseDirectoryURL, explicitURL)
+    }
+
+    func testSourceDeviceDisplayNameFormatting() {
+        let itemIOS = ClipboardItem(
+            type: .text,
+            title: "Note",
+            summary: "Content",
+            sourceAppName: "Safari",
+            sourceDeviceId: "iphone-1",
+            sourceDeviceName: "iPhone 16",
+            sourcePlatform: "ios"
+        )
+        let rowIOS = ClipboardRowModel(item: itemIOS)
+        XCTAssertEqual(rowIOS.sourceDisplayName, "📱 iPhone 16 · Safari")
+
+        let itemWin = ClipboardItem(
+            type: .text,
+            title: "Code",
+            summary: "Content",
+            sourceAppName: "VS Code",
+            sourceDeviceId: "win-1",
+            sourceDeviceName: "Workstation",
+            sourcePlatform: "windows"
+        )
+        let rowWin = ClipboardRowModel(item: itemWin)
+        XCTAssertEqual(rowWin.sourceDisplayName, "🪟 Workstation · VS Code")
+
+        let itemLocal = ClipboardItem(
+            type: .text,
+            title: "Local",
+            summary: "Content",
+            sourceAppName: "Xcode"
+        )
+        let rowLocal = ClipboardRowModel(item: itemLocal)
+        XCTAssertEqual(rowLocal.sourceDisplayName, "Xcode")
+    }
+
+    func testSyncOptionsCreationAndCloudSyncMode() {
+        let suite = "com.nook.test.syncopts.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let engine = ICloudDriveSyncEngine(defaults: defaults)
+
+        // Default is iCloudDrive
+        XCTAssertEqual(engine.syncMode, .iCloudDrive)
+        let opts1 = engine.makeSyncOptions(deviceId: "mac-1", localAssetsDir: "/tmp/assets")
+        XCTAssertEqual(opts1.deviceId, "mac-1")
+        XCTAssertEqual(opts1.localAssetsDir, "/tmp/assets")
+        XCTAssertNil(opts1.passphrase)
+        XCTAssertFalse(opts1.allowSensitive)
+
+        // Switch to WebDAV with E2EE
+        engine.syncMode = .webdav
+        engine.webDavURL = "https://dav.example.com"
+        engine.webDavUsername = "alice"
+        engine.isE2EEEnabled = true
+        engine.e2eePassphrase = "passphrase-12345"
+        engine.syncSensitiveItems = true
+
+        let opts2 = engine.makeSyncOptions(deviceId: "mac-1", localAssetsDir: "/tmp/assets")
+        XCTAssertEqual(opts2.passphrase, "passphrase-12345")
+        XCTAssertTrue(opts2.allowSensitive)
+        if case .webDav(let url, let user, _, _) = opts2.backend {
+            XCTAssertEqual(url, "https://dav.example.com")
+            XCTAssertEqual(user, "alice")
+        } else {
+            XCTFail("Backend must be WebDav")
+        }
+    }
+    @MainActor
+    func testResetSyncPassphraseCycle() async throws {
+        let syncDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("nook-reset-pass-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: syncDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: syncDir) }
+
+        let defaults = makeIsolatedDefaults()
+        defaults.set("device-reset-1", forKey: "nook.sync.deviceID")
+        let engine = ICloudDriveSyncEngine(customBaseURL: syncDir, defaults: defaults, keychainServicePrefix: "test.nook.reset.\(UUID().uuidString)")
+        engine.isEnabled = true
+        engine.isE2EEEnabled = true
+        engine.e2eePassphrase = "initial-passphrase-2026"
+
+        let store = makeIsolatedStore(syncEngine: engine, defaults: defaults)
+
+        // 1. 插入测试条目并用 initial-passphrase 首次同步
+        let item1 = ClipboardItem(
+            id: UUID(),
+            type: .text,
+            title: "Initial Item",
+            summary: "Initial Secret",
+            createdAt: Date(),
+            lastUsedAt: Date(),
+            isFavorite: false
+        )
+        store.save(item1)
+        await store.syncNow()
+        guard case .success = store.lastSyncResult.outcome else {
+            return XCTFail("首次同步必须成功")
+        }
+
+        // 2. 更改口令为新口令：直接同步会因为与云端 initial-passphrase 不符而失败
+        engine.e2eePassphrase = "brand-new-passphrase-2027"
+        await store.syncNow()
+        guard case .failure(let reason, _) = store.lastSyncResult.outcome else {
+            return XCTFail("口令不一致时常规同步必须失败")
+        }
+        XCTAssertTrue(reason.localizedDescription.contains(L10n.tr("sync.fail.passphrase_mismatch")))
+
+        // 3. 执行 resetSyncPassphrase：重置云端 manifest 并用新口令重新加密推送
+        try await store.resetSyncPassphrase()
+        guard case .success = store.lastSyncResult.outcome else {
+            return XCTFail("resetSyncPassphrase 必须成功更新云端凭证与加密推送")
+        }
+
+        // 4. 后续常规同步使用新口令应顺利通过
+        await store.syncNow()
+        guard case .success = store.lastSyncResult.outcome else {
+            return XCTFail("重置后常规同步使用新口令必须成功通过")
+        }
+    }
+    func testSyncModeConfigurationIsolation() {
+        let suite = "com.nook.test.syncopts.isolation.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let engine = ICloudDriveSyncEngine(defaults: defaults, keychainServicePrefix: "test.iso.\(UUID().uuidString)")
+
+        // 1. 初始为 iCloudDrive：默认未启用加密，口令为空
+        XCTAssertEqual(engine.syncMode, .iCloudDrive)
+        XCTAssertFalse(engine.isE2EEEnabled)
+        XCTAssertEqual(engine.e2eePassphrase, "")
+
+        // 2. 切到 WebDAV：默认开启加密，配置专属口令
+        engine.syncMode = .webdav
+        XCTAssertTrue(engine.isE2EEEnabled)
+        engine.e2eePassphrase = "webdav-passphrase-999"
+        engine.syncSensitiveItems = true
+
+        // 3. 切到本地目录映射：默认也开启加密，配置专属口令
+        engine.syncMode = .localDirectory
+        XCTAssertTrue(engine.isE2EEEnabled)
+        engine.e2eePassphrase = "local-dir-passphrase-888"
+        engine.syncSensitiveItems = false
+        // 4. 切回 iCloudDrive：必须保持 iCloud 专属状态（未启用加密，无口令）
+        engine.syncMode = .iCloudDrive
+        XCTAssertFalse(engine.isE2EEEnabled)
+        XCTAssertEqual(engine.e2eePassphrase, "")
+        XCTAssertFalse(engine.syncSensitiveItems)
+
+        // 5. 切回 WebDAV：必须恢复 WebDAV 专属配置
+        engine.syncMode = .webdav
+        XCTAssertTrue(engine.isE2EEEnabled)
+        XCTAssertEqual(engine.e2eePassphrase, "webdav-passphrase-999")
+        XCTAssertTrue(engine.syncSensitiveItems)
+
+        // 6. 切回本地目录映射：必须恢复本地目录专属配置
+        engine.syncMode = .localDirectory
+        XCTAssertTrue(engine.isE2EEEnabled)
+        XCTAssertEqual(engine.e2eePassphrase, "local-dir-passphrase-888")
+        XCTAssertFalse(engine.syncSensitiveItems)
     }
 }

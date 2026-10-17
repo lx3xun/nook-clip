@@ -9,9 +9,11 @@ public final class KeychainCryptoService {
         // 导致正式 App 永远无法静默读取（曾引发每次复制敏感内容都弹授权窗的缺陷）。
         // 测试一律使用临时文件密钥，不写真实钥匙串。
         if NSClassFromString("XCTestCase") != nil {
+            let sharedTestDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("nook-test-shared-key-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+            try? FileManager.default.createDirectory(at: sharedTestDir, withIntermediateDirectories: true)
             return KeychainCryptoService(
-                keyFileURL: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("nook-test-master-key-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: false),
+                keyFileURL: sharedTestDir.appendingPathComponent(".master_key", isDirectory: false),
                 keychainService: "test.nook.crypto.shared.\(ProcessInfo.processInfo.processIdentifier)",
                 keychainBackupEnabled: false
             )
@@ -60,46 +62,22 @@ public final class KeychainCryptoService {
             return key
         }
 
-        // 文件密钥存在即用：不读钥匙串，杜绝授权弹窗
-        if let fileKey = readKeyFromFile() {
+        let legacyInitialized = UserDefaults.standard.bool(forKey: initializedKey)
+        do {
+            let keyData = try resolveOrCreateMasterKey(
+                keyFilePath: keyFileURL.path,
+                legacyInitialized: legacyInitialized,
+                hasEncryptedPayloads: false,
+                vaultProvider: self
+            )
+            let key = SymmetricKey(data: keyData)
             UserDefaults.standard.set(true, forKey: initializedKey)
-            cachedKey = fileKey
-            return fileKey
-        }
-        switch readKeyFromKeychain() {
-        case .found(let keychainKey):
-            return persistAndCache(keychainKey)
-        case .unavailable(let status):
-            logger.error("Master key cannot be read from Keychain (status \(status)); refusing to replace it")
-            return nil
-        case .missing:
-            guard !UserDefaults.standard.bool(forKey: initializedKey) else {
-                logger.error("Previously initialized master key is missing; refusing to create a replacement")
-                return nil
-            }
-        }
-
-        let newKey = SymmetricKey(size: .bits256)
-        guard writeKeyToFile(newKey) else {
-            logger.error("Failed to persist new master key file; refusing to initialize encryption")
+            cachedKey = key
+            return key
+        } catch {
+            logger.error("MasterKeyManager resolve failed: \(error.localizedDescription)")
             return nil
         }
-        if keychainBackupEnabled, !saveKeyToKeychain(newKey) {
-            logger.notice("Keychain backup of master key failed; file key remains authoritative")
-        }
-        UserDefaults.standard.set(true, forKey: initializedKey)
-        cachedKey = newKey
-        return newKey
-    }
-
-    private func persistAndCache(_ key: SymmetricKey) -> SymmetricKey {
-        if writeKeyToFile(key) {
-            UserDefaults.standard.set(true, forKey: initializedKey)
-        } else {
-            logger.error("Master key file write failed; Keychain key still used for this session")
-        }
-        cachedKey = key
-        return key
     }
 
     private func keysEqual(_ lhs: SymmetricKey, _ rhs: SymmetricKey) -> Bool {
@@ -212,46 +190,6 @@ public final class KeychainCryptoService {
             at: AppPaths.masterKeyURL.deletingLastPathComponent(),
             withIntermediateDirectories: true)
         return AppPaths.masterKeyURL
-    }
-
-    /// 读取 0600 主密钥文件（运行时唯一密钥来源，存在即用）
-    private func readKeyFromFile() -> SymmetricKey? {
-        let url = keyFileURL
-        guard let data = try? Data(contentsOf: url), data.count == 32 else {
-            return nil
-        }
-        return SymmetricKey(data: data)
-    }
-
-    /// 密钥原子写入 0600 文件并读回核验（文件创建即为 0600，无权限放松窗口）
-    private func writeKeyToFile(_ key: SymmetricKey) -> Bool {
-        let url = keyFileURL
-        let keyData = key.withUnsafeBytes { Data($0) }
-        let tmpURL = url.deletingLastPathComponent()
-            .appendingPathComponent(".master_key.tmp.\(UUID().uuidString)")
-        do {
-            guard FileManager.default.createFile(
-                atPath: tmpURL.path,
-                contents: keyData,
-                attributes: [.posixPermissions: 0o600]
-            ) else {
-                logger.error("Failed to create master key temp file")
-                return false
-            }
-            if FileManager.default.fileExists(atPath: url.path) {
-                try FileManager.default.removeItem(at: url)
-            }
-            try FileManager.default.moveItem(at: tmpURL, to: url)
-            guard let readBack = readKeyFromFile(), keysEqual(readBack, key) else {
-                logger.error("Master key file read-back verification failed")
-                return false
-            }
-            return true
-        } catch {
-            try? FileManager.default.removeItem(at: tmpURL)
-            logger.error("Failed to write master key file: \(error.localizedDescription)")
-            return false
-        }
     }
 
     /// 测试专用：删除注入 service 对应的钥匙串备份条目，避免测试残留

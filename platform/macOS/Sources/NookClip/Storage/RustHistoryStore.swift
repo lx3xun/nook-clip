@@ -11,6 +11,7 @@ public class RustHistoryStore: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.lx3xun.nookclip.rust-history-store", qos: .userInitiated)
 
     public init(engine: NookClipHistoryEngine) {
+        engine.setAssetsDir(assetsDir: FileStore.shared.directory.path)
         self.engine = engine
     }
 
@@ -113,7 +114,8 @@ public class RustHistoryStore: @unchecked Sendable {
             favoriteOnly: false,
             includeDeleted: false,
             limit: UInt32(limit),
-            offset: UInt32(offset)
+            offset: UInt32(offset),
+            summaryMaxChars: truncatingSummary ? UInt32(Self.summaryPrefixLimit + 1) : nil
         )
         do {
             let summaries = try engine.queryItems(filter: filter)
@@ -132,7 +134,8 @@ public class RustHistoryStore: @unchecked Sendable {
             favoriteOnly: false,
             includeDeleted: true,
             limit: 1000,
-            offset: 0
+            offset: 0,
+            summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1)
         )
         do {
             let summaries = try engine.queryItems(filter: filter)
@@ -166,7 +169,7 @@ public class RustHistoryStore: @unchecked Sendable {
 
     /// 分类映射（search 与时间戳聚合共用）：
     /// 1~7 全部分类均走 ci.kind 派生判定，与 count_categories 和 SidebarCategories 对齐；8 为收藏
-    private func makeFilter(query: String, categoryID: Int, limit: Int, offset: Int) -> QueryFilter {
+    func makeFilter(query: String, categoryID: Int, limit: Int, offset: Int) -> QueryFilter {
         let kind: String? = {
             switch categoryID {
             case 1: return "text"
@@ -186,7 +189,8 @@ public class RustHistoryStore: @unchecked Sendable {
             favoriteOnly: categoryID == 8,
             includeDeleted: false,
             limit: UInt32(limit),
-            offset: UInt32(offset)
+            offset: UInt32(offset),
+            summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1)
         )
     }
 
@@ -221,6 +225,30 @@ public class RustHistoryStore: @unchecked Sendable {
                 continuation.resume(
                     returning: self.timeGroupTimestamps(query: query, categoryID: categoryID)
                 )
+            }
+        }
+    }
+
+    /// 全局视图快照聚合（查询 + 分类统计 + 时间分桶 + 锚点单次出库）：串行队列执行
+    public func queryViewSnapshotAsync(
+        query: String = "",
+        categoryID: Int = 0,
+        limit: Int = 50,
+        offset: Int = 0,
+        calendar: Calendar = .current,
+        now: Date = Date()
+    ) async -> QueryViewSnapshot? {
+        let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return await withCheckedContinuation { continuation in
+            queue.async {
+                let filter = self.makeFilter(query: cleanQuery, categoryID: categoryID, limit: limit, offset: offset)
+                let calCtx = CalendarContext(
+                    nowTs: now.timeIntervalSince1970,
+                    tzOffsetSecs: Int32(calendar.timeZone.secondsFromGMT(for: now)),
+                    firstWeekday: UInt8(calendar.firstWeekday)
+                )
+                let snapshot = try? self.engine.queryViewSnapshot(filter: filter, calendar: calCtx)
+                continuation.resume(returning: snapshot)
             }
         }
     }
@@ -283,8 +311,10 @@ public class RustHistoryStore: @unchecked Sendable {
         let entry = BatchSaveItem(
             item: ffiSummary(from: item),
             rawText: rawText
-                ?? (item.isSensitive ? item.revealPlainContent(crypto: KeychainCryptoService.shared) : nil)
-                ?? (item.isSensitive ? item.title : item.summary)
+                ?? (item.isSensitive
+                    ? (item.revealPlainContent(crypto: KeychainCryptoService.shared)
+                        ?? (item.title.isEmpty ? nil : item.title))
+                    : item.summary)
         )
         do {
             let persisted = try engine.saveItems(items: [entry])
@@ -303,8 +333,10 @@ public class RustHistoryStore: @unchecked Sendable {
         let entries = items.map { item in
             BatchSaveItem(
                 item: ffiSummary(from: item),
-                rawText: (item.isSensitive ? item.revealPlainContent(crypto: KeychainCryptoService.shared) : nil)
-                    ?? (item.isSensitive ? item.title : item.summary)
+                rawText: item.isSensitive
+                    ? (item.revealPlainContent(crypto: KeychainCryptoService.shared)
+                        ?? (item.title.isEmpty ? nil : item.title))
+                    : item.summary
             )
         }
         do {
@@ -339,7 +371,11 @@ public class RustHistoryStore: @unchecked Sendable {
             deletedAt: item.deletedAt?.timeIntervalSince1970,
             payloadPath: item.payloadPath,
             ocrText: item.ocrText,
-            metadataJson: metadataJson
+            metadataJson: metadataJson,
+            kind: item.persistedKind ?? "",
+            sourceDeviceId: item.sourceDeviceId,
+            sourceDeviceName: item.sourceDeviceName,
+            sourcePlatform: item.sourcePlatform
         )
     }
 
@@ -493,6 +529,25 @@ public class RustHistoryStore: @unchecked Sendable {
     public func syncNow(syncDir: String, deviceId: String, localAssetsDir: String) throws -> SyncReport {
         try engine.syncNow(syncDir: syncDir, deviceId: deviceId, localAssetsDir: localAssetsDir)
     }
+    @discardableResult
+    public func syncWithOptions(_ options: SyncOptions) throws -> SyncReport {
+        try engine.syncWithOptions(options: options)
+    }
+
+    @discardableResult
+    public func syncPullWithOptions(_ options: SyncOptions) throws -> SyncReport {
+        try engine.syncPullWithOptions(options: options)
+    }
+
+    @discardableResult
+    public func syncPushWithOptions(_ options: SyncOptions) throws -> SyncReport {
+        try engine.syncPushWithOptions(options: options)
+    }
+    @discardableResult
+    public func resetSyncPassphrase(options: SyncOptions) throws -> SyncReport {
+        try engine.resetSyncPassphrase(options: options)
+    }
+
 
     // MARK: - Mapping
 
@@ -503,7 +558,7 @@ public class RustHistoryStore: @unchecked Sendable {
 
     /// - Parameter truncatingSummary: 列表/搜索查询传 true（截断到前缀上限）；
     /// item(id:) 全文取回传 false
-    private func toClipboardItem(_ summary: ClipItemSummary, truncatingSummary: Bool = true) -> ClipboardItem? {
+    func toClipboardItem(_ summary: ClipItemSummary, truncatingSummary: Bool = true) -> ClipboardItem? {
         guard let uuid = UUID(uuidString: summary.id) else {
             return nil
         }
@@ -520,14 +575,13 @@ public class RustHistoryStore: @unchecked Sendable {
 
         // 敏感条目（懒解密）：Rust 侧以引擎主密钥加密存储，仅全文路径
         // （truncatingSummary == false，item(id:) 粘贴/预览契约）经 detail
-        // 解密并用 KeychainCryptoService 重加密恢复 revealPlainContent；
-        // 列表/保存路径不解密——page 的逐条 detail+Keychain 是主线程 N+1 大头
-        var encryptedContent: Data?
+        // 按需取回明文（消除 Swift 侧二次 AES 重加密）；
+        // 列表/保存路径不解密——避免列表查询 N+1 解密开销
+        var decryptedPlain: String?
         if !truncatingSummary,
            summary.isSensitive,
-           let detail = try? engine.getItemDetail(id: summary.id),
-           let plain = detail.rawText {
-            encryptedContent = KeychainCryptoService.shared.encrypt(text: plain)
+           let detail = try? engine.getItemDetail(id: summary.id) {
+            decryptedPlain = detail.rawText
         }
 
         var itemSummary = summary.summary
@@ -551,10 +605,14 @@ public class RustHistoryStore: @unchecked Sendable {
             sourceAppBundleId: summary.sourceAppBundleId,
             sourceAppName: summary.sourceAppName,
             isSensitive: summary.isSensitive,
-            encryptedContent: encryptedContent,
+            sourceDeviceId: summary.sourceDeviceId,
+            sourceDeviceName: summary.sourceDeviceName,
+            sourcePlatform: summary.sourcePlatform,
+            encryptedContent: nil,
             metadata: metadata,
             deletedAt: deletedAt
         )
+        item.decryptedPlainText = decryptedPlain
         item.summaryIsTruncated = isTruncated
         item.persistedKind = summary.kind.isEmpty ? nil : summary.kind
         return item

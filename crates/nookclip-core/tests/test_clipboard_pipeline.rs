@@ -28,6 +28,9 @@ fn test_clipboard_ingest_priority_and_edge_cases() {
         local_assets_dir: assets_dir.to_str().unwrap().to_string(),
         file_multi_title_template: None,
         default_image_title: "Image".to_string(),
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     };
 
     // 1. Concealed marker -> skip
@@ -121,6 +124,9 @@ fn test_prepare_paste_payload_validation_and_batch() {
         local_assets_dir: assets_dir.to_str().unwrap().to_string(),
         file_multi_title_template: None,
         default_image_title: "Image".to_string(),
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     };
 
     // Case 1: Plain text item
@@ -190,6 +196,9 @@ fn test_ingest_clipboard_snapshot_persists_now_ts_and_orders_newest_first() {
         local_assets_dir: assets_dir.to_str().unwrap().to_string(),
         file_multi_title_template: None,
         default_image_title: "Image".to_string(),
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
     };
 
     // 1. 先入库一条较早的历史记录 (t = 1_700_000_000.0)

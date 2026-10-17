@@ -17,6 +17,74 @@ impl PayloadAssetStore {
         Ok(Self { root_dir: path })
     }
 
+    /// 提取受管载荷的相对文件名（若路径位于 `assets_dir` 下，或本身即为纯文件名）。
+    /// 外部绝对路径（如用户复制的本地文件）返回原值。
+    pub fn normalize_for_storage(
+        item_type: &str,
+        payload_path: Option<&str>,
+        assets_dir: Option<&Path>,
+    ) -> Option<String> {
+        let raw = payload_path?;
+        if raw.is_empty() || item_type == "file" {
+            return Some(raw.to_string());
+        }
+        // 若本身不包含路径分隔符（已是纯文件名），直接返回
+        if !raw.contains('/') && !raw.contains('\\') {
+            return Some(raw.to_string());
+        }
+        let path = Path::new(raw);
+        if let Some(dir) = assets_dir {
+            if path.starts_with(dir) {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    return Some(name.to_string());
+                }
+            }
+        }
+        // 对于受管载荷（image 或带 .rtf 伴生载荷的 text），若文件名符合 sha256 内容寻址格式，也归一化为纯文件名
+        if item_type == "image" || raw.to_ascii_lowercase().ends_with(".rtf") {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                let stem = Path::new(name)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(name);
+                if stem.len() == 64 && stem.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Some(name.to_string());
+                }
+            }
+        }
+        Some(raw.to_string())
+    }
+
+    /// 将数据库内存储的相对文件名（或历史遗留的旧容器绝对路径）解析为当前运行时的可用绝对路径。
+    pub fn resolve_for_runtime(
+        item_type: &str,
+        stored_path: Option<&str>,
+        assets_dir: Option<&Path>,
+    ) -> Option<String> {
+        let raw = stored_path?;
+        if raw.is_empty() || item_type == "file" {
+            return Some(raw.to_string());
+        }
+        let Some(dir) = assets_dir else {
+            return Some(raw.to_string());
+        };
+        if !raw.contains('/') && !raw.contains('\\') {
+            return Some(dir.join(raw).to_string_lossy().to_string());
+        }
+        let path = Path::new(raw);
+        if path.starts_with(dir) || path.exists() {
+            return Some(raw.to_string());
+        }
+        // 沙盒容器 UUID 漂移或目录迁移自愈：若原绝对路径不存在，但当前 assets_dir 下有同名文件，则重定向到新目录
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            let candidate = dir.join(name);
+            if candidate.exists() {
+                return Some(candidate.to_string_lossy().to_string());
+            }
+        }
+        Some(raw.to_string())
+    }
+
     /// Computes SHA-256 of data and atomically writes to `<root_dir>/<sha256>.<ext>`.
     /// Returns the absolute path of the stored payload asset.
     pub fn save_payload_asset(

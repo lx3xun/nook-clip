@@ -1,9 +1,11 @@
 pub mod color;
+pub mod highlight;
+pub mod kind;
 pub mod language;
+pub mod ocr_layout;
 pub mod retention;
 pub mod sensitive;
-pub mod kind;
-
+pub mod source_resolver;
 use crate::model::DetectionResult;
 use std::sync::LazyLock;
 

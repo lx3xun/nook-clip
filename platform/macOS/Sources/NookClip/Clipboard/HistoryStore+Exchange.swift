@@ -87,8 +87,7 @@ extension InMemoryHistoryStore {
                 lastUsedAt: now.addingTimeInterval(-60),
                 sourceAppBundleId: "com.apple.Terminal",
                 sourceAppName: "Terminal",
-                isSensitive: true,
-                encryptedContent: KeychainCryptoService.shared.encrypt(text: secretPlain)
+                isSensitive: true
             ),
             // 3. 代码高亮与 JSON 格式化合一演示
             ClipboardItem(

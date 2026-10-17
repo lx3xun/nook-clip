@@ -66,6 +66,12 @@ pub struct ClipItemSummary {
     pub metadata_json: Option<String>,
     #[uniffi(default = "")]
     pub kind: String,
+    #[uniffi(default = None)]
+    pub source_device_id: Option<String>,
+    #[uniffi(default = None)]
+    pub source_device_name: Option<String>,
+    #[uniffi(default = None)]
+    pub source_platform: Option<String>,
 }
 
 impl From<core_model::ClipItemSummary> for ClipItemSummary {
@@ -87,6 +93,9 @@ impl From<core_model::ClipItemSummary> for ClipItemSummary {
             ocr_text: m.ocr_text,
             metadata_json: m.metadata_json,
             kind: m.kind,
+            source_device_id: m.source_device_id,
+            source_device_name: m.source_device_name,
+            source_platform: m.source_platform,
         }
     }
 }
@@ -119,6 +128,9 @@ impl From<ClipItemSummary> for core_model::ClipItemSummary {
             ocr_text: m.ocr_text,
             metadata_json: m.metadata_json,
             kind: m.kind,
+            source_device_id: m.source_device_id,
+            source_device_name: m.source_device_name,
+            source_platform: m.source_platform,
         }
     }
 }
@@ -211,6 +223,17 @@ impl From<SyncBackendConfig> for core_model::SyncBackendConfig {
         }
     }
 }
+#[derive(uniffi::Record, Clone, Debug)]
+pub struct SyncOptions {
+    pub backend: SyncBackendConfig,
+    pub device_id: String,
+    pub local_assets_dir: String,
+    #[uniffi(default = None)]
+    pub passphrase: Option<String>,
+    #[uniffi(default = false)]
+    pub allow_sensitive: bool,
+}
+
 #[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq)]
 pub enum SensitiveExportMode {
     Exclude,
@@ -258,6 +281,8 @@ pub struct QueryFilter {
     pub include_deleted: bool,
     pub limit: u32,
     pub offset: u32,
+    #[uniffi(default = None)]
+    pub summary_max_chars: Option<u32>,
 }
 
 impl From<QueryFilter> for core_model::QueryFilter {
@@ -271,6 +296,7 @@ impl From<QueryFilter> for core_model::QueryFilter {
             include_deleted: f.include_deleted,
             limit: f.limit,
             offset: f.offset,
+            summary_max_chars: f.summary_max_chars,
         }
     }
 }
@@ -358,6 +384,12 @@ pub struct RawClipboardSnapshot {
     pub source_bundle_id: Option<String>,
     pub source_app_name: Option<String>,
     pub has_concealed_marker: bool,
+    #[uniffi(default = None)]
+    pub source_device_id: Option<String>,
+    #[uniffi(default = None)]
+    pub source_device_name: Option<String>,
+    #[uniffi(default = None)]
+    pub source_platform: Option<String>,
 }
 
 impl From<RawClipboardSnapshot> for core_model::RawClipboardSnapshot {
@@ -374,6 +406,9 @@ impl From<RawClipboardSnapshot> for core_model::RawClipboardSnapshot {
             source_bundle_id: s.source_bundle_id,
             source_app_name: s.source_app_name,
             has_concealed_marker: s.has_concealed_marker,
+            source_device_id: s.source_device_id,
+            source_device_name: s.source_device_name,
+            source_platform: s.source_platform,
         }
     }
 }
@@ -385,6 +420,12 @@ pub struct IngestConfig {
     pub local_assets_dir: String,
     pub file_multi_title_template: Option<String>,
     pub default_image_title: String,
+    #[uniffi(default = None)]
+    pub source_device_id: Option<String>,
+    #[uniffi(default = None)]
+    pub source_device_name: Option<String>,
+    #[uniffi(default = None)]
+    pub source_platform: Option<String>,
 }
 
 impl From<IngestConfig> for core_model::IngestConfig {
@@ -395,6 +436,9 @@ impl From<IngestConfig> for core_model::IngestConfig {
             local_assets_dir: c.local_assets_dir,
             file_multi_title_template: c.file_multi_title_template,
             default_image_title: c.default_image_title,
+            source_device_id: c.source_device_id,
+            source_device_name: c.source_device_name,
+            source_platform: c.source_platform,
         }
     }
 }
@@ -467,6 +511,76 @@ impl From<core_model::PreparedPastePayload> for PreparedPastePayload {
 pub struct ImageDimensions {
     pub width: u32,
     pub height: u32,
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct OcrTextBlock {
+    pub text: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl From<OcrTextBlock> for algorithms::ocr_layout::OcrTextBlock {
+    fn from(b: OcrTextBlock) -> Self {
+        Self {
+            text: b.text,
+            x: b.x,
+            y: b.y,
+            width: b.width,
+            height: b.height,
+        }
+    }
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct HighlightRange {
+    pub start_byte: u32,
+    pub end_byte: u32,
+    pub start_char: u32,
+    pub end_char: u32,
+}
+
+impl From<algorithms::highlight::HighlightRange> for HighlightRange {
+    fn from(r: algorithms::highlight::HighlightRange) -> Self {
+        Self {
+            start_byte: r.start_byte,
+            end_byte: r.end_byte,
+            start_char: r.start_char,
+            end_char: r.end_char,
+        }
+    }
+}
+
+#[derive(uniffi::Record, Clone, Debug, PartialEq)]
+pub struct AppActivationRecord {
+    pub bundle_id: Option<String>,
+    pub name: Option<String>,
+    pub is_self: bool,
+    pub activated_at: f64,
+}
+
+impl From<AppActivationRecord> for algorithms::source_resolver::AppActivationRecord {
+    fn from(r: AppActivationRecord) -> Self {
+        Self {
+            bundle_id: r.bundle_id,
+            name: r.name,
+            is_self: r.is_self,
+            activated_at: r.activated_at,
+        }
+    }
+}
+
+impl From<algorithms::source_resolver::AppActivationRecord> for AppActivationRecord {
+    fn from(r: algorithms::source_resolver::AppActivationRecord) -> Self {
+        Self {
+            bundle_id: r.bundle_id,
+            name: r.name,
+            is_self: r.is_self,
+            activated_at: r.activated_at,
+        }
+    }
 }
 #[derive(uniffi::Enum, Clone, Debug, PartialEq, Eq)]
 pub enum KeyVaultReadStatus {
@@ -684,6 +798,15 @@ impl NookClipHistoryEngine {
         })
     }
 
+    /// 配置当前运行时的受管载荷目录（使相对文件名 payload_path 在查询/淘汰时自动解析为当前容器绝对路径）
+    pub fn set_assets_dir(&self, assets_dir: String) {
+        self.repo.set_assets_dir(assets_dir_opt(&assets_dir));
+    }
+
+    /// 读取数据库原始 payload_path 字段（不做运行时目录拼接，供迁移/诊断/测试断言使用）
+    pub fn raw_stored_payload_path(&self, id: String) -> Result<Option<String>, NookClipError> {
+        Ok(self.repo.raw_stored_payload_path(&id)?)
+    }
 
     /// 批量写入：全部条目单事务提交（导入/初始化/迁移场景），
     /// 逐条语义与单条保存一致（内容去重、FTS 维护），任一失败整体回滚。
@@ -964,36 +1087,113 @@ impl NookClipHistoryEngine {
             .map(Into::into)
             .collect()
     }
+    pub fn sync_with_options(
+        &self,
+        options: SyncOptions,
+    ) -> Result<SyncReport, NookClipError> {
+        let storage_backend = make_storage_backend(options.backend)?;
+        let sync_key = if let Some(passphrase) = options.passphrase.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            resolve_sync_key(storage_backend.as_ref(), passphrase, true)?
+        } else {
+            None
+        };
+
+        let mut engine = nookclip_core::sync::SyncEngine::with_backend(
+            storage_backend,
+            options.device_id,
+            assets_dir_opt(&options.local_assets_dir),
+        )?;
+        engine.set_sync_key(sync_key);
+        engine.set_allow_sensitive(options.allow_sensitive);
+        let report = engine.sync_now(&self.repo)?;
+        Ok(report.into())
+    }
+
+    pub fn sync_pull_with_options(
+        &self,
+        options: SyncOptions,
+    ) -> Result<SyncReport, NookClipError> {
+        let storage_backend = make_storage_backend(options.backend)?;
+        let sync_key = if let Some(passphrase) = options.passphrase.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            resolve_sync_key(storage_backend.as_ref(), passphrase, false)?
+        } else {
+            None
+        };
+
+        let mut engine = nookclip_core::sync::SyncEngine::with_backend(
+            storage_backend,
+            options.device_id,
+            assets_dir_opt(&options.local_assets_dir),
+        )?;
+        engine.set_sync_key(sync_key);
+        engine.set_allow_sensitive(options.allow_sensitive);
+        let report = engine.pull(&self.repo)?;
+        Ok(report.into())
+    }
+
+    pub fn sync_push_with_options(
+        &self,
+        options: SyncOptions,
+    ) -> Result<SyncReport, NookClipError> {
+        let storage_backend = make_storage_backend(options.backend)?;
+        let sync_key = if let Some(passphrase) = options.passphrase.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            resolve_sync_key(storage_backend.as_ref(), passphrase, true)?
+        } else {
+            None
+        };
+
+        let mut engine = nookclip_core::sync::SyncEngine::with_backend(
+            storage_backend,
+            options.device_id,
+            assets_dir_opt(&options.local_assets_dir),
+        )?;
+        engine.set_sync_key(sync_key);
+        engine.set_allow_sensitive(options.allow_sensitive);
+        let report = engine.push(&self.repo)?;
+        Ok(report.into())
+    }
+    pub fn reset_sync_passphrase(
+        &self,
+        options: SyncOptions,
+    ) -> Result<SyncReport, NookClipError> {
+        let passphrase = options.passphrase.as_deref().unwrap_or("").trim();
+        if passphrase.is_empty() {
+            return Err(NookClipError::InvalidArgument("Passphrase cannot be empty".to_string()));
+        }
+
+        let storage_backend = make_storage_backend(options.backend)?;
+        storage_backend.ensure_layout()?;
+
+        // 1. 用新口令重新生成并覆盖云端的 sync.manifest
+        let (manifest, key) = nookclip_core::sync::create_manifest(passphrase)?;
+        storage_backend.write_manifest_atomic(&manifest.to_bytes()?)?;
+
+        // 2. 使用新 key 将本地完整数据重新打包加密并强制推送到云端覆盖旧 pack
+        let mut engine = nookclip_core::sync::SyncEngine::with_backend(
+            storage_backend,
+            options.device_id,
+            assets_dir_opt(&options.local_assets_dir),
+        )?;
+        engine.set_sync_key(Some(key));
+        engine.set_allow_sensitive(options.allow_sensitive);
+
+        let report = engine.push(&self.repo)?;
+        Ok(report.into())
+    }
+
     pub fn sync_with_backend(
         &self,
         backend: SyncBackendConfig,
         device_id: String,
         local_assets_dir: String,
     ) -> Result<SyncReport, NookClipError> {
-        let storage_backend: Box<dyn nookclip_core::sync::backend::SyncStorageBackend> = match backend {
-            SyncBackendConfig::LocalDirectory { sync_dir } => {
-                Box::new(nookclip_core::sync::backend::LocalFsBackend::new(&sync_dir))
-            }
-            SyncBackendConfig::WebDav {
-                base_url,
-                username,
-                password,
-                timeout_secs,
-            } => Box::new(nookclip_core::sync::backend::WebDavBackend::new(
-                base_url,
-                username,
-                password,
-                timeout_secs,
-            )),
-        };
-
-        let engine = nookclip_core::sync::SyncEngine::with_backend(
-            storage_backend,
+        self.sync_with_options(SyncOptions {
+            backend,
             device_id,
-            assets_dir_opt(&local_assets_dir),
-        )?;
-        let report = engine.sync_now(&self.repo)?;
-        Ok(report.into())
+            local_assets_dir,
+            passphrase: None,
+            allow_sensitive: false,
+        })
     }
 }
 
@@ -1004,6 +1204,80 @@ fn assets_dir_opt(dir: &str) -> Option<std::path::PathBuf> {
     } else {
         Some(std::path::PathBuf::from(dir))
     }
+}
+
+fn make_storage_backend(
+    config: SyncBackendConfig,
+) -> Result<Box<dyn nookclip_core::sync::SyncStorageBackend>, NookClipError> {
+    let b: Box<dyn nookclip_core::sync::SyncStorageBackend> = match config {
+        SyncBackendConfig::LocalDirectory { sync_dir } => {
+            Box::new(nookclip_core::sync::LocalFsBackend::new(&sync_dir))
+        }
+        SyncBackendConfig::WebDav {
+            base_url,
+            username,
+            password,
+            timeout_secs,
+        } => Box::new(nookclip_core::sync::WebDavBackend::new(
+            base_url,
+            username,
+            password,
+            timeout_secs,
+        )),
+    };
+    Ok(b)
+}
+
+fn resolve_sync_key(
+    backend: &dyn nookclip_core::sync::SyncStorageBackend,
+    passphrase: &str,
+    create_if_missing: bool,
+) -> Result<Option<[u8; 32]>, CoreError> {
+    backend.ensure_layout()?;
+    let manifest_bytes = backend.read_manifest()?;
+    match manifest_bytes {
+        Some(bytes) => {
+            let manifest = nookclip_core::sync::SyncManifest::from_bytes(&bytes)?;
+            let key = nookclip_core::sync::verify_manifest(&manifest, passphrase)?;
+            Ok(Some(key))
+        }
+        None if create_if_missing => {
+            let (manifest, key) = nookclip_core::sync::create_manifest(passphrase)?;
+            let manifest_bytes = manifest.to_bytes()?;
+            backend.write_manifest_atomic(&manifest_bytes)?;
+            Ok(Some(key))
+        }
+        None => Ok(None),
+    }
+}
+
+#[uniffi::export]
+pub fn test_webdav_connection(
+    base_url: String,
+    username: String,
+    password: String,
+    timeout_secs: u64,
+) -> Result<bool, NookClipError> {
+    let backend = nookclip_core::sync::WebDavBackend::new(base_url, username, password, timeout_secs);
+    use nookclip_core::sync::SyncStorageBackend;
+    // 发送真实读请求校验网络与认证状态（认证失败抛 401 错误，文件不存在返回 Ok(None)）
+    backend.read_manifest()?;
+    backend.ensure_layout()?;
+    Ok(true)
+}
+
+#[uniffi::export]
+pub fn test_sync_passphrase(
+    backend: SyncBackendConfig,
+    passphrase: String,
+) -> Result<bool, NookClipError> {
+    let passphrase = passphrase.trim();
+    if passphrase.is_empty() {
+        return Err(NookClipError::InvalidArgument("Passphrase cannot be empty".to_string()));
+    }
+    let storage_backend = make_storage_backend(backend)?;
+    resolve_sync_key(storage_backend.as_ref(), passphrase, true)?;
+    Ok(true)
 }
 
 #[uniffi::export]
@@ -1048,4 +1322,46 @@ pub fn parse_image_dimensions(data: Vec<u8>) -> Option<ImageDimensions> {
 #[uniffi::export]
 pub fn tokenize_search_keywords(query: String) -> Vec<String> {
     nookclip_core::search::tokenize_search_query(&query)
+}
+
+#[uniffi::export]
+pub fn format_ocr_layout_blocks(blocks: Vec<OcrTextBlock>) -> String {
+    let core_blocks: Vec<algorithms::ocr_layout::OcrTextBlock> =
+        blocks.into_iter().map(Into::into).collect();
+    algorithms::ocr_layout::format_ocr_layout(&core_blocks)
+}
+
+#[uniffi::export]
+pub fn match_search_highlight_ranges(text: String, keywords: Vec<String>) -> Vec<HighlightRange> {
+    algorithms::highlight::match_search_ranges(&text, &keywords)
+        .into_iter()
+        .map(Into::into)
+        .collect()
+}
+
+#[uniffi::export]
+pub fn resolve_clipboard_source_app(
+    history: Vec<AppActivationRecord>,
+    now_ts: f64,
+    poll_interval: f64,
+) -> Option<AppActivationRecord> {
+    let core_history: Vec<algorithms::source_resolver::AppActivationRecord> =
+        history.into_iter().map(Into::into).collect();
+    algorithms::source_resolver::resolve_source_app(&core_history, now_ts, poll_interval)
+        .map(Into::into)
+}
+
+#[uniffi::export]
+pub fn resolve_or_create_master_key(
+    key_file_path: String,
+    legacy_initialized: bool,
+    has_encrypted_payloads: bool,
+    vault_provider: Box<dyn KeyVaultBackupProvider>,
+) -> Result<Vec<u8>, NookClipError> {
+    let manager = nookclip_core::crypto::MasterKeyManager::new(&key_file_path);
+    let adapter = CoreKeyVaultAdapter {
+        provider: vault_provider,
+    };
+    let key = manager.resolve_or_create_key(&adapter, legacy_initialized, has_encrypted_payloads)?;
+    Ok(key.to_vec())
 }

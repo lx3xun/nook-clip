@@ -261,15 +261,7 @@ struct RowSubtitleView: View {
     var highlightKeywords: [String]? = nil
 
     private var sourceDisplayName: String {
-        let name = item.source.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !name.isEmpty {
-            return name
-        }
-        if let bundleID = item.source.bundleID, !bundleID.isEmpty {
-            let comp = bundleID.components(separatedBy: ".").last ?? bundleID
-            return comp.capitalized
-        }
-        return L10n.tr("source.unknown")
+        item.sourceDisplayName
     }
 
     /// 按记录类型补充有价值的副行上下文（不重复主标题，不展示复制次数）

@@ -81,38 +81,22 @@ extension View {
 }
 
 enum SearchHighlight {
-    /// text 中所有关键词的命中区间（升序、跨关键词合并重叠）。
-    /// 单关键词内自左向右不重叠扫描；与 `localizedCaseInsensitiveContains` 同源比较。
+    /// text 中所有关键词的命中区间（升序、跨关键词合并重叠，单轨化委托给 Rust 核心 algorithms::highlight）。
     static func matchRanges(in text: String, keywords: [String]) -> [Range<String.Index>] {
-        var found: [Range<String.Index>] = []
-        for keyword in keywords {
-            guard !keyword.isEmpty else { continue }
-            var cursor = text.startIndex
-            while cursor < text.endIndex,
-                  let range = text.range(
-                    of: keyword,
-                    options: [.caseInsensitive],
-                    range: cursor..<text.endIndex,
-                    locale: .current
-                  ) {
-                found.append(range)
-                // 正常命中非空（keyword 非空）；防御性推进避免零长度死循环
-                cursor = range.upperBound > cursor ? range.upperBound : text.index(after: range.lowerBound)
-            }
+        guard !text.isEmpty, !keywords.isEmpty else { return [] }
+        let ffiRanges = matchSearchHighlightRanges(text: text, keywords: keywords)
+        guard !ffiRanges.isEmpty else { return [] }
+        let utf8 = text.utf8
+        return ffiRanges.compactMap { r in
+            let startOffset = Int(r.startByte)
+            let endOffset = Int(r.endByte)
+            guard startOffset >= 0,
+                  endOffset >= startOffset,
+                  endOffset <= utf8.count else { return nil }
+            let startIdx = utf8.index(utf8.startIndex, offsetBy: startOffset)
+            let endIdx = utf8.index(utf8.startIndex, offsetBy: endOffset)
+            return startIdx..<endIdx
         }
-        guard found.count > 1 else { return found }
-        found.sort { $0.lowerBound < $1.lowerBound }
-        var merged: [Range<String.Index>] = []
-        for range in found {
-            if let last = merged.last, range.lowerBound <= last.upperBound {
-                if range.upperBound > last.upperBound {
-                    merged[merged.count - 1] = last.lowerBound..<range.upperBound
-                }
-            } else {
-                merged.append(range)
-            }
-        }
-        return merged
     }
 
     /// 高亮文本：命中段黄底（#FFE633）+ 深色文字（#1A1A1A），无粗体，无下划线。

@@ -20,6 +20,8 @@ rmp-serde.workspace = true
 zstd.workspace = true
 sha2.workspace = true
 ureq.workspace = true
+pbkdf2.workspace = true
+hmac.workspace = true
 
 [dev-dependencies]
 tempfile = "3.10"

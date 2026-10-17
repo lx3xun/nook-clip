@@ -24,13 +24,21 @@ impl MasterKeyManager {
     pub fn new<P: AsRef<Path>>(key_file_path: P) -> Self {
         let key_path = key_file_path.as_ref().to_path_buf();
         let parent = key_path.parent().unwrap_or_else(|| Path::new("."));
-        let marker = parent.join(".master_key.initialized");
+        let file_name = key_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(".master_key");
+        let marker_name = if file_name == ".master_key" {
+            ".master_key.initialized".to_string()
+        } else {
+            format!("{file_name}.initialized")
+        };
+        let marker = parent.join(marker_name);
         Self {
             key_file_path: key_path,
             initialized_marker_path: marker,
         }
     }
-
     pub fn key_file_path(&self) -> &Path {
         &self.key_file_path
     }
@@ -80,10 +88,22 @@ impl MasterKeyManager {
 
         #[cfg(not(unix))]
         {
-            fs::write(&temp_path, key)?;
+            use std::io::Write;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&temp_path)?;
+            file.write_all(key)?;
+            file.sync_all()?;
         }
 
         fs::rename(&temp_path, &self.key_file_path)?;
+        if self.read_key_from_file().as_ref() != Some(key) {
+            return Err(CoreError::Crypto(
+                "Master key file read-back verification failed".to_string(),
+            ));
+        }
         Ok(())
     }
 

@@ -10,13 +10,12 @@ extension InMemoryHistoryStore {
     func setupSyncEngine() {
         syncEngine.onRemoteChange = { [weak self] in
             Task { @MainActor [weak self] in
-                // T053（审查 D-6）：远端变更回调加 5 秒短节流——目录监听在
-                // iCloud 批量落盘时高频连发，每次都全量拉取会放大目录重复扫描
-                await self?.pullRemoteChanges(minInterval: 5)
+                // 远端变更短节流（2.5 秒）
+                await self?.pullRemoteChanges(minInterval: 2.5)
             }
         }
         if syncEngine.isEnabled {
-            syncEngine.setupDirectoryMonitoring()
+            syncEngine.setupSyncTriggers()
             Task {
                 await self.pullRemoteChanges()
             }
@@ -27,20 +26,22 @@ extension InMemoryHistoryStore {
 
     public func syncNow() async {
         guard syncEngine.isEnabled else { return }
+        if syncEngine.syncMode == .webdav && syncEngine.webDavURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return
+        }
+        if syncEngine.isE2EEEnabled && syncEngine.e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
+            return
+        }
         syncEngine.updateObservableState(.syncing)
-        let syncDir = syncEngine.baseDirectoryURL.path
-        let deviceID = syncDeviceID
-        let assetsDir = payloadStore.directory.path
+        let options = syncEngine.makeSyncOptions(
+            deviceId: syncDeviceID,
+            localAssetsDir: payloadStore.directory.path
+        )
         let rustStore = self.rustStore
         do {
-            // 安全不变量：敏感内容绝不上云（pack 仅 zstd 压缩、未加密）。
-            // FFI 同步（iCloud 目录 IO）挪后台执行，结果回 MainActor 刷新镜像
             let report = try await Task.detached(priority: .utility) {
-                try rustStore.syncNow(
-                    syncDir: syncDir,
-                    deviceId: deviceID,
-                    localAssetsDir: assetsDir
-                )
+                try rustStore.syncWithOptions(options)
             }.value
             if report.pulledCount > 0 {
                 items = rustStore.page(limit: Self.pageSize, offset: 0)
@@ -54,25 +55,49 @@ extension InMemoryHistoryStore {
             syncEngine.recordFailure(error)
         }
     }
+    /// 使用当前新口令重置云端加密凭证并将本机剪贴板重新推送到云端
+    public func resetSyncPassphrase() async throws {
+        guard syncEngine.isEnabled else { return }
+        syncEngine.updateObservableState(.syncing)
+        let options = syncEngine.makeSyncOptions(
+            deviceId: syncDeviceID,
+            localAssetsDir: payloadStore.directory.path
+        )
+        let rustStore = self.rustStore
+        do {
+            _ = try await Task.detached(priority: .userInitiated) {
+                try rustStore.resetSyncPassphrase(options: options)
+            }.value
+            syncEngine.recordSuccess()
+        } catch {
+            Self.logger.error("Reset sync passphrase failed: \(error.localizedDescription, privacy: .public)")
+            syncEngine.recordFailure(error)
+            throw error
+        }
+    }
 
     /// 拉取结果：true = 成功，false = 失败，nil = 未执行（同步未启用/节流跳过）
     @discardableResult
     public func pullRemoteChanges(minInterval: TimeInterval? = nil) async -> Bool? {
         guard syncEngine.isEnabled else { return nil }
         guard syncEngine.shouldPull(minInterval: minInterval) else { return nil }
-        let syncDir = syncEngine.baseDirectoryURL.path
-        let deviceID = syncDeviceID
-        let assetsDir = payloadStore.directory.path
+        if syncEngine.syncMode == .webdav && syncEngine.webDavURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return nil
+        }
+        if syncEngine.isE2EEEnabled && syncEngine.e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
+            return false
+        }
+        syncEngine.markPulled()
+        let options = syncEngine.makeSyncOptions(
+            deviceId: syncDeviceID,
+            localAssetsDir: payloadStore.directory.path
+        )
         let rustStore = self.rustStore
         syncEngine.updateObservableState(.syncing)
         do {
-            // FFI 拉取（iCloud 目录 IO）挪后台执行，结果回 MainActor 刷新镜像
             let report = try await Task.detached(priority: .utility) {
-                try rustStore.syncPull(
-                    syncDir: syncDir,
-                    deviceId: deviceID,
-                    localAssetsDir: assetsDir
-                )
+                try rustStore.syncPullWithOptions(options)
             }.value
             syncEngine.markPulled()
             if report.pulledCount > 0 {

@@ -18,8 +18,12 @@ pub fn run_maintenance(
     repo: &StorageRepository,
     config: &MaintenanceConfig,
 ) -> Result<MaintenanceReport> {
+    if let Some(assets_dir) = &config.local_assets_dir {
+        if !assets_dir.is_empty() {
+            repo.set_assets_dir(Some(assets_dir));
+        }
+    }
     let mut report = MaintenanceReport::default();
-
     // 1. 保留期与条数清理
     let pruned_records = repo.prune_expired(&config.retention)?;
     report.pruned_expired_count = pruned_records.len() as u32;

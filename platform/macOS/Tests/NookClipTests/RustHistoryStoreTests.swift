@@ -452,4 +452,45 @@ final class RustHistoryStoreTests: XCTestCase {
         XCTAssertEqual(fileResults.first?.id, nonImageFile.id)
     }
 
+    func testManagedPayloadPathStoredAsRelativeFilenameAndFullSensitiveRevealUsesZeroClientReEncryption() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("assets_rel_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        store.engine.setAssetsDir(assetsDir: tempDir.path)
+        let fileStore = FileStore(directory: tempDir)
+        let fullPath = try fileStore.save(data: Data("image-bytes".utf8), preferredExtension: "png")
+        let expectedFileName = (fullPath as NSString).lastPathComponent
+
+        let imgID = UUID()
+        let imgItem = ClipboardItem(
+            id: imgID,
+            type: .image,
+            title: "Screenshot",
+            summary: "100x100",
+            payloadPath: fullPath
+        )
+        let savedImg = try XCTUnwrap(store.save(imgItem))
+        // 数据库底层仅持久化纯文件名，查询返回给 UI 的是拼接后的当前容器路径
+        let rawStored = try store.engine.rawStoredPayloadPath(id: imgID.uuidString)
+        XCTAssertEqual(rawStored, expectedFileName, "受管载荷在数据库内必须仅存储相对文件名")
+        XCTAssertEqual(savedImg.payloadPath, fullPath, "运行时查询必须解析回完整受管路径")
+
+        // 敏感条目全文取回直接填充 decryptedPlainText，不再产生 encryptedContent 二次密文
+        let sensID = UUID()
+        let secret = "sk-proj-zero-double-encrypt-987654321"
+        let sensItem = ClipboardItem(
+            id: sensID,
+            type: .text,
+            title: "",
+            summary: "sk-proj-••••4321",
+            isSensitive: true
+        )
+        XCTAssertNotNil(store.save(sensItem, rawText: secret))
+        let fullSens = try XCTUnwrap(store.item(id: sensID))
+        XCTAssertNil(fullSens.encryptedContent, "全文取回不再进行 Swift 侧二次 AES 重加密")
+        XCTAssertEqual(fullSens.decryptedPlainText, secret)
+        XCTAssertEqual(fullSens.revealPlainContent(), secret)
+    }
 }

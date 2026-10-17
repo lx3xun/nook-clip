@@ -140,6 +140,32 @@ struct ClipboardRowModel: Identifiable, Equatable {
     /// title 为空时的展示回退（ClipboardItem.fallbackDisplayTitle 构造时缓存）：
     /// 敏感 → 脱敏摘要；文件 → 文件名；图片 → 尺寸；文本/链接 → 内容预览
     let fallbackTitle: String
+    let sourceDeviceId: String?
+    let sourceDeviceName: String?
+    let sourcePlatform: String?
+
+    var sourceDisplayName: String {
+        let appName = source.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bundleLast = source.bundleID?.components(separatedBy: ".").last?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseName: String
+        if !appName.isEmpty {
+            baseName = appName
+        } else if let comp = bundleLast, !comp.isEmpty {
+            baseName = comp.capitalized
+        } else {
+            baseName = L10n.tr("source.unknown")
+        }
+        if let devName = sourceDeviceName?.trimmingCharacters(in: .whitespacesAndNewlines), !devName.isEmpty {
+            let platformIcon: String
+            switch (sourcePlatform ?? "").lowercased() {
+            case "ios": platformIcon = "📱 "
+            case "windows": platformIcon = "🪟 "
+            default: platformIcon = "💻 "
+            }
+            return "\(platformIcon)\(devName) · \(baseName)"
+        }
+        return baseName
+    }
 
     /// 派生规则（data-model §2）：
     /// sensitive（isSensitive）> image / file / url（= type）
@@ -152,6 +178,9 @@ struct ClipboardRowModel: Identifiable, Equatable {
         lastUsedAt = item.lastUsedAt
         createdAt = item.createdAt
         source = SourceAppModel.resolve(name: item.sourceAppName, bundleID: item.sourceAppBundleId)
+        sourceDeviceId = item.sourceDeviceId
+        sourceDeviceName = item.sourceDeviceName
+        sourcePlatform = item.sourcePlatform
         title = item.title
         summary = item.summary
         fallbackTitle = item.fallbackDisplayTitle

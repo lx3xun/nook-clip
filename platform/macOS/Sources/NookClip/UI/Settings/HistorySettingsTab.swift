@@ -6,8 +6,8 @@ import SwiftUI
 @MainActor
 struct HistorySettingsTab: View {
     var historyStore: InMemoryHistoryStore?
-    @AppStorage("historyRetentionDays") private var historyRetentionDays = 30
-    @AppStorage("historyDiskLimitMB") private var historyDiskLimitMB = 0
+    @AppStorage("historyRetentionDays") private var historyRetentionDays = 180
+    @AppStorage("historyDiskLimitMB") private var historyDiskLimitMB = 5120
     @AppStorage("enableICloudSync") private var enableICloudSync = false
     @State private var showClearConfirmation = false
     @State private var isSyncingManual = false
@@ -18,7 +18,19 @@ struct HistorySettingsTab: View {
     @State private var exportMode: SensitiveExportMode = .masked
     @State private var showPlaintextExportConfirm = false
     @State private var pendingPlaintextExport: (asJSON: Bool, mode: SensitiveExportMode)?
-
+    @State private var syncMode: CloudSyncMode = .iCloudDrive
+    @State private var webDavUrl: String = ""
+    @State private var webDavUsername: String = ""
+    @State private var webDavPassword: String = ""
+    @State private var showWebDavPassword: Bool = false
+    @State private var isTestingWebDav = false
+    @State private var webDavTestResult: (success: Bool, message: String)?
+    @State private var isE2EEEnabled: Bool = false
+    @State private var e2eePassphrase: String = ""
+    @State private var showE2eePassphrase: Bool = false
+    @State private var showResetPassphraseAlert: Bool = false
+    @State private var isResettingPassphrase: Bool = false
+    @State private var syncSensitiveItems: Bool = false
     var body: some View {
         VStack(spacing: 16) {
             // 历史记录保留与存储限制
@@ -113,22 +125,151 @@ struct HistorySettingsTab: View {
                         }
                 }
                 if enableICloudSync {
-                    SettingsRowView(showDivider: true) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.tr("settings.sync.dir_label"))
-                                .font(.nookClipBody)
-                                .foregroundStyle(NookClip.textPrimary)
-                            Text(historyStore?.syncEngine.baseDirectoryURL.path ?? "iCloud Drive/NookClip")
-                                .font(.nookClipMeta)
-                                .foregroundStyle(NookClip.textSecondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                    // 1. 同步通道选择
+                    SettingsRowView(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
+                        Picker("", selection: $syncMode) {
+                            Text(L10n.tr("settings.sync.mode_icloud")).tag(CloudSyncMode.iCloudDrive)
+                            Text(L10n.tr("settings.sync.mode_local_dir")).tag(CloudSyncMode.localDirectory)
+                            Text(L10n.tr("settings.sync.mode_webdav")).tag(CloudSyncMode.webdav)
                         }
-                    } trailing: {
-                        Button(L10n.tr("settings.sync.change_dir")) {
-                            chooseCustomSyncDirectory()
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .frame(width: 320)
+                        .onChange(of: syncMode) { _, newMode in
+                            guard let engine = historyStore?.syncEngine else { return }
+                            engine.syncMode = newMode
+                            // 切换同步方式时，立即载入对应通道专属的配置（加密开关、专属口令、敏感同步状态）
+                            isE2EEEnabled = engine.isE2EEEnabled
+                            e2eePassphrase = engine.e2eePassphrase
+                            syncSensitiveItems = engine.syncSensitiveItems
                         }
-                        .buttonStyle(.bordered)
+                    }
+
+                    // 2. 本地目录映射模式配置（仅本地目录映射需要指定与修改本地路径）
+                    if syncMode == .localDirectory {
+                        SettingsRowView(showDivider: true) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.tr("settings.sync.dir_label"))
+                                    .font(.nookClipBody)
+                                    .foregroundStyle(NookClip.textPrimary)
+                                Text(historyStore?.syncEngine.baseDirectoryURL.path ?? "Documents/NookClipSync")
+                                    .font(.nookClipMeta)
+                                    .foregroundStyle(NookClip.textSecondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                        } trailing: {
+                            Button(L10n.tr("settings.sync.change_dir")) {
+                                chooseCustomSyncDirectory()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+
+                    // 3. WebDAV 模式配置
+                    if syncMode == .webdav {
+                        SettingsRowView(title: L10n.tr("settings.sync.webdav_url"), showDivider: true) {
+                            TextField("https://...", text: $webDavUrl)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .onChange(of: webDavUrl) { _, val in
+                                    webDavTestResult = nil
+                                    historyStore?.syncEngine.webDavURL = val
+                                    if historyStore?.syncEngine.isEnabled == true && syncMode == .webdav {
+                                        historyStore?.syncEngine.setupSyncTriggers()
+                                    }
+                                }
+                        }
+                        SettingsRowView(title: L10n.tr("settings.sync.webdav_username"), showDivider: true) {
+                            TextField("Username", text: $webDavUsername)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 260)
+                                .onChange(of: webDavUsername) { _, val in
+                                    webDavTestResult = nil
+                                    historyStore?.syncEngine.webDavUsername = val
+                                }
+                        }
+                        SettingsRowView(title: L10n.tr("settings.sync.webdav_password"), showDivider: true) {
+                            SettingsPasswordField(
+                                placeholder: "Password",
+                                text: $webDavPassword,
+                                isRevealed: $showWebDavPassword,
+                                width: 260
+                            ) { val in
+                                webDavTestResult = nil
+                                historyStore?.syncEngine.webDavPassword = val
+                            }
+                        }
+                        SettingsRowView(showDivider: true) {
+                            if let res = webDavTestResult {
+                                Text(res.message)
+                                    .font(.nookClipMeta)
+                                    .foregroundStyle(res.success ? NookClip.colorSuccess : NookClip.colorDanger)
+                            } else {
+                                Spacer()
+                            }
+                        } trailing: {
+                            Button(isTestingWebDav ? L10n.tr("settings.sync.btn_syncing") : L10n.tr("settings.sync.btn_test_conn")) {
+                                testWebDav()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isTestingWebDav || webDavUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+
+                    // 4. 端到端加密 (E2EE)
+                    SettingsRowView(
+                        title: L10n.tr("settings.sync.e2ee_title"),
+                        subtitle: L10n.tr("settings.sync.e2ee_desc"),
+                        showDivider: true
+                    ) {
+                        Toggle("", isOn: $isE2EEEnabled)
+                            .toggleStyle(.nookSwitch)
+                            .labelsHidden()
+                            .onChange(of: isE2EEEnabled) { _, enabled in
+                                historyStore?.syncEngine.isE2EEEnabled = enabled
+                            }
+                    }
+
+                    if isE2EEEnabled {
+                        SettingsRowView(
+                            title: L10n.tr("settings.sync.e2ee_passphrase"),
+                            subtitle: L10n.tr("settings.sync.e2ee_passphrase_desc"),
+                            showDivider: true
+                        ) {
+                            SettingsPasswordField(
+                                placeholder: L10n.tr("settings.sync.e2ee_passphrase_placeholder"),
+                                text: $e2eePassphrase,
+                                isRevealed: $showE2eePassphrase,
+                                width: 260
+                            ) { val in
+                                historyStore?.syncEngine.e2eePassphrase = val
+                            }
+                        }
+
+                        SettingsRowView(
+                            title: L10n.tr("settings.sync.e2ee_reset_title"),
+                            subtitle: L10n.tr("settings.sync.e2ee_reset_subtitle"),
+                            showDivider: true
+                        ) {
+                            Button(isResettingPassphrase ? L10n.tr("settings.sync.btn_syncing") : L10n.tr("settings.sync.e2ee_reset_btn")) {
+                                showResetPassphraseAlert = true
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isResettingPassphrase || e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        SettingsRowView(
+                            title: L10n.tr("settings.sync.e2ee_sync_sensitive"),
+                            subtitle: L10n.tr("settings.sync.e2ee_sync_sensitive_desc"),
+                            showDivider: true
+                        ) {
+                            Toggle("", isOn: $syncSensitiveItems)
+                                .toggleStyle(.nookSwitch)
+                                .labelsHidden()
+                                .onChange(of: syncSensitiveItems) { _, enabled in
+                                    historyStore?.syncEngine.syncSensitiveItems = enabled
+                                }
+                        }
                     }
                     SettingsRowView(showDivider: syncStatusMessage != nil) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -161,35 +302,6 @@ struct HistorySettingsTab: View {
                             }
                         } trailing: { EmptyView() }
                     }
-                    if historyStore?.lastSyncResult.outcome != .idle {
-                        // 最近同步结果（FR-011b）：与同步状态同卡片展示，避免状态信息分裂
-                        SettingsRowView(showDivider: true) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("settings.sync.last_result_label"))
-                                    .font(.nookClipBody)
-                                    .foregroundStyle(NookClip.textPrimary)
-                                HStack(spacing: 6) {
-                                    Circle()
-                                        .fill(lastSyncResultColor)
-                                        .frame(width: 8, height: 8)
-                                    Text(lastSyncResultText)
-                                        .font(.nookClipMeta)
-                                        .foregroundStyle(NookClip.textSecondary)
-                                }
-                            }
-                        } trailing: { EmptyView() }
-                    }
-                    // 披露文案：iCloud 同步内容为明文，敏感条目不上云（FR-023）
-                    HStack(spacing: 5) {
-                        Image(systemName: NookClipIcon.Status.plaintextNotice)
-                            .foregroundStyle(NookClip.textSecondary)
-                        Text(L10n.tr("settings.sync.plaintext_disclosure"))
-                            .font(.nookClipMeta)
-                            .foregroundStyle(NookClip.textSecondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
                 }
             }
 
@@ -197,18 +309,26 @@ struct HistorySettingsTab: View {
             if enableICloudSync {
                 SettingsSectionView(title: L10n.tr("settings.sync.rules_section")) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label(L10n.tr("settings.sync.rule_realtime"), systemImage: NookClipIcon.Status.success)
-                            .foregroundStyle(NookClip.textSecondary)
-                            .font(.nookClipMeta)
-                        Label(L10n.tr("settings.sync.rule_assets"), systemImage: NookClipIcon.Status.success)
-                            .foregroundStyle(NookClip.textSecondary)
-                            .font(.nookClipMeta)
-                        Label(L10n.tr("settings.sync.rule_sensitive"), systemImage: NookClipIcon.Status.sensitiveSync)
-                            .foregroundStyle(NookClip.textSecondary)
-                            .font(.nookClipMeta)
-                        Label(L10n.tr("settings.sync.rule_tombstone"), systemImage: NookClipIcon.Status.tombstoneSync)
-                            .foregroundStyle(NookClip.textSecondary)
-                            .font(.nookClipMeta)
+                        Label(
+                            L10n.tr(isE2EEEnabled ? "settings.sync.rule_e2ee_on" : "settings.sync.rule_e2ee_off"),
+                            systemImage: isE2EEEnabled ? NookClipIcon.Sensitive.shieldOk : NookClipIcon.Feedback.warning
+                        )
+                        .foregroundStyle(isE2EEEnabled ? NookClip.textSecondary : NookClip.colorFavorite)
+                        .font(.nookClipMeta)
+
+                        Label(
+                            L10n.tr(isE2EEEnabled && syncSensitiveItems ? "settings.sync.rule_sensitive_on" : "settings.sync.rule_sensitive_off"),
+                            systemImage: isE2EEEnabled && syncSensitiveItems ? NookClipIcon.Sensitive.lock : NookClipIcon.Status.sensitiveSync
+                        )
+                        .foregroundStyle(NookClip.textSecondary)
+                        .font(.nookClipMeta)
+
+                        Label(
+                            L10n.tr("settings.sync.rule_assets_and_delete"),
+                            systemImage: NookClipIcon.Status.success
+                        )
+                        .foregroundStyle(NookClip.textSecondary)
+                        .font(.nookClipMeta)
                     }
                     .padding(14)
                 }
@@ -294,6 +414,28 @@ struct HistorySettingsTab: View {
         } message: {
             Text(L10n.tr("settings.export.plaintext_confirm_message"))
         }
+        .alert(
+            L10n.tr("settings.sync.e2ee_reset_confirm_title"),
+            isPresented: $showResetPassphraseAlert
+        ) {
+            Button(L10n.tr("settings.sync.e2ee_reset_confirm_action"), role: .destructive) {
+                performResetPassphrase()
+            }
+            Button(L10n.tr("settings.general.cancel_button"), role: .cancel) {}
+        } message: {
+            Text(L10n.tr("settings.sync.e2ee_reset_confirm_desc"))
+        }
+        .onAppear {
+            if let engine = historyStore?.syncEngine {
+                syncMode = engine.syncMode
+                webDavUrl = engine.webDavURL
+                webDavUsername = engine.webDavUsername
+                webDavPassword = engine.webDavPassword
+                isE2EEEnabled = engine.isE2EEEnabled
+                e2eePassphrase = engine.e2eePassphrase
+                syncSensitiveItems = engine.syncSensitiveItems
+            }
+        }
     }
 
     @ViewBuilder
@@ -311,6 +453,30 @@ struct HistorySettingsTab: View {
         .overlay(Capsule().stroke(color.opacity(0.2), lineWidth: 0.5))
     }
 
+    private func testWebDav() {
+        isTestingWebDav = true
+        webDavTestResult = nil
+        let url = webDavUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        let user = webDavUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pass = webDavPassword
+        Task {
+            do {
+                _ = try await Task.detached(priority: .userInitiated) {
+                    try testWebdavConnection(baseUrl: url, username: user, password: pass, timeoutSecs: 10)
+                }.value
+                await MainActor.run {
+                    webDavTestResult = (true, L10n.tr("settings.sync.conn_success"))
+                    isTestingWebDav = false
+                }
+            } catch {
+                await MainActor.run {
+                    webDavTestResult = (false, L10n.tr("settings.sync.conn_failed", error.localizedDescription))
+                    isTestingWebDav = false
+                }
+            }
+        }
+    }
+
     private static func diskLimitLabel(_ mb: Int) -> String {
         mb % 1024 == 0 ? "\(mb / 1024) GB" : "\(mb) MB"
     }
@@ -318,55 +484,35 @@ struct HistorySettingsTab: View {
     private var syncStatusColor: Color {
         guard let engine = historyStore?.syncEngine else { return NookClip.textTertiary }
         switch engine.state {
-        case .idle: return NookClip.textTertiary
-        case .syncing: return NookClip.accent
-        case .success: return NookClip.colorSuccess
-        case .failed: return NookClip.colorDanger
-        }
-    }
-
-    /// 最近同步结果颜色（FR-011b；SyncResult.outcome → 状态点）
-    private var lastSyncResultColor: Color {
-        switch historyStore?.lastSyncResult.outcome {
-        case .success: return NookClip.colorSuccess
-        case .failure: return NookClip.colorDanger
-        default: return NookClip.textTertiary
-        }
-    }
-
-    /// 最近同步结果文案（FR-011b；成功/失败时间走 LocalizationManager.relativeTime）
-    private var lastSyncResultText: String {
-        guard let store = historyStore else { return L10n.tr("settings.sync.status_not_enabled") }
-        switch store.lastSyncResult.outcome {
         case .idle:
-            return L10n.tr("settings.sync.last_result_idle")
-        case .success(let date):
-            return L10n.tr("settings.sync.last_result_success", L10n.relativeTime(for: date))
-        case .failure(let reason, let date):
-            let reasonKey: String
-            switch reason {
-            case .network: reasonKey = "settings.sync.last_result_failure_network"
-            case .credential: reasonKey = "settings.sync.last_result_failure_credential"
-            case .unknown: reasonKey = "settings.sync.last_result_failure_unknown"
+            if engine.lastSyncDate != nil {
+                return NookClip.colorSuccess
             }
-            return L10n.tr(reasonKey, L10n.relativeTime(for: date))
+            return NookClip.textTertiary
+        case .syncing:
+            return NookClip.accent
+        case .success:
+            return NookClip.colorSuccess
+        case .failed:
+            return NookClip.colorDanger
         }
     }
 
     private var syncStatusText: String {
-        guard let engine = historyStore?.syncEngine else { return L10n.tr("settings.sync.status_not_enabled") }
+        guard let store = historyStore else {
+            return L10n.tr("settings.sync.status_not_enabled")
+        }
+        let engine = store.syncEngine
         switch engine.state {
-        case .idle:
-            if let date = engine.lastSyncDate {
-                return L10n.tr("settings.sync.status_success", date.formatted(date: .omitted, time: .standard))
-            }
-            return L10n.tr("settings.sync.status_idle")
         case .syncing:
             return L10n.tr("settings.sync.status_syncing")
-        case .success(let date):
-            return L10n.tr("settings.sync.status_success", date.formatted(date: .omitted, time: .standard))
         case .failed(let msg):
             return L10n.tr("settings.sync.status_error", msg)
+        case .idle, .success:
+            if let date = engine.lastSyncDate {
+                return L10n.tr("settings.sync.status_success", L10n.relativeTime(for: date))
+            }
+            return L10n.tr("settings.sync.status_idle")
         }
     }
 
@@ -387,6 +533,30 @@ struct HistorySettingsTab: View {
                 default:
                     syncStatusIsError = false
                     syncStatusMessage = L10n.tr("settings.sync.msg_done")
+                }
+            }
+        }
+    }
+    private func performResetPassphrase() {
+        guard let store = historyStore else { return }
+        let trimmed = e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        isResettingPassphrase = true
+        syncStatusMessage = nil
+        Task {
+            do {
+                try await store.resetSyncPassphrase()
+                await MainActor.run {
+                    isResettingPassphrase = false
+                    syncStatusIsError = false
+                    syncStatusMessage = L10n.tr("settings.sync.e2ee_reset_success")
+                }
+            } catch {
+                await MainActor.run {
+                    isResettingPassphrase = false
+                    syncStatusIsError = true
+                    syncStatusMessage = L10n.tr("settings.sync.msg_failed", error.localizedDescription)
                 }
             }
         }
@@ -488,5 +658,45 @@ struct HistorySettingsTab: View {
                 }
             }
         }
+    }
+}
+// MARK: - 密码输入框组件（明文切换按钮内嵌右侧，统一对齐与宽度）
+private struct SettingsPasswordField: View {
+    let placeholder: String
+    @Binding var text: String
+    @Binding var isRevealed: Bool
+    var width: CGFloat = 260
+    var onChange: (String) -> Void
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Group {
+                if isRevealed {
+                    TextField(placeholder, text: $text)
+                } else {
+                    SecureField(placeholder, text: $text)
+                }
+            }
+            .textFieldStyle(.roundedBorder)
+            .padding(.trailing, 26)
+            .frame(width: width)
+            .onChange(of: text) { _, val in
+                onChange(val)
+            }
+
+            Button {
+                isRevealed.toggle()
+            } label: {
+                Image(systemName: isRevealed ? NookClipIcon.Sensitive.remask : NookClipIcon.Sensitive.reveal)
+                    .font(.system(size: 12))
+                    .foregroundStyle(NookClip.textSecondary)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 4)
+            .help(isRevealed ? L10n.tr("preview.mask.remask") : L10n.tr("preview.mask.reveal"))
+        }
+        .frame(width: width)
     }
 }
