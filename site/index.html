@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hans" data-theme="auto">
+<html lang="zh-Hans" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -23,6 +23,7 @@
   <meta name="theme-color" content="#0F172A" media="(prefers-color-scheme: dark)">
 
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="prototype.css">
 </head>
 <body>
   <!-- 页面顶部导航栏 -->
@@ -126,6 +127,13 @@
           <button type="button" class="lang-option" data-lang="en">EN</button>
         </div>
       </div>
+      <div class="mobile-theme-row">
+        <span class="mobile-theme-label" data-i18n="mobile_theme_label">外观 / Theme:</span>
+        <div class="mobile-theme-buttons">
+          <button type="button" class="mobile-theme-option" data-theme-val="light" data-i18n="theme_light">浅色</button>
+          <button type="button" class="mobile-theme-option" data-theme-val="dark" data-i18n="theme_dark">深色</button>
+        </div>
+      </div>
       <nav class="mobile-nav-inner" aria-label="移动端网站导航">
         <ul class="mobile-nav-list">
           <li><a href="#features" class="mobile-nav-link" data-i18n="nav_features">功能介绍</a></li>
@@ -133,7 +141,7 @@
           <li><a href="#comparison" class="mobile-nav-link" data-i18n="nav_comparison">工具对比</a></li>
           <li><a href="#privacy" class="mobile-nav-link" data-i18n="nav_privacy">隐私安全</a></li>
           <li><a href="#download" class="mobile-nav-link" data-i18n="nav_download">下载安装</a></li>
-          <li><a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" class="mobile-nav-link">GitHub 仓库</a></li>
+          <li><a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" class="mobile-nav-link" data-i18n="footer_repo">GitHub 仓库</a></li>
         </ul>
       </nav>
         <div class="mobile-drawer-cta">
@@ -201,10 +209,10 @@
           <a href="#install-guide" class="link-inline" data-i18n="hero_guide_link">首次安装与权限说明</a>
         </div>
 
-        <!-- 真实产品截图展示区 (直接呈现原生面板，无虚假外层边框) -->
+        <!-- 产品交互预览区 -->
         <div class="mockup-wrapper">
           <div class="mockup-controls-bar">
-            <div class="mockup-theme-switcher" role="radiogroup" aria-label="产品截图外观模式切换">
+            <div class="mockup-theme-switcher" role="radiogroup" aria-label="外观模式切换">
               <button type="button" class="preview-mode-btn is-active" data-preview-mode="dark" role="radio" aria-checked="true" data-i18n="preview_dark">
                 深色模式
               </button>
@@ -214,11 +222,9 @@
             </div>
           </div>
 
-          <!-- 截图主体展示区 -->
-          <figure class="mockup-content">
-            <img id="productPreviewImg" src="assets/nookclip-dark.png" alt="NookClip 剪贴板历史管理窗口完整界面截图，展示左侧历史记录列表与右侧代码高亮、离线OCR、敏感信息保护等详细预览" class="product-preview-img" width="1500" height="1250" loading="eager">
-            <figcaption class="sr-only">NookClip 客户端原生界面真实截图</figcaption>
-          </figure>
+          <!-- 交互测试台容器 (默认直接呈现鲜活面板) -->
+          <div id="interactivePrototypeMount" class="mockup-interactive-container"></div>
+
 
           <!-- 界面关键能力注脚 -->
           <div class="mockup-highlights" aria-label="核心界面特性速览">
@@ -237,6 +243,10 @@
             <div class="highlight-chip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
               <span data-i18n="chip_ocr">系统离线 OCR 图文提取</span>
+            </div>
+            <div class="highlight-chip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"></path></svg>
+              <span data-i18n="chip_shortcuts">全键盘快捷键驱动</span>
             </div>
           </div>
         </div>
@@ -732,7 +742,7 @@
         <div class="footer-col">
           <div class="col-head" data-i18n="footer_support_head">开源与支持</div>
           <ul>
-            <li><a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer">GitHub 仓库</a></li>
+            <li><a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" data-i18n="footer_repo">GitHub 仓库</a></li>
             <li><a href="https://github.com/lx3xun/nook-clip/releases" target="_blank" rel="noopener noreferrer" data-i18n="footer_history">版本发布历史</a></li>
             <li><a href="https://github.com/lx3xun/nook-clip/issues" target="_blank" rel="noopener noreferrer" data-i18n="footer_issues">提交 Issue / 建议</a></li>
             <li><a href="https://gitee.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" data-i18n="footer_gitee">Gitee 镜像</a></li>
@@ -760,7 +770,44 @@
     </svg>
   </a>
 
+  <!-- 下载引导 Star 弹窗 (Star Modal) -->
+  <div id="starModal" class="star-modal-backdrop" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="starModalTitle">
+    <div class="star-modal-card">
+      <button type="button" class="star-modal-close" id="starModalCloseBtn" aria-label="关闭弹窗" title="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
+      <div class="star-modal-header">
+        <div class="star-modal-icon-wrap">
+          <img src="assets/nookclip-appicon.svg" alt="" width="56" height="56" class="star-modal-logo">
+          <span class="star-modal-badge" aria-hidden="true">⭐️</span>
+        </div>
+        <h3 id="starModalTitle" class="star-modal-title" data-i18n="modal_dl_title">🎉 下载已开始！</h3>
+      </div>
+
+      <p class="star-modal-desc" data-i18n="modal_dl_desc">
+        NookClip 是 100% 本地运行且完全开源的剪贴板工具。<br>如果它能为你提升效率，欢迎前往 GitHub 点亮一颗 ⭐️ 支持我们！
+      </p>
+
+      <div class="star-modal-actions">
+        <a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" id="starModalGithubBtn" class="btn btn-primary star-modal-btn-star">
+          <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path>
+          </svg>
+          <span data-i18n="modal_dl_star_btn">⭐️ 前往 GitHub 点亮 Star</span>
+        </a>
+        <button type="button" id="starModalDismissBtn" class="btn btn-secondary star-modal-btn-dismiss" data-i18n="modal_dl_close_btn">
+          稍后再说
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="i18n.js"></script>
+  <script src="prototype.js"></script>
   <script src="main.js"></script>
 </body>
 </html>

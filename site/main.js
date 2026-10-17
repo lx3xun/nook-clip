@@ -4,6 +4,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  let interactivePrototype = null;
+
   // 1. 多语言国际化系统 (i18n)
   initI18n();
 
@@ -18,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (savedTheme === 'light' || savedTheme === 'dark') {
     setTheme(savedTheme, false);
   } else {
-    setTheme('auto', false);
+    setTheme('dark', false);
   }
 
   // 监听系统主题变化（当用户选择 auto 模式时）
@@ -59,21 +61,63 @@ document.addEventListener('DOMContentLoaded', () => {
       (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
     updateMockupPreview(effectiveIsDark ? 'dark' : 'light');
+
+    // 同步移动端抽屉导航中的主题按钮激活态
+    document.querySelectorAll('.mobile-theme-option').forEach((btn) => {
+      const val = btn.getAttribute('data-theme-val');
+      const isActive = val === (effectiveIsDark ? 'dark' : 'light');
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-checked', String(isActive));
+    });
   }
 
   function syncPreviewWithSystem(isDark) {
     updateMockupPreview(isDark ? 'dark' : 'light');
   }
 
-  // 3. 产品交互展示窗模式切换 (Mockup Mode Switcher)
+  // 移动端抽屉菜单内主题切换点击
+  document.querySelectorAll('.mobile-theme-option').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-theme-val');
+      setTheme(val, true);
+    });
+  });
+
+  // 3. 产品交互展示窗模式切换 (Mockup Mode Switcher - 与全局主题深度联动)
+  const prototypeMount = document.getElementById('interactivePrototypeMount');
+  if (prototypeMount && window.NookClipPrototype) {
+    const isDark = (root.getAttribute('data-theme') === 'dark') ||
+      (root.getAttribute('data-theme') === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    interactivePrototype = new window.NookClipPrototype(prototypeMount, {
+      theme: isDark ? 'dark' : 'light',
+      lang: document.documentElement.lang || 'zh-Hans',
+      onThemeChange: (newTheme) => {
+        setTheme(newTheme, true);
+      }
+    });
+  }
+
+
   previewBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.getAttribute('data-preview-mode');
-      updateMockupPreview(mode);
+      setTheme(mode, true);
     });
   });
 
   function updateMockupPreview(mode) {
+    if (interactivePrototype) {
+      interactivePrototype.setTheme(mode);
+    }
+
+    // 更新深色/浅色模式按钮激活态
+    previewBtns.forEach((btn) => {
+      const btnMode = btn.getAttribute('data-preview-mode');
+      const isActive = btnMode === mode;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    });
+
     if (!previewImg) return;
 
     if (mode === 'light') {
@@ -83,14 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
       previewImg.src = 'assets/nookclip-dark.png';
       previewImg.alt = 'NookClip 深色模式界面真实截图';
     }
-
-    // 更新 Tab 按钮激活态
-    previewBtns.forEach((btn) => {
-      const btnMode = btn.getAttribute('data-preview-mode');
-      const isActive = btnMode === mode;
-      btn.classList.toggle('is-active', isActive);
-      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
-    });
   }
 
   // 4. 一键复制源码构建命令 (Copy Command)
@@ -284,6 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // 同步测试台语言
+      if (interactivePrototype && typeof interactivePrototype.setLanguage === 'function') {
+        interactivePrototype.setLanguage(lang);
+      }
+
       // 同步所有选项按钮的 active 状态
       langOptions.forEach((btn) => {
         const isActive = btn.getAttribute('data-lang') === lang;
@@ -330,5 +371,60 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) {
       // 遭遇网络阻隔或 API 速率限制时静默降级，不影响基础交互与静态链接直链下载
     }
+  }
+
+  // 8. 下载引导加星弹窗逻辑 (Download & Star Modal Flow)
+  initStarModal();
+
+  function initStarModal() {
+    const modal = document.getElementById('starModal');
+    if (!modal) return;
+
+    const closeBtn = document.getElementById('starModalCloseBtn');
+    const dismissBtn = document.getElementById('starModalDismissBtn');
+    const githubBtn = document.getElementById('starModalGithubBtn');
+    const card = modal.querySelector('.star-modal-card');
+
+    function openModal() {
+      modal.hidden = false;
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    // 点击各处下载入口时触发弹窗（稍作延迟确保浏览器正常唤起下载管道）
+    const downloadLinks = document.querySelectorAll('a[data-role="download-dmg"], a[href*="releases"]');
+    downloadLinks.forEach((link) => {
+      link.addEventListener('click', () => {
+        setTimeout(() => {
+          openModal();
+        }, 300);
+      });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (dismissBtn) dismissBtn.addEventListener('click', closeModal);
+    if (githubBtn) {
+      githubBtn.addEventListener('click', () => {
+        setTimeout(closeModal, 400);
+      });
+    }
+
+    // 点击卡片外层遮罩关闭
+    modal.addEventListener('click', (e) => {
+      if (card && !card.contains(e.target)) {
+        closeModal();
+      }
+    });
+
+    // 按下 ESC 键关闭
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.hidden) {
+        closeModal();
+      }
+    });
   }
 });
