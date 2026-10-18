@@ -44,7 +44,7 @@ final class MainViewListStateTests: XCTestCase {
         XCTAssertEqual(listState.selectedID, listState.flatRows.first.map(\.id))
         XCTAssertEqual(listState.selectedRow?.summary, "beta other")
     }
-    func testCategoryTransitionResetsSelectionThenSelectsFirstMatchingRow() async {
+    func testCategoryTransitionKeepsSelectionUntilResultsArriveThenSelfHeals() async {
         let store = makeStore()
         guard let beta = store.items.first(where: { $0.summary == "beta other" }) else {
             return XCTFail("expected beta clipboard record")
@@ -61,7 +61,10 @@ final class MainViewListStateTests: XCTestCase {
         state.selectedID = alpha.id
 
         XCTAssertTrue(state.setCategorySelection(8, dataVersion: store.dataVersion))
-        XCTAssertNil(state.selectedID, "changing the active filter clears an out-of-filter selection before results arrive")
+        XCTAssertEqual(
+            state.selectedRow?.summary, "alpha needle",
+            "切换分类到结果返回前保留原选中，预览区不闪空态"
+        )
         for _ in 0..<50 where state.flatRows.count != 1 {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }

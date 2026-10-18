@@ -226,6 +226,9 @@ final class MainViewListState {
     private var lastRowsKey: (text: String, category: Int, limit: Int, dataVersion: Int)?
     private var lastPipelineInput: (text: String, category: Int, dataVersion: Int)?
     private var lastSnapshot: QueryViewSnapshot?
+    /// 分类切换待落地：查询期间保留旧选中（预览不闪空态），
+    /// 新结果应用后把选中重置到新分类首行（与切换前选中的条目无关）。
+    private var pendingCategorySelectionReset = false
 
     // MARK: - 过滤管线输出
     private(set) var categories: [SidebarCategory] = []
@@ -360,7 +363,10 @@ final class MainViewListState {
     func setCategorySelection(_ categoryID: Int, dataVersion: Int) -> Bool {
         guard categoryID != categorySelection else { return false }
         categorySelection = categoryID
-        selection.selectedID = nil
+        // 不在切换瞬间清空选中：查询是异步的，置 nil 会让预览区在新结果回来前
+        // 先闪一帧空态（「选择条目查看详情」）。旧选中保持可见，
+        // 等新结果应用时再重置到首行（见 applyPipeline）。
+        pendingCategorySelectionReset = true
         updateMatchedApps(query: searchText)
         scheduleQuery(dataVersion: dataVersion, debounce: false)
         return true
@@ -495,6 +501,12 @@ final class MainViewListState {
 
         if self.categorySelection != effectiveCategory {
             self.categorySelection = effectiveCategory
+            selection.selectedID = nil
+        }
+        if pendingCategorySelectionReset {
+            // 分类切换后的首个结果：选中落到新分类首行（旧选中已不属于当前视图）；
+            // 结果为空时 syncSelectionWithFilter 会自然落到 nil
+            pendingCategorySelectionReset = false
             selection.selectedID = nil
         }
 
