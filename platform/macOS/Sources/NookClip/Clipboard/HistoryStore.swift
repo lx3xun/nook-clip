@@ -339,9 +339,12 @@ final class InMemoryHistoryStore {
     }
 
     private func sweepOrphanPayloads(grace: TimeInterval = 24 * 3600) {
-        let referenced = Set(rustStore.payloadPaths())
         let store = payloadStore
+        let rustStore = self.rustStore
+        // 全表 payloadPaths() 在万级历史下是主线程启动卡顿源；整体挪到后台，
+        // 完成后同任务内执行孤儿清扫（referenced 只在后台使用）。
         Task.detached(priority: .utility) {
+            let referenced = Set(rustStore.payloadPaths())
             _ = store.sweepOrphans(referencedPaths: referenced, olderThan: grace)
         }
     }

@@ -417,3 +417,22 @@ fn test_query_items_truncates_summary_in_sql_when_summary_max_chars_set() {
     let single_items = repo.query_items(&single_filter).unwrap();
     assert_eq!(single_items[0].summary.chars().count(), 500);
 }
+
+/// 内存库（:memory:）单连接读写可见性：写后立即可查。
+#[test]
+fn test_in_memory_database_read_path_sees_writes() {
+    let repo = StorageRepository::new(":memory:", &[7u8; 32]).unwrap();
+    let filter = QueryFilter {
+        limit: 10,
+        ..Default::default()
+    };
+    assert_eq!(repo.query_items(&filter).unwrap().len(), 0);
+
+    let item = dummy_item("mem-1", "内存条目", "text", 100.0);
+    repo.save_item(&item, Some("内存内容")).unwrap();
+
+    assert_eq!(repo.query_items(&filter).unwrap().len(), 1, "内存库查询必须看到写入");
+    assert_eq!(repo.count_items().unwrap(), 1);
+    assert_eq!(repo.count_categories(None).unwrap().total, 1);
+    assert_eq!(repo.time_group_timestamps(&filter).unwrap().len(), 1);
+}

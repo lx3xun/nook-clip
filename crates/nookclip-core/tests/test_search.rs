@@ -211,3 +211,66 @@ fn test_search_alias_short_and_long_tokens() {
         .unwrap();
     assert!(res_secret.is_empty(), "敏感条目密文绝对不可被检索命中");
 }
+
+#[test]
+fn test_search_special_characters_and_wildcard_sanitization() {
+    let (_f, repo) = create_test_repo();
+
+    let item_pct = dummy_item("id-pct", "Discount 50% off", "50% discount coupon", "Safari");
+    let item_under = dummy_item("id-under", "snake_case_variable", "let user_id_val = 123;", "VSCode");
+    let item_quote = dummy_item("id-quote", "He said \"Hello World\"", "exact \"phrase\" inside", "Notes");
+    let item_sym = dummy_item("id-sym", "Math formula: a * (b + c) = d", "logic AND or NOT NEAR test", "Notes");
+
+    repo.save_item(&item_pct, Some("50% discount coupon")).unwrap();
+    repo.save_item(&item_under, Some("let user_id_val = 123;")).unwrap();
+    repo.save_item(&item_quote, Some("exact \"phrase\" inside")).unwrap();
+    repo.save_item(&item_sym, Some("logic AND or NOT NEAR test")).unwrap();
+
+    // 1. 纯百分号 % 与下划线 _（SQL LIKE 关键通配符）：确保不 panic 且查询合法返回
+    let res_pct = repo.query_items(&QueryFilter {
+        search_query: Some("%".to_string()),
+        limit: 10,
+        ..Default::default()
+    });
+    assert!(res_pct.is_ok(), "搜索包含单个 % 绝不能抛出 SQL 语法错误");
+
+    let res_under = repo.query_items(&QueryFilter {
+        search_query: Some("_".to_string()),
+        limit: 10,
+        ..Default::default()
+    });
+    assert!(res_under.is_ok(), "搜索包含单个 _ 绝不能抛出 SQL 语法错误");
+
+    // 2. 奇数个未闭合双引号：验证分词器不产生 FTS5 语法崩溃
+    let res_odd_quote = repo.query_items(&QueryFilter {
+        search_query: Some("\"\"\"".to_string()),
+        limit: 10,
+        ..Default::default()
+    });
+    assert!(res_odd_quote.is_ok(), "奇数个引号输入不能导致 FTS 语法崩溃");
+
+    let res_single_quote = repo.query_items(&QueryFilter {
+        search_query: Some("\"".to_string()),
+        limit: 10,
+        ..Default::default()
+    });
+    assert!(res_single_quote.is_ok(), "单个引号不能导致 FTS 语法崩溃");
+
+    // 3. FTS5 保留关键字（AND / OR / NOT / NEAR / *）作为搜索词：必须安全转义为普通字面量匹配
+    let res_fts_keywords = repo.query_items(&QueryFilter {
+        search_query: Some("AND OR NOT NEAR".to_string()),
+        limit: 10,
+        ..Default::default()
+    });
+    assert!(res_fts_keywords.is_ok(), "FTS5 关键字查询必须安全转义为字面量");
+    let ids_keywords: Vec<String> = res_fts_keywords.unwrap().into_iter().map(|it| it.id).collect();
+    assert!(ids_keywords.contains(&"id-sym".to_string()), "必须命中包含 logic AND or NOT test 的条目");
+
+    // 4. 星号通配符与括号：确保安全处理
+    let res_wildcard = repo.query_items(&QueryFilter {
+        search_query: Some("*(b + c)*".to_string()),
+        limit: 10,
+        ..Default::default()
+    });
+    assert!(res_wildcard.is_ok(), "含星号和括号的算式检索必须安全处理");
+}

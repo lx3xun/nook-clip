@@ -16,6 +16,36 @@ pub struct StorageRepository {
     assets_dir: Mutex<Option<PathBuf>>,
 }
 
+/// 时间锚点聚合所需的时区边界（由调用方按 CalendarContext 的目标时区算好）。
+/// SQLite 自身无时区概念，所有本地日/周/月边界都以 Unix 秒传入。
+pub struct TimelineBoundaries {
+    /// 今天 00:00（本地）对应的 Unix 秒
+    pub today_start: f64,
+    /// 昨天 00:00（本地）
+    pub yesterday_start: f64,
+    /// 本周起始（本地，按 first_weekday）
+    pub this_week_start: f64,
+    /// 上周起始（本地，按 first_weekday）
+    pub last_week_start: f64,
+    /// 当前本地年份（区分「本年度月份桶」与「更早年度年桶」）
+    pub current_year: i32,
+    /// 本地月份起点，按时间降序 (year, month, start_unix_secs)
+    pub month_starts: Vec<(i32, u32, f64)>,
+}
+
+/// 时间锚点计数行：第一行为「今天/昨天/本周/上周」四个近端计数，
+/// 其余每行一个更早的本地月份桶（year/month/year_count）。
+pub struct AnchorCountRow {
+    pub today_count: u32,
+    pub yesterday_count: u32,
+    pub this_week_count: u32,
+    pub last_week_count: u32,
+    pub last_used_at: f64,
+    pub year: Option<i32>,
+    pub month: Option<u32>,
+    pub year_count: u32,
+}
+
 /// 派生分类（kind）过滤：query_items 与 time_group_timestamps 共用。
 /// 入库与迁移时已将 classify_kind 结果持久化到 clip_items.kind（code/json 归一为 'code'），
 /// 查询与时间戳聚合直接走 idx_clip_items_kind 索引，O(log N) 完成过滤。
@@ -99,6 +129,7 @@ impl StorageRepository {
             assets_dir: Mutex::new(None),
         })
     }
+
 
     pub fn set_assets_dir<P: AsRef<Path>>(&self, dir: Option<P>) {
         *self.assets_dir.lock() = dir.map(|p| p.as_ref().to_path_buf());
@@ -447,14 +478,27 @@ impl StorageRepository {
             },
         )?;
 
+        // clip_items.rowid：FTS 定位用（不变量 clip_fts.rowid == clip_items.rowid）。
+        // 单独一次主键查询，避免在 FTS 的 DELETE/INSERT 里各嵌一次全表子查询。
+        let target_rowid: i64 = tx
+            .query_row(
+                "SELECT rowid FROM clip_items WHERE id = ?1",
+                params![&target_id],
+                |r| r.get(0),
+            )
+            .unwrap_or(-1);
+
         // 6. Update clip_fts:
         // FTS5 按 rowid 定位：clip_id 是 UNINDEXED 列，按其删除/更新需全表扫描（O(N)，
         // 批量场景退化为 O(N²)）。不变量：clip_fts.rowid == clip_items.rowid。
+        // rowid 已由上方 SELECT（ci.rowid）取出，直接传数字，免两次子查询全表扫。
         // 敏感条目收录 title 供别名检索，正文/OCR/来源全部留空以防明文泄密。
-        tx.execute(
-            "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
-            params![&target_id],
-        )?;
+        if target_rowid >= 0 {
+            tx.execute(
+                "DELETE FROM clip_fts WHERE rowid = ?1",
+                params![target_rowid],
+            )?;
+        }
         let (fts_summary, fts_ocr, fts_app_name, fts_bundle_id) = if persisted.is_sensitive {
             ("", "", "", "")
         } else {
@@ -465,21 +509,24 @@ impl StorageRepository {
                 persisted.source_app_bundle_id.as_deref().unwrap_or(""),
             )
         };
-        tx.execute(
-            r#"
-            INSERT INTO clip_fts (
-                rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-            ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, ?3, ?4, ?5, ?6)
-            "#,
-            params![
-                &persisted.title,
-                fts_summary,
-                fts_ocr,
-                fts_app_name,
-                fts_bundle_id,
-                &target_id,
-            ],
-        )?;
+        if target_rowid >= 0 {
+            tx.execute(
+                r#"
+                INSERT INTO clip_fts (
+                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "#,
+                params![
+                    target_rowid,
+                    &persisted.title,
+                    fts_summary,
+                    fts_ocr,
+                    fts_app_name,
+                    fts_bundle_id,
+                    &target_id,
+                ],
+            )?;
+        }
 
         Ok(persisted)
     }
@@ -550,6 +597,69 @@ impl StorageRepository {
 
         (fts_join, conditions, params)
     }
+    /// 按 id 集合批量取摘要（参数化 IN，一次查询替代逐 ID N 次往返）。
+    /// 批量粘贴等场景用于一次拿到全部目标条目。
+    pub fn query_items_by_ids(&self, ids: &[String]) -> Result<Vec<ClipItemSummary>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let assets_dir = self.assets_dir();
+        let conn = self.conn.lock();
+
+        let placeholders = vec!["?"; ids.len()].join(",");
+        let sql = format!(
+            r#"
+            SELECT ci.id, ci.item_type, ci.title,
+                   CASE WHEN ci.is_sensitive = 0 AND cp.raw_text IS NOT NULL AND cp.raw_text != '' THEN cp.raw_text ELSE ci.summary END,
+                   ci.created_at, ci.last_used_at,
+                   ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
+                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
+                   ci.source_device_id, ci.source_device_name, ci.source_platform
+            FROM clip_items ci
+            LEFT JOIN clip_payloads cp ON ci.id = cp.id
+            WHERE ci.id IN ({placeholders}) AND ci.deleted_at IS NULL
+            "#
+        );
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(ids.iter()), |row| {
+            let item_type: String = row.get(1)?;
+            let stored_path: Option<String> = row.get(12)?;
+            let resolved_path = PayloadAssetStore::resolve_for_runtime(
+                &item_type,
+                stored_path.as_deref(),
+                assets_dir.as_deref(),
+            );
+            Ok(ClipItemSummary {
+                id: row.get(0)?,
+                item_type,
+                title: row.get(2)?,
+                summary: row.get(3)?,
+                created_at: row.get(4)?,
+                last_used_at: row.get(5)?,
+                copy_count: row.get(6)?,
+                favorite: row.get::<_, i64>(7)? == 1,
+                source_app_bundle_id: row.get(8)?,
+                source_app_name: row.get(9)?,
+                is_sensitive: row.get::<_, i64>(10)? == 1,
+                deleted_at: row.get(11)?,
+                payload_path: resolved_path,
+                ocr_text: row.get(13)?,
+                metadata_json: row.get(14)?,
+                kind: row.get(15)?,
+                source_device_id: row.get(16)?,
+                source_device_name: row.get(17)?,
+                source_platform: row.get(18)?,
+            })
+        })?;
+
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     pub fn query_items(&self, filter: &QueryFilter) -> Result<Vec<ClipItemSummary>> {
         let assets_dir = self.assets_dir();
         let conn = self.conn.lock();
@@ -748,6 +858,177 @@ impl StorageRepository {
         }
 
         Ok(timestamps)
+    }
+
+    /// 时间锚点计数的 SQL 内聚合版：不把全库时间戳搬进内存。
+    /// 调用方（query_snapshot）只关心每个时间桶的条数，因此按
+    /// caller 提供的 4 个时区边界常量在 SQLite 内直接分桶，
+    /// 万级历史下省掉「数万 f64 传输 + chrono 逐条换算」。
+    /// 保留 time_group_timestamps 给需要原始时间戳的调用方（Swift 侧时间轴）。
+    pub fn time_group_anchor_counts(
+        &self,
+        filter: &QueryFilter,
+        boundaries: &TimelineBoundaries,
+    ) -> Result<Vec<AnchorCountRow>> {
+        let conn = self.conn.lock();
+
+        let (fts_join, mut conditions, mut params) = Self::build_search_conditions(
+            filter.include_deleted,
+            filter.favorite_only,
+            filter.item_type.as_deref(),
+            filter.search_query.as_deref(),
+            filter.id.as_deref(),
+        );
+
+        let derived = DerivedKindFilter::new(filter.kind.as_deref());
+        derived.push_sql_conditions(&mut conditions);
+
+        let where_clause = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", conditions.join(" AND "))
+        };
+
+        let need_payload_join = conditions.iter().any(|c| c.contains("cp."));
+        let payload_join = if need_payload_join {
+            "LEFT JOIN clip_payloads cp ON ci.id = cp.id"
+        } else {
+            ""
+        };
+
+        // 四个边界以 Unix 秒常量参与比较：today/yesterday/this-week/last-week
+        // 起点由调用方按目标时区算好后传入。
+        params.push(Box::new(boundaries.today_start));
+        params.push(Box::new(boundaries.yesterday_start));
+        params.push(Box::new(boundaries.this_week_start));
+        params.push(Box::new(boundaries.last_week_start));
+        let p_today = params.len() - 3;
+        let p_yesterday = params.len() - 2;
+        let p_this_week = params.len() - 1;
+        let p_last_week = params.len();
+
+        let sql = format!(
+            r#"
+            SELECT
+                COUNT(CASE WHEN ci.last_used_at >= ?{p_today} THEN 1 END) AS today_count,
+                COUNT(CASE WHEN ci.last_used_at >= ?{p_yesterday} AND ci.last_used_at < ?{p_today} THEN 1 END) AS yesterday_count,
+                COUNT(CASE WHEN ci.last_used_at >= ?{p_this_week} AND ci.last_used_at < ?{p_yesterday} THEN 1 END) AS this_week_count,
+                COUNT(CASE WHEN ci.last_used_at >= ?{p_last_week} AND ci.last_used_at < ?{p_this_week}
+                            AND NOT (ci.last_used_at >= ?{p_yesterday} AND ci.last_used_at < ?{p_today})
+                      THEN 1 END) AS last_week_count,
+                0 AS month_bucket,
+                0.0 AS last_used_at
+            FROM clip_items ci
+            {payload_join}
+            {fts_join}
+            {where_clause}
+            "#
+        );
+
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let mut stmt = conn.prepare(&sql)?;
+        let first = stmt.query_row(param_refs.as_slice(), |row| {
+            Ok(AnchorCountRow {
+                today_count: row.get::<_, i64>(0)? as u32,
+                yesterday_count: row.get::<_, i64>(1)? as u32,
+                this_week_count: row.get::<_, i64>(2)? as u32,
+                last_week_count: row.get::<_, i64>(3)? as u32,
+                last_used_at: 0.0,
+                year: None,
+                month: None,
+                year_count: 0,
+            })
+        })?;
+
+        // 月份 / 年份桶按本地时区切分。SQLite 没有时区概念（strftime 走 UTC），
+        // 因此本地月份起点由调用方算好随 boundaries 传入，SQL 内用 CASE 归类。
+        // 桶 id 与 group_timestamps 对齐：本年度条目 → 'month-{M}'，
+        // 更早年度 → 'year-{Y}'（current_year 由调用方一并给出）。
+        // 无月份边界时直接返回近端计数：CASE 不能只有 ELSE 分支（SQL 语法错误）。
+        if boundaries.month_starts.is_empty() {
+            return Ok(vec![first]);
+        }
+        let current_year = boundaries.current_year;
+        let month_case = {
+            let mut branches = Vec::new();
+            for (year, month, start_ts) in &boundaries.month_starts {
+                if *year == current_year {
+                    branches.push(format!(
+                        "WHEN ci.last_used_at >= {start_ts:.3} THEN 'month-{month:02}'"
+                    ));
+                } else if *month == 1 {
+                    // 年桶下界必须取该年 1 月 1 日：若用 12 月起算，
+                    // 上一年 12 月条目会被误归入下一年。
+                    branches.push(format!(
+                        "WHEN ci.last_used_at >= {start_ts:.3} THEN 'year-{year}'"
+                    ));
+                }
+            }
+            format!("{} ELSE 'older'", branches.join(" "))
+        };
+
+        // month_starts 覆盖本年度各月及回溯至 1970 的各年份起点
+        let month_where = if where_clause.is_empty() {
+            format!("WHERE ci.last_used_at < ?{p_last_week}")
+        } else {
+            format!("{where_clause} AND ci.last_used_at < ?{p_last_week}")
+        };
+
+
+        let month_sql = format!(
+            r#"
+            SELECT CASE
+                {month_case}
+            END AS bucket, COUNT(*) AS c
+            FROM clip_items ci
+            {payload_join}
+            {fts_join}
+            {month_where}
+            GROUP BY bucket
+            ORDER BY
+                CASE WHEN bucket LIKE 'month-%' THEN 0 ELSE 1 END,
+                CAST(SUBSTR(bucket, INSTR(bucket, '-') + 1) AS INTEGER) DESC
+            "#
+        );
+        let mut month_stmt = conn.prepare(&month_sql)?;
+        let month_rows = month_stmt.query_map(param_refs.as_slice(), |row| {
+            let bucket: String = row.get(0)?;
+            let count: i64 = row.get(1)?;
+            Ok((bucket, count as u32))
+        })?;
+
+        let mut out = vec![first];
+        for r in month_rows {
+            let (bucket, count) = r?;
+            // bucket 形如 "month-09"（本年度）或 "year-2025"（更早年度）
+            if let Some(rest) = bucket.strip_prefix("month-") {
+                let month = rest.parse::<u32>().unwrap_or(0);
+                // month- 桶的年份 = current_year
+                out.push(AnchorCountRow {
+                    today_count: 0,
+                    yesterday_count: 0,
+                    this_week_count: 0,
+                    last_week_count: 0,
+                    last_used_at: 0.0,
+                    year: Some(current_year),
+                    month: Some(month),
+                    year_count: count,
+                });
+            } else if let Some(rest) = bucket.strip_prefix("year-") {
+                let year = rest.parse::<i32>().unwrap_or(0);
+                out.push(AnchorCountRow {
+                    today_count: 0,
+                    yesterday_count: 0,
+                    this_week_count: 0,
+                    last_week_count: 0,
+                    last_used_at: 0.0,
+                    year: Some(year),
+                    month: None,
+                    year_count: count,
+                });
+            }
+        }
+        Ok(out)
     }
 
     pub fn get_item_detail(&self, id: &str) -> Result<ClipItemDetail> {
@@ -1127,6 +1408,65 @@ impl StorageRepository {
         Ok(())
     }
 
+    /// 批量硬删除一组条目（同事务内）：墓碑 → FTS → payloads → items。
+    /// 分块执行集合级 SQL，把每条的 4~5 次往返降为每块 4 次。
+    /// 不变量：clip_fts.rowid == clip_items.rowid，故 FTS 按 rowid 集合删。
+    fn batch_hard_delete_in_tx(
+        tx: &rusqlite::Transaction<'_>,
+        candidates: &[(String, i64)],
+    ) -> Result<()> {
+        if candidates.is_empty() {
+            return Ok(());
+        }
+        let now = Self::unix_now();
+        const CHUNK: usize = 100;
+
+        for chunk in candidates.chunks(CHUNK) {
+            let rowids: Vec<i64> = chunk
+                .iter()
+                .filter(|(_, rowid)| *rowid >= 0)
+                .map(|(_, rowid)| *rowid)
+                .collect();
+
+            // 墓碑：按 ID 批量 INSERT ... SELECT（同步语义：客户端按 ID 收敛删除）
+            let ids_json = serde_json::to_string(
+                &chunk.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            )
+            .unwrap_or_else(|_| "[]".to_string());
+            tx.execute(
+                "INSERT OR REPLACE INTO sync_tombstones (id, deleted_at) \
+                 SELECT value, ?1 FROM json_each(?2)",
+                params![now, ids_json],
+            )?;
+
+            if !rowids.is_empty() {
+                let rowid_list = rowids
+                    .iter()
+                    .map(|r| r.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                tx.execute(
+                    &format!("DELETE FROM clip_fts WHERE rowid IN ({rowid_list})"),
+                    [],
+                )?;
+            }
+            let id_params = chunk
+                .iter()
+                .map(|(id, _)| id.clone())
+                .collect::<Vec<_>>();
+            let id_placeholders = vec!["?"; id_params.len()].join(",");
+            tx.execute(
+                &format!("DELETE FROM clip_payloads WHERE id IN ({id_placeholders})"),
+                rusqlite::params_from_iter(id_params.iter()),
+            )?;
+            tx.execute(
+                &format!("DELETE FROM clip_items WHERE id IN ({id_placeholders})"),
+                rusqlite::params_from_iter(id_params.iter()),
+            )?;
+        }
+        Ok(())
+    }
+
     pub fn update_ocr_text(&self, id: &str, ocr_text: &str) -> Result<()> {
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
@@ -1251,7 +1591,8 @@ impl StorageRepository {
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
 
-        let mut candidate_ids: Vec<String> = Vec::new();
+        // 候选条目直接带出 rowid/item_type/payload_path，删除阶段无需逐条反查
+        let mut candidates: Vec<(String, i64, String, Option<String>)> = Vec::new();
 
         // 1. Prune by max age
         if let Some(days) = config.max_age_days {
@@ -1259,11 +1600,14 @@ impl StorageRepository {
                 let cutoff = Self::unix_now() - (days as f64 * 86400.0);
                 // 只清活跃条目：软删除条目在撤销宽限窗口内，由回收站路径处理
                 let mut stmt = tx.prepare(
-                    "SELECT id FROM clip_items WHERE favorite = 0 AND deleted_at IS NULL AND last_used_at < ?1",
+                    "SELECT id, rowid, item_type, payload_path FROM clip_items \
+                     WHERE favorite = 0 AND deleted_at IS NULL AND last_used_at < ?1",
                 )?;
-                let rows = stmt.query_map(params![cutoff], |r| r.get(0))?;
+                let rows = stmt.query_map(params![cutoff], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+                })?;
                 for r in rows {
-                    candidate_ids.push(r?);
+                    candidates.push(r?);
                 }
             }
         }
@@ -1279,11 +1623,15 @@ impl StorageRepository {
                 if total > max_items as i64 {
                     let excess = total - max_items as i64;
                     let mut stmt = tx.prepare(
-                        "SELECT id FROM clip_items WHERE favorite = 0 AND deleted_at IS NULL ORDER BY last_used_at ASC LIMIT ?1",
+                        "SELECT id, rowid, item_type, payload_path FROM clip_items \
+                         WHERE favorite = 0 AND deleted_at IS NULL \
+                         ORDER BY last_used_at ASC LIMIT ?1",
                     )?;
-                    let rows = stmt.query_map(params![excess], |r| r.get(0))?;
+                    let rows = stmt.query_map(params![excess], |r| {
+                        Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+                    })?;
                     for r in rows {
-                        candidate_ids.push(r?);
+                        candidates.push(r?);
                     }
                 }
             }
@@ -1295,38 +1643,32 @@ impl StorageRepository {
             params![Self::unix_now() - crate::sync::TOMBSTONE_RETENTION_SECS],
         )?;
 
-        if candidate_ids.is_empty() {
+        if candidates.is_empty() {
             tx.commit()?;
             return Ok(Vec::new());
         }
 
-        candidate_ids.sort();
-        candidate_ids.dedup();
+        // 按 id 去重（两条规则可能命中同一行）
+        candidates.sort_by(|a, b| a.0.cmp(&b.0));
+        candidates.dedup_by(|a, b| a.0 == b.0);
 
-        let mut records = Vec::new();
-        for id in &candidate_ids {
-            let (rowid, item_type, stored_path): (i64, String, Option<String>) = tx
-                .query_row(
-                    "SELECT rowid, item_type, payload_path FROM clip_items WHERE id = ?1",
-                    params![id],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-                )
-                .unwrap_or((-1, String::new(), None));
+        let mut records = Vec::with_capacity(candidates.len());
+        for (id, _, item_type, stored_path) in &candidates {
             records.push(PrunedItemRecord {
                 id: id.clone(),
                 payload_path: PayloadAssetStore::resolve_for_runtime(
-                    &item_type,
+                    item_type,
                     stored_path.as_deref(),
                     assets_dir.as_deref(),
                 ),
             });
-            Self::record_tombstone_in_tx(&tx, id)?;
-            if rowid >= 0 {
-                tx.execute("DELETE FROM clip_fts WHERE rowid = ?1", params![rowid])?;
-            }
-            tx.execute("DELETE FROM clip_payloads WHERE id = ?1", params![id])?;
-            tx.execute("DELETE FROM clip_items WHERE id = ?1", params![id])?;
         }
+
+        let id_rowids: Vec<(String, i64)> = candidates
+            .into_iter()
+            .map(|(id, rowid, _, _)| (id, rowid))
+            .collect();
+        Self::batch_hard_delete_in_tx(&tx, &id_rowids)?;
 
         tx.commit()?;
         Ok(records)
@@ -1410,19 +1752,23 @@ impl StorageRepository {
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
         let mut records = Vec::with_capacity(to_evict.len());
+        let mut id_rowids: Vec<(String, i64)> = Vec::with_capacity(to_evict.len());
         for (id, path_str) in to_evict {
-            Self::record_tombstone_in_tx(&tx, &id)?;
-            tx.execute(
-                "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
-                params![&id],
-            )?;
-            tx.execute("DELETE FROM clip_payloads WHERE id = ?1", params![&id])?;
-            tx.execute("DELETE FROM clip_items WHERE id = ?1", params![&id])?;
+            // rowid 在事务内取一次：FTS 按 rowid 删比子查询全表扫便宜
+            let rowid: i64 = tx
+                .query_row(
+                    "SELECT rowid FROM clip_items WHERE id = ?1",
+                    params![&id],
+                    |r| r.get(0),
+                )
+                .unwrap_or(-1);
+            id_rowids.push((id.clone(), rowid));
             records.push(PrunedItemRecord {
                 id,
                 payload_path: Some(path_str),
             });
         }
+        Self::batch_hard_delete_in_tx(&tx, &id_rowids)?;
         tx.commit()?;
         Ok(records)
     }
@@ -1966,17 +2312,26 @@ impl StorageRepository {
         mode: crate::exchange::SensitiveExportMode,
     ) -> Result<Vec<crate::exchange::export::BackupExportItem>> {
         let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        // 排除敏感数据时在 SQL 层过滤：避免先 LEFT JOIN 拉出大体积密文/nonce
+        // 再在 Rust 侧丢弃（万级历史 + 大载荷时白读几百 MB）。
+        let exclude_sensitive = matches!(mode, crate::exchange::SensitiveExportMode::Exclude);
+        let sensitive_clause = if exclude_sensitive {
+            " AND ci.is_sensitive = 0"
+        } else {
+            ""
+        };
+        let sql = format!(
             r#"
             SELECT ci.id, ci.item_type, ci.title, ci.summary, cp.raw_text,
                    cp.encrypted_content, cp.nonce, ci.is_sensitive, ci.favorite,
                    ci.created_at, ci.last_used_at, ci.copy_count
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
-            WHERE ci.deleted_at IS NULL
+            WHERE ci.deleted_at IS NULL{sensitive_clause}
             ORDER BY ci.last_used_at DESC
-            "#,
-        )?;
+            "#
+        );
+        let mut stmt = conn.prepare(&sql)?;
 
         let rows = stmt.query_map([], |row| {
             let id: String = row.get(0)?;

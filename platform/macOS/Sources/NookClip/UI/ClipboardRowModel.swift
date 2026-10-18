@@ -143,6 +143,8 @@ struct ClipboardRowModel: Identifiable, Equatable {
     let sourceDeviceId: String?
     let sourceDeviceName: String?
     let sourcePlatform: String?
+    /// lastUsedAt 的相对时间展示文本，构造期算一次（视图只读，避免每行重复 Calendar 计算）
+    let timestampText: String
 
     var sourceDisplayName: String {
         let appName = source.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -273,6 +275,9 @@ struct ClipboardRowModel: Identifiable, Equatable {
         colorHex = derivedColorHex
         rgbValue = derivedRgb
         payloadPath = item.payloadPath
+        // 相对时间字符串构造期算一次：body 与无障碍摘要会各读一次，
+        // 放在视图里会导致每行重复执行 Calendar 计算（列表高频求值时开销显著）
+        timestampText = RelativeTime.string(from: item.lastUsedAt)
     }
 
     /// 副行展示文本：image 剥离捕获侧拼接的 ` #hash前8位` 尾巴（ClipboardMonitor.swift:193-198），

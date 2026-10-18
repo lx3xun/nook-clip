@@ -138,10 +138,13 @@ struct HistorySettingsTab: View {
                         .onChange(of: syncMode) { _, newMode in
                             guard let engine = historyStore?.syncEngine else { return }
                             engine.syncMode = newMode
-                            // 切换同步方式时，立即载入对应通道专属的配置（加密开关、专属口令、敏感同步状态）
+                            // 切换同步方式时，按需载入对应通道专属的配置（未开启加密或非 WebDAV 时不触碰 Keychain）
                             isE2EEEnabled = engine.isE2EEEnabled
-                            e2eePassphrase = engine.e2eePassphrase
+                            e2eePassphrase = isE2EEEnabled ? engine.e2eePassphrase : ""
                             syncSensitiveItems = engine.syncSensitiveItems
+                            if newMode == .webdav {
+                                webDavPassword = engine.webDavPassword
+                            }
                         }
                     }
 
@@ -228,6 +231,9 @@ struct HistorySettingsTab: View {
                             .labelsHidden()
                             .onChange(of: isE2EEEnabled) { _, enabled in
                                 historyStore?.syncEngine.isE2EEEnabled = enabled
+                                if enabled, let engine = historyStore?.syncEngine {
+                                    e2eePassphrase = engine.e2eePassphrase
+                                }
                             }
                     }
 
@@ -430,9 +436,9 @@ struct HistorySettingsTab: View {
                 syncMode = engine.syncMode
                 webDavUrl = engine.webDavURL
                 webDavUsername = engine.webDavUsername
-                webDavPassword = engine.webDavPassword
+                webDavPassword = (engine.syncMode == .webdav) ? engine.webDavPassword : ""
                 isE2EEEnabled = engine.isE2EEEnabled
-                e2eePassphrase = engine.e2eePassphrase
+                e2eePassphrase = engine.isE2EEEnabled ? engine.e2eePassphrase : ""
                 syncSensitiveItems = engine.syncSensitiveItems
             }
         }

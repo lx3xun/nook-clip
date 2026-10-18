@@ -24,6 +24,10 @@ extension MainView {
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPopoverDidOpen)) { _ in
             resetSessionState()
+            // 相对时间文案按分钟变化：面板每次呼出时重算行模型，
+            // 避免长驻期间「刚刚」永不更新
+            listState.rowCache.invalidate()
+            listState.refreshLocalizedOutput()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             accessibilityTrusted = PasteService.isAccessibilityTrusted

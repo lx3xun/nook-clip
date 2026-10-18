@@ -90,6 +90,7 @@ final class KeyboardShortcutTests: XCTestCase {
     /// 等待 MainView onAppear 完成并在面板上安装键盘动作表
     private func waitForKeyWiring(_ panel: DraggablePanel) {
         waitFor("键盘动作表接线且成为 KeyWindow") { panel.keyActions != nil && panel.hasKeyFocus }
+        runLoop(0.15)
     }
 
     /// 轮询等待条件成立（每次 50ms，默认 2s 超时后以消息失败）
@@ -579,7 +580,9 @@ final class KeyboardShortcutTests: XCTestCase {
 
         typeText("renamed", to: panel)
         sendKey(kVK_Return, "\r", to: panel)
-
+        waitFor("别名已提交并写入历史条目") {
+            store.items.first(where: { $0.summary == "Charlie" })?.title == "renamed"
+        }
         XCTAssertEqual(store.items.first(where: { $0.summary == "Charlie" })?.title, "renamed",
                        "⌘R + 输入 + ⏎ 应提交别名")
     }

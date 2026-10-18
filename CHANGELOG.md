@@ -23,6 +23,24 @@
 ## [Unreleased]
 
 ### 🚀 性能优化 (Performance)
+- **锚点时间分组改为 SQL 内聚合**：时间导航锚点不再把全库 `last_used_at` 搬进内存再逐条换算时区，改为按本地日/周/月边界在 SQLite 内直接分桶（`time_group_anchor_counts`）；分组结果与旧算法逐项一致（含 UTC+8 / UTC-5 校验用例）。
+  *Timeline anchor counts now aggregate inside SQLite against precomputed local day/week/month boundaries instead of transferring the full timestamp set into memory and converting each entry; grouping output verified identical to the previous algorithm across multiple time zones.*
+
+- **淘汰与驱逐批量化**：保留期清理与磁盘配额驱逐从每条约 5 条 SQL（2500 次/500 条）降为每 100 条一次集合操作；FTS 维护改用已取出的 rowid 数字，去掉 `(SELECT rowid …)` 全表子查询。
+  *Retention pruning and disk-limit eviction now run chunked set-based SQL instead of ~5 statements per item; FTS maintenance uses the already-fetched rowid, eliminating full-table subqueries.*
+
+- **批量粘贴与文本摄取去重**：批量粘贴一次 `WHERE id IN (...)` 取回全部条目摘要，替代逐 ID 查询；文本摄取复用首次敏感检测结论，非敏感分支不再重复跑同一套敏感正则。
+  *Batch paste now fetches all item summaries in a single `WHERE id IN (…)` query instead of one query per id; text ingest reuses the first sensitivity detection result so the non-sensitive branch no longer re-runs the same pattern set.*
+
+- **消除热路径堆分配**：搜索高亮把逐字符 `to_lowercase()` 堆分配改为整段一次小写 + 段区间反查；语言识别对静态大小写不敏感标记改预算小写查找表；时间线分组的「上周」基准提到循环外一次推导。
+  *Removed hot-path heap allocations: search highlight lowercases the whole text once and maps hits back to character ranges instead of allocating a String per character; language detection uses a precomputed lowercase lookup for static case-insensitive markers; the "last week" reference in timeline grouping is now derived once outside the loop.*
+
+- **交互响应优化**：应用搜索索引首次构建移出主线程（输入即有结果到达前不再阻塞）；预览区完整实体改为按条目异步加载一次并缓存，单帧不再重复跨 FFI 查库；滚动期行坐标写入引用容器，吸顶组经节流合并为一次性状态更新（根视图不再以帧率重求值）；列表行相对时间构造期算一次。
+  *Interaction responsiveness: the app-search index is now built off the main thread; the preview pane loads the full entity once per item asynchronously and caches it instead of querying across FFI multiple times per frame; row frames are stored in a reference container during scrolling with throttled sticky-group updates, so the root view no longer re-evaluates at frame rate; list rows precompute their relative timestamp once.*
+
+- **启动与后台 IO 移出主线程**：孤儿载荷清理、Keychain 口令读取、文件存在性与系统图标加载全部改为后台执行；语法高亮行缓存满容时整体淘汰并接入面板闲置回收，搜索高亮缓存同步清理。
+  *Startup and background IO moved off the main thread: orphan payload sweeping, Keychain passphrase reads, file existence checks and system icon loading all run in background tasks; the syntax-highlight line cache evicts when full and is cleared on panel idle reclaim, alongside the search-highlight cache.*
+
 - **调整历史保留天数与磁盘限额默认值**：历史保留天数默认值调整为半年（180 天，原为 30 天）；磁盘空间上限默认值调整为 5GB（5120MB，原为无限制），防止媒体载荷长期累积占满磁盘。
   *Default storage policy adjustments: History retention default changed to 6 months (180 days, previously 30 days); disk space limit default changed to 5GB (5120MB, previously unlimited) to prevent unbounded asset accumulation.*
 

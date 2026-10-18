@@ -22,9 +22,12 @@ pub fn group_items_by_timeline(
     let yesterday_date = today_date.pred_opt().unwrap_or(today_date);
     let current_year = now_local.year();
 
-    // 计算本周与上周的周界
+    // 计算本周与上周的周界（循环外一次推导，避免每条目重复时间减法与 ISO 周换算）
     let this_week_num = now_local.iso_week().week();
     let this_week_year = now_local.iso_week().year();
+    let last_week_ref = now_local - chrono::Duration::days(7);
+    let last_week_num = last_week_ref.iso_week().week();
+    let last_week_year = last_week_ref.iso_week().year();
 
     let mut today_items = Vec::new();
     let mut yesterday_items = Vec::new();
@@ -46,8 +49,7 @@ pub fn group_items_by_timeline(
             this_week_items.push(item);
         } else {
             // 判定是否属于上周 (相对于本周前推 7 天对应的那一周)
-            let last_week_ref = now_local - chrono::Duration::days(7);
-            if dt_local.iso_week().week() == last_week_ref.iso_week().week() && dt_local.iso_week().year() == last_week_ref.iso_week().year() {
+            if dt_local.iso_week().week() == last_week_num && dt_local.iso_week().year() == last_week_year {
                 last_week_items.push(item);
             } else if dt_local.year() == current_year {
                 month_buckets.entry((dt_local.year(), dt_local.month())).or_default().push(item);
@@ -125,6 +127,10 @@ pub fn group_timestamps(
     let current_year = now_local.year();
     let this_week_num = now_local.iso_week().week();
     let this_week_year = now_local.iso_week().year();
+    // 上周基准在循环外一次推导，循环内只比对数字
+    let last_week_ref = now_local - chrono::Duration::days(7);
+    let last_week_num = last_week_ref.iso_week().week();
+    let last_week_year = last_week_ref.iso_week().year();
 
     let mut today_count = 0u32;
     let mut yesterday_count = 0u32;
@@ -145,8 +151,7 @@ pub fn group_timestamps(
         } else if dt_local.iso_week().week() == this_week_num && dt_local.iso_week().year() == this_week_year {
             this_week_count += 1;
         } else {
-            let last_week_ref = now_local - chrono::Duration::days(7);
-            if dt_local.iso_week().week() == last_week_ref.iso_week().week() && dt_local.iso_week().year() == last_week_ref.iso_week().year() {
+            if dt_local.iso_week().week() == last_week_num && dt_local.iso_week().year() == last_week_year {
                 last_week_count += 1;
             } else if dt_local.year() == current_year {
                 *month_counts.entry((dt_local.year(), dt_local.month())).or_default() += 1;
@@ -200,6 +205,63 @@ pub fn group_timestamps(
         });
     }
 
+    summaries
+}
+
+/// 把 SQL 聚合出的锚点计数行转换为 TimeGroupSummary（供 query_snapshot 用）。
+/// 第一行是四个近端计数，后续每行一个更早的本地月份桶（降序）。
+pub fn anchor_rows_to_summaries(rows: &[crate::storage::repository::AnchorCountRow]) -> Vec<TimeGroupSummary> {
+    let mut summaries = Vec::new();
+    let Some(first) = rows.first() else {
+        return summaries;
+    };
+
+    if first.today_count > 0 {
+        summaries.push(TimeGroupSummary {
+            id: "today".to_string(),
+            bucket: TimeBucketKey::Today,
+            count: first.today_count,
+        });
+    }
+    if first.yesterday_count > 0 {
+        summaries.push(TimeGroupSummary {
+            id: "yesterday".to_string(),
+            bucket: TimeBucketKey::Yesterday,
+            count: first.yesterday_count,
+        });
+    }
+    if first.this_week_count > 0 {
+        summaries.push(TimeGroupSummary {
+            id: "this-week".to_string(),
+            bucket: TimeBucketKey::ThisWeek,
+            count: first.this_week_count,
+        });
+    }
+    if first.last_week_count > 0 {
+        summaries.push(TimeGroupSummary {
+            id: "last-week".to_string(),
+            bucket: TimeBucketKey::LastWeek,
+            count: first.last_week_count,
+        });
+    }
+    for row in &rows[1..] {
+        if row.year_count == 0 {
+            continue;
+        }
+        if let Some(year) = row.year.filter(|_| row.month.is_none()) {
+            summaries.push(TimeGroupSummary {
+                id: format!("year-{year}"),
+                bucket: TimeBucketKey::Year { year },
+                count: row.year_count,
+            });
+        } else if let (Some(year), Some(month)) = (row.year, row.month) {
+            summaries.push(TimeGroupSummary {
+                id: format!("month-{month}"),
+                bucket: TimeBucketKey::Month { year, month },
+                count: row.year_count,
+            });
+        }
+    }
     summaries
 }
 

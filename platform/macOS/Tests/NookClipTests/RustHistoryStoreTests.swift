@@ -346,7 +346,8 @@ final class RustHistoryStoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: keyDir) }
         let keychain = KeychainCryptoService(
             keyFileURL: keyDir.appendingPathComponent("master.key"),
-            keychainService: "test.nook.\(UUID().uuidString)"
+            keychainService: "test.nook.\(UUID().uuidString)",
+            keychainBackupEnabled: false
         )
         let suiteName = "test.nook.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -384,7 +385,8 @@ final class RustHistoryStoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: keyDir) }
         let keychain = KeychainCryptoService(
             keyFileURL: keyDir.appendingPathComponent("master.key"),
-            keychainService: "test.nook.\(UUID().uuidString)"
+            keychainService: "test.nook.\(UUID().uuidString)",
+            keychainBackupEnabled: false
         )
         let suiteName = "test.nook.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

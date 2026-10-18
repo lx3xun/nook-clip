@@ -80,12 +80,17 @@ struct MainView: View {
     @State var filterState = MainViewFilterState()
     /// 列表滚动代理（⌘T / 时间定位滚动用；itemList onAppear 注入）
     @State var scrollProxy: ScrollViewProxy?
-    /// 列表行实时坐标（列表列坐标系；key = 行 id 字符串），用于精确判定选中行是否被吸顶组头或底栏遮挡
-    @State var rowFrames: [String: CGRect] = [:]
+    /// 列表行实时坐标（列表列坐标系；key = 行 id 字符串）。
+    /// 用引用容器承载而非 @State 字典：滚动时每帧变化，字典作为 @State 会以
+    /// 帧率触发 MainView 整树重求值。容器写入不触发 view 刷新，
+    /// 只在按键滚动定位（scrollRowIntoSafeContentArea）与节流后的吸顶组计算时读取。
+    @State var rowFramesBox = RowFramesBox()
     /// 列表滚动容器（ScrollView）在列表列坐标系中的实时 frame（不含上方固定应用区、时间组头栏及下方底栏）
     @State var listScrollAreaFrame: CGRect = .zero
     /// 导航滚动下一帧复核任务（连发 ↑/↓ 时取消前一次复核，防止过期目标把滚动位置拉乱）
     @State var scrollReconcileTask: Task<Void, Never>?
+    /// 吸顶组节流任务：行坐标帧率变化合并为 ~60ms 一次状态更新
+    @State var stickyRefreshTask: Task<Void, Never>?
     /// 待定位的时间分组（组头尚未被分页加载时先扩页，结果应用后补滚动）
     @State var pendingScrollGroupID: String?
     /// 方向键在末尾触底下翻时记录待推进步长，下一页结果应用后补推进选中项

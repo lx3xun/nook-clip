@@ -29,15 +29,16 @@ extension InMemoryHistoryStore {
         if syncEngine.syncMode == .webdav && syncEngine.webDavURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return
         }
-        if syncEngine.isE2EEEnabled && syncEngine.e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
-            return
-        }
         syncEngine.updateObservableState(.syncing)
-        let options = syncEngine.makeSyncOptions(
+        let options = await syncEngine.makeSyncOptionsAsync(
             deviceId: syncDeviceID,
             localAssetsDir: payloadStore.directory.path
         )
+        // 口令校验基于后台读取结果，避免入口处主线程同步读 Keychain 与 TOCTOU
+        if syncEngine.isE2EEEnabled && options.passphrase == nil {
+            syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
+            return
+        }
         let rustStore = self.rustStore
         do {
             let report = try await Task.detached(priority: .utility) {
@@ -59,7 +60,7 @@ extension InMemoryHistoryStore {
     public func resetSyncPassphrase() async throws {
         guard syncEngine.isEnabled else { return }
         syncEngine.updateObservableState(.syncing)
-        let options = syncEngine.makeSyncOptions(
+        let options = await syncEngine.makeSyncOptionsAsync(
             deviceId: syncDeviceID,
             localAssetsDir: payloadStore.directory.path
         )
@@ -84,15 +85,16 @@ extension InMemoryHistoryStore {
         if syncEngine.syncMode == .webdav && syncEngine.webDavURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return nil
         }
-        if syncEngine.isE2EEEnabled && syncEngine.e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
-            return false
-        }
         syncEngine.markPulled()
-        let options = syncEngine.makeSyncOptions(
+        let options = await syncEngine.makeSyncOptionsAsync(
             deviceId: syncDeviceID,
             localAssetsDir: payloadStore.directory.path
         )
+        // 口令校验基于后台读取结果（避免入口处主线程同步读 Keychain）
+        if syncEngine.isE2EEEnabled && options.passphrase == nil {
+            syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
+            return false
+        }
         let rustStore = self.rustStore
         syncEngine.updateObservableState(.syncing)
         do {

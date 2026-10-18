@@ -22,6 +22,17 @@ pub fn prepare_paste_payload(
     };
     let items = repo.query_items(&filter)?;
     let item = items.into_iter().next().ok_or_else(|| CoreError::NotFound(id.to_string()))?;
+    assemble_paste_payload(repo, _crypto, &item, id, plain_text_only)
+}
+
+/// 单条组装的公共实现（已持有 ClipItemSummary 时调用，避免重复查库）。
+fn assemble_paste_payload(
+    repo: &StorageRepository,
+    _crypto: Option<&CryptoEngine>,
+    item: &crate::model::ClipItemSummary,
+    id: &str,
+    plain_text_only: bool,
+) -> Result<PreparedPastePayload> {
 
     // 1. 文件条目：校验本地文件存在性
     if item.item_type == "file" {
@@ -112,7 +123,7 @@ pub fn prepare_paste_payload(
 
     Ok(PreparedPastePayload {
         item_id: id.to_string(),
-        item_type: item.item_type,
+        item_type: item.item_type.clone(),
         plain_text: Some(effective_text),
         rtf_data,
         image_data: None,
@@ -133,11 +144,27 @@ pub fn prepare_batch_paste_payload(
         return Err(CoreError::InvalidArgument("ids cannot be empty".to_string()));
     }
 
+    // 一次 IN 查询取出全部条目摘要，替代逐 ID 的 N 次 query_items + 加锁。
+    // 敏感条目仍需逐条 get_item_detail 解密（按需解密，不解密无关条目）。
+    let fetched = repo.query_items_by_ids(ids)?;
+    if fetched.is_empty() {
+        return Err(CoreError::NotFound(ids[0].clone()));
+    }
+
+    // 按调用方顺序组装（query_items 的排序与本列表顺序无关）
+    let by_id: std::collections::HashMap<&str, _> = fetched
+        .iter()
+        .map(|item| (item.id.as_str(), item))
+        .collect();
+
     let mut texts = Vec::with_capacity(ids.len());
     let mut any_sensitive = false;
 
     for id in ids {
-        let single = prepare_paste_payload(repo, crypto, id, true)?;
+        let Some(item) = by_id.get(id.as_str()).copied() else {
+            return Err(CoreError::NotFound(id.clone()));
+        };
+        let single = assemble_paste_payload(repo, crypto, item, id, true)?;
         if single.is_sensitive {
             any_sensitive = true;
         }

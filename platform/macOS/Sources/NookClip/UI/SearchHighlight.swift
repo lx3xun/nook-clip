@@ -81,9 +81,64 @@ extension View {
 }
 
 enum SearchHighlight {
-    /// text 中所有关键词的命中区间（升序、跨关键词合并重叠，单轨化委托给 Rust 核心 algorithms::highlight）。
+    /// 命中区间缓存：搜索态每行会调 3 段文本，短文本重复跨 FFI 匹配是主线程热点。
+    /// key 用「文本哈希 + 长度 + 关键词」而不是全文拼接：
+    /// 预览区可能有数千行长文本，把全文当字典 key 会额外复制一份大对象。
+    private static var matchCache: [CacheKey: CacheEntry] = [:]
+    private static let matchCacheCap = 512
+    private static let cacheLock = NSLock()
+
+    private struct CacheKey: Hashable {
+        let textHash: Int
+        let utf8Count: Int
+        let keywords: [String]
+    }
+
+    private struct CacheEntry {
+        let text: String
+        let ranges: [Range<String.Index>]
+    }
+
+    /// 面板闲置回收入口：清空命中区间缓存
+    static func clearCache() {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        matchCache.removeAll()
+    }
+
+    private static func makeKey(text: String, keywords: [String]) -> CacheKey {
+        CacheKey(textHash: text.hashValue, utf8Count: text.utf8.count, keywords: keywords)
+    }
+
     static func matchRanges(in text: String, keywords: [String]) -> [Range<String.Index>] {
         guard !text.isEmpty, !keywords.isEmpty else { return [] }
+        let key = makeKey(text: text, keywords: keywords)
+        cacheLock.lock()
+        // 必须校验底层 UTF-8 序列完全一致：Swift `String ==` 将 NFC 与 NFD 视为相等，
+        // 若跨不同编码长度的字符串直接复用 `String.Index` 会触发下标越界崩溃。
+        if let cached = matchCache[key],
+           cached.text == text,
+           cached.text.utf8.elementsEqual(text.utf8) {
+            cacheLock.unlock()
+            return cached.ranges
+        }
+        cacheLock.unlock()
+
+        let result = computeRanges(in: text, keywords: keywords)
+
+        cacheLock.lock()
+        if matchCache.count >= matchCacheCap {
+            // 淘汰一半而不是全清：全清会让下一帧所有可见行同时穿透重算
+            for oldKey in matchCache.keys.prefix(matchCacheCap / 2) {
+                matchCache.removeValue(forKey: oldKey)
+            }
+        }
+        matchCache[key] = CacheEntry(text: text, ranges: result)
+        cacheLock.unlock()
+        return result
+    }
+
+    private static func computeRanges(in text: String, keywords: [String]) -> [Range<String.Index>] {
         let ffiRanges = matchSearchHighlightRanges(text: text, keywords: keywords)
         guard !ffiRanges.isEmpty else { return [] }
         let utf8 = text.utf8

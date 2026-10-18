@@ -56,6 +56,11 @@ enum SyntaxHighlighter {
     private static var attributedMemo: [String: NSAttributedString] = [:]
     private static let memoCap = 8192
 
+    /// 面板闲置回收入口：清空行着色缓存（正则分词结果是主要富文本常驻来源）
+    static func clearMemo() {
+        attributedMemo.removeAll()
+    }
+
     static func attributedLine(_ line: String) -> NSAttributedString {
         if let cached = attributedMemo[line] { return cached }
         let result = NSMutableAttributedString()
@@ -67,9 +72,12 @@ enum SyntaxHighlighter {
         }
         // 空行不加占位字符：行高由段落样式 minimumLineHeight 保证，
         // 占位空格会污染选择/复制结果
-        if attributedMemo.count < memoCap {
-            attributedMemo[line] = result
+        if attributedMemo.count >= memoCap {
+            // 满容时不无限膨胀：整体清空（下次渲染重新着色）。
+            // 早先是静默停止写入，导致最旧行永久驻留且新行永不命中。
+            attributedMemo.removeAll()
         }
+        attributedMemo[line] = result
         return result
     }
 

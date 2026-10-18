@@ -263,6 +263,8 @@ final class QuickPopoverController: NSObject {
         AppSearchService.shared.clearCache()
         FileStore.shared.clearMemoryCache()
         CodeHighlightService.purgeIdleMemory()
+        SyntaxHighlighter.clearMemo()
+        SearchHighlight.clearCache()
         AppIconBadge.clearIconCache()
         OCREngine.reclaimProcessMemory()
     }

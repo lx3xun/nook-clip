@@ -333,5 +333,36 @@ final class AuditFixRegressionTests: XCTestCase {
         XCTAssertEqual(pruned.first?.id, old.id.uuidString)
         XCTAssertEqual(pruned.first?.payloadPath, payloadPath)
     }
+    // MARK: - 预览区私密记录查看（不预加载明文时按需通过 entityProvider 解密）
 
+    func testPreviewPaneResolvesSensitivePlainTextOnDemandWhenNotPreloaded() {
+        let store = makeIsolatedStore()
+        let secret = "df94e2db9bd390a1dc28792f6cee9434"
+        store.save(ClipboardItem(type: .text, title: "Secret Key", summary: secret))
+        let targetID = store.items[0].id
+        XCTAssertTrue(store.toggleSensitive(targetID))
+
+        let row = ClipboardRowModel(item: store.items[0])
+        XCTAssertTrue(row.isSensitive)
+        XCTAssertNil(store.items[0].decryptedPlainText, "列表镜像中的敏感条目不携带明文")
+        var providerCallCount = 0
+        let entityProvider: (ClipboardRowModel) -> ClipboardItem? = { model in
+            providerCallCount += 1
+            return store.item(withID: model.id)
+        }
+
+        // 1. 选中敏感条目时 loadedEntity 为 nil，点击查看必须按需调用 entityProvider 解密出明文
+        let result = PreviewPane.resolveSensitivePlainText(
+            for: row,
+            cachedEntity: nil,
+            entityProvider: entityProvider
+        )
+        XCTAssertEqual(providerCallCount, 1, "点击查看私密记录时必须按需调用 entityProvider 取回完整解密实体")
+        switch result {
+        case .success(let plain):
+            XCTAssertEqual(plain, secret, "预览区点击查看必须还原出真实私密明文")
+        case .failure(let failure):
+            XCTFail("私密记录按需查看不应失败: \(failure)")
+        }
+    }
 }

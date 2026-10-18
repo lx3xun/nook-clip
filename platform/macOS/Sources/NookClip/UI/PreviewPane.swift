@@ -37,9 +37,49 @@ struct PreviewPane: View {
     @State private var urlCopied = false
     @State private var asyncTotalSize: Int64? = nil
     @State private var asyncHasMissingPath = false
+    /// 当前条目的完整实体（全文/OCR/metadata）：按 item.id 异步加载一次并缓存，
+    /// 避免 body 每次求值都跨 FFI 同步查库（单帧曾触发 2~4 次查询）。
+    @State private var loadedEntity: ClipboardItem?
+    @State private var loadedEntityID: UUID?
 
     private func entity(_ item: ClipboardRowModel) -> ClipboardItem? {
-        entityProvider?(item)
+        guard loadedEntityID == item.id else { return nil }
+        return loadedEntity
+    }
+
+    /// 切换条目时按需加载完整实体（截断摘要场景必须查库取全文）。
+    /// 返回加载到的实体，供 `.task` 顺序读取（不再依赖异步回填后的状态）。
+    /// 敏感条目不预取明文：缓存明文会让 30 秒租约形同虚设，
+    /// 只保留列表已有的掩码摘要，明文仅经 revealPlainContent 按需解密。
+    private func loadEntityIfNeeded(for item: ClipboardRowModel) async -> ClipboardItem? {
+        if loadedEntityID == item.id {
+            return loadedEntity
+        }
+        guard !item.isSensitive else {
+            loadedEntityID = item.id
+            loadedEntity = nil
+            return nil
+        }
+        guard let provider = entityProvider else {
+            loadedEntity = nil
+            loadedEntityID = item.id
+            return nil
+        }
+        loadedEntityID = item.id
+        loadedEntity = nil
+        let row = item
+        let entity = await Task.detached(priority: .utility) {
+            provider(row)
+        }.value
+        guard loadedEntityID == row.id else { return nil }
+        loadedEntity = entity
+        return entity
+    }
+
+    /// 释放缓存实体（含可能的长文本与 OCR 全文）
+    private func releaseLoadedEntity() {
+        loadedEntity = nil
+        loadedEntityID = nil
     }
 
     /// 文本类条目全文（敏感条目为掩码形态，明文仅经 revealPlainContent）
@@ -74,10 +114,10 @@ struct PreviewPane: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .onDisappear { maskSensitive(clearClipboard: true) }
+            .onDisappear { maskSensitive(clearClipboard: true, releaseEntity: true) }
             .onChange(of: item.id) { _, _ in
                 // 切换选中：取消定时器并离开明文态（清剪贴板），收起二维码
-                maskSensitive(clearClipboard: true)
+                maskSensitive(clearClipboard: true, releaseEntity: true)
                 revealFailure = nil
                 showQRCode = false
                 urlCopied = false
@@ -85,7 +125,10 @@ struct PreviewPane: View {
                 asyncHasMissingPath = false
             }
             .task(id: item.id) {
-                if item.kind == .file, let entityItem = entity(item) {
+                // 必须先 await 实体加载：此前的同步调用会让下方读到的 entity 恒为 nil，
+                // 导致文件大小/缺失路径检测成为死代码。
+                let entityItem = await loadEntityIfNeeded(for: item)
+                if item.kind == .file, let entityItem {
                     let paths = entityItem.payloadPath?
                         .components(separatedBy: "\n").filter { !$0.isEmpty } ?? []
                     if !paths.isEmpty {
@@ -271,8 +314,11 @@ struct PreviewPane: View {
         Task { @MainActor in
             // 识别结束（含识别不到文字的失败）必须复位扫描状态；
             // 成功路径 ocrText 已先行写入，onChange 同样会复位，双保险
-            _ = await trigger?(id) { stage in
+            let recognized = await trigger?(id) { stage in
                 self.ocrProgressStage = stage
+            }
+            if recognized != nil, self.loadedEntityID == id, let row = self.item, row.id == id {
+                self.loadedEntity = self.entityProvider?(row)
             }
             isScanningOCR = false
             ocrProgressStage = nil
@@ -419,12 +465,26 @@ struct PreviewPane: View {
 
     // MARK: US3 30s 定时器（D6：视图消失 / 切换选中取消；到期回遮罩 + 清剪贴板）
 
+    /// 解析敏感条目的明文（按需经 entityProvider 查库解密，不依赖预加载缓存 loadedEntity）
+    static func resolveSensitivePlainText(
+        for item: ClipboardRowModel,
+        cachedEntity: ClipboardItem?,
+        entityProvider: ((ClipboardRowModel) -> ClipboardItem?)?
+    ) -> Result<String, ClipboardItem.RevealFailure> {
+        let targetEntity = cachedEntity ?? entityProvider?(item)
+        return targetEntity?.revealPlainContentResult() ?? .failure(.keyUnavailable)
+    }
+
     private func toggleReveal(_ item: ClipboardRowModel) {
         if isRevealed {
             maskSensitive(clearClipboard: true)
         } else {
-            let result = entity(item)?.revealPlainContentResult()
-                ?? .failure(.keyUnavailable)
+            // 敏感条目不在选中时预取，仅在用户主动点击查看时按需查库解密
+            let result = Self.resolveSensitivePlainText(
+                for: item,
+                cachedEntity: entity(item),
+                entityProvider: entityProvider
+            )
             switch result {
             case .success(let plain):
                 reveal(plain: plain)
@@ -450,13 +510,18 @@ struct PreviewPane: View {
         }
     }
 
-    private func maskSensitive(clearClipboard: Bool) {
+    private func maskSensitive(clearClipboard: Bool, releaseEntity: Bool = false) {
         revealTask?.cancel()
         revealTask = nil
         let plain = revealedPlainText
         isRevealed = false
         countdownSeconds = 0
         revealedPlainText = nil
+        // 仅切换条目/视图消失时释放缓存实体；30 秒到期只回遮罩，
+        // 不能清掉预览全文（否则正文区域会变成空）。
+        if releaseEntity {
+            releaseLoadedEntity()
+        }
         // 仅当系统剪贴板仍为该明文时清空（PasteService 契约 C2）
         if clearClipboard, let plain {
             previewData.clearClipboardIfContent(matches: plain)

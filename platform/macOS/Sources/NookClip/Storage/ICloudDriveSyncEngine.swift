@@ -86,6 +86,9 @@ final class ICloudDriveSyncEngine {
     private let monitor: CloudDirectoryMonitor
     @ObservationIgnored private var webDavPollingTimer: Timer?
     @ObservationIgnored private var quickPopoverObserver: NSObjectProtocol?
+    @ObservationIgnored private let keychainCacheLock = NSLock()
+    @ObservationIgnored private var cachedWebDavPassword: String?
+    @ObservationIgnored private var cachedE2EEPassphrases: [CloudSyncMode: String] = [:]
     private let keychainServicePrefix: String?
 
     init(customBaseURL: URL? = nil, defaults: UserDefaults = .standard, keychainServicePrefix: String? = nil) {
@@ -155,9 +158,15 @@ final class ICloudDriveSyncEngine {
 
     var webDavPassword: String {
         get {
-            SyncKeychainHelper.readPassword(service: webDavKeychainService, account: "webdav_account") ?? ""
+            if let cached = keychainCacheLock.withLock({ cachedWebDavPassword }) {
+                return cached
+            }
+            let value = SyncKeychainHelper.readPassword(service: webDavKeychainService, account: "webdav_account") ?? ""
+            keychainCacheLock.withLock { cachedWebDavPassword = value }
+            return value
         }
         set {
+            keychainCacheLock.withLock { cachedWebDavPassword = newValue }
             SyncKeychainHelper.savePassword(newValue, service: webDavKeychainService, account: "webdav_account")
         }
     }
@@ -193,20 +202,28 @@ final class ICloudDriveSyncEngine {
     }
 
     func e2eePassphrase(for mode: CloudSyncMode) -> String {
-        let account = e2eeKeychainAccount(for: mode)
-        if let pass = SyncKeychainHelper.readPassword(service: e2eeKeychainService, account: account) {
-            return pass
+        if let cached = keychainCacheLock.withLock({ cachedE2EEPassphrases[mode] }) {
+            return cached
         }
-        // 兼容单通道升级前的旧口令：首次读取时迁移到当前通道并移除旧键，避免清空后再次回退
-        if let legacyPass = SyncKeychainHelper.readPassword(service: e2eeKeychainService, account: "sync_passphrase") {
+
+        let account = e2eeKeychainAccount(for: mode)
+        let resolved: String
+        if let pass = SyncKeychainHelper.readPassword(service: e2eeKeychainService, account: account) {
+            resolved = pass
+        } else if let legacyPass = SyncKeychainHelper.readPassword(service: e2eeKeychainService, account: "sync_passphrase") {
+            // 兼容单通道升级前的旧口令：首次读取时迁移到当前通道并移除旧键，避免清空后再次回退
             SyncKeychainHelper.savePassword(legacyPass, service: e2eeKeychainService, account: account)
             SyncKeychainHelper.savePassword("", service: e2eeKeychainService, account: "sync_passphrase")
-            return legacyPass
+            resolved = legacyPass
+        } else {
+            resolved = ""
         }
-        return ""
+        keychainCacheLock.withLock { cachedE2EEPassphrases[mode] = resolved }
+        return resolved
     }
 
     func setE2EEPassphrase(_ pass: String, for mode: CloudSyncMode) {
+        keychainCacheLock.withLock { cachedE2EEPassphrases[mode] = pass }
         let account = e2eeKeychainAccount(for: mode)
         SyncKeychainHelper.savePassword(pass, service: e2eeKeychainService, account: account)
         if pass.isEmpty {
@@ -241,6 +258,10 @@ final class ICloudDriveSyncEngine {
         set { setSyncSensitiveItems(newValue, for: syncMode) }
     }
     func makeSyncOptions(deviceId: String, localAssetsDir: String) -> SyncOptions {
+        makeSyncOptionsSync(deviceId: deviceId, localAssetsDir: localAssetsDir)
+    }
+
+    private func makeSyncOptionsSync(deviceId: String, localAssetsDir: String) -> SyncOptions {
         let backend: SyncBackendConfig
         switch syncMode {
         case .iCloudDrive, .localDirectory:
@@ -253,13 +274,98 @@ final class ICloudDriveSyncEngine {
                 timeoutSecs: 15
             )
         }
-        let passphrase = (isE2EEEnabled && !e2eePassphrase.isEmpty) ? e2eePassphrase : nil
+        let trimmedPass = isE2EEEnabled ? e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let hasValidPass = isE2EEEnabled && !trimmedPass.isEmpty
         return SyncOptions(
             backend: backend,
             deviceId: deviceId,
             localAssetsDir: localAssetsDir,
-            passphrase: passphrase,
-            allowSensitive: isE2EEEnabled && !e2eePassphrase.isEmpty && syncSensitiveItems
+            passphrase: hasValidPass ? trimmedPass : nil,
+            allowSensitive: hasValidPass && syncSensitiveItems
+        )
+    }
+
+    /// 异步构造同步选项：Keychain 读取是跨进程 XPC，放在后台执行，
+    /// 避免 MainActor 上同步等系统服务导致面板/同步入口卡顿。
+    /// 所有实例属性先在当前（主）线程取快照，后台任务只接收不可变值，
+    /// 不跨并发域引用 self（引擎非 Sendable，避免数据竞争）。
+    func makeSyncOptionsAsync(deviceId: String, localAssetsDir: String) async -> SyncOptions {
+        let mode = syncMode
+        let syncDir = baseDirectoryURL.path
+        let webdavURL = webDavURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let webdavUser = webDavUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let e2eeEnabled = isE2EEEnabled
+        let sensitiveAllowed = syncSensitiveItems
+        let keychainService = e2eeKeychainService
+        let account = e2eeKeychainAccount(for: mode)
+        let webdavKeychainService = webDavKeychainService
+        let (cachedPass, cachedWebPass) = keychainCacheLock.withLock {
+            (
+                e2eeEnabled ? cachedE2EEPassphrases[mode] : "",
+                (mode == .webdav) ? cachedWebDavPassword : ""
+            )
+        }
+        let passphrase: String
+        let webdavPass: String
+        if let cachedPass, let cachedWebPass {
+            passphrase = cachedPass
+            webdavPass = cachedWebPass
+        } else {
+            // 仅在真正启用对应功能且内存尚未缓存时访问一次 Keychain，
+            // 避免每次启动或打开面板同步都反复触发 macOS 钥匙串授权弹窗。
+            let loaded = await Task.detached(priority: .utility) {
+                let webPass: String = {
+                    if let cachedWebPass { return cachedWebPass }
+                    guard mode == .webdav else { return "" }
+                    return SyncKeychainHelper.readPassword(service: webdavKeychainService, account: "webdav_account") ?? ""
+                }()
+                let e2eePass: String = {
+                    if let cachedPass { return cachedPass }
+                    guard e2eeEnabled else { return "" }
+                    if let pass = SyncKeychainHelper.readPassword(service: keychainService, account: account) {
+                        return pass
+                    }
+                    // 兼容单通道升级前的旧口令
+                    if let legacy = SyncKeychainHelper.readPassword(service: keychainService, account: "sync_passphrase") {
+                        SyncKeychainHelper.savePassword(legacy, service: keychainService, account: account)
+                        SyncKeychainHelper.savePassword("", service: keychainService, account: "sync_passphrase")
+                        return legacy
+                    }
+                    return ""
+                }()
+                return (e2eePass, webPass)
+            }.value
+            passphrase = loaded.0
+            webdavPass = loaded.1
+            keychainCacheLock.withLock {
+                if e2eeEnabled && cachedE2EEPassphrases[mode] == nil {
+                    cachedE2EEPassphrases[mode] = passphrase
+                }
+                if mode == .webdav && cachedWebDavPassword == nil {
+                    cachedWebDavPassword = webdavPass
+                }
+            }
+        }
+        let backend: SyncBackendConfig
+        switch mode {
+        case .iCloudDrive, .localDirectory:
+            backend = .localDirectory(syncDir: syncDir)
+        case .webdav:
+            backend = .webDav(
+                baseUrl: webdavURL,
+                username: webdavUser,
+                password: webdavPass,
+                timeoutSecs: 15
+            )
+        }
+        let trimmedPass = passphrase.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasValidPass = e2eeEnabled && !trimmedPass.isEmpty
+        return SyncOptions(
+            backend: backend,
+            deviceId: deviceId,
+            localAssetsDir: localAssetsDir,
+            passphrase: hasValidPass ? trimmedPass : nil,
+            allowSensitive: hasValidPass && sensitiveAllowed
         )
     }
 

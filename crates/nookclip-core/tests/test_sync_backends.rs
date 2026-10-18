@@ -249,3 +249,99 @@ fn test_webdav_backend_mock_server_flow() {
     running.store(false, Ordering::Relaxed);
     let _ = server_thread.join();
 }
+
+#[test]
+fn test_webdav_backend_error_handling_and_recovery() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use nookclip_core::CoreError;
+    use nookclip_core::sync::WebDavBackend;
+    use nookclip_core::sync::backend::SyncStorageBackend;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let running = Arc::new(AtomicBool::new(true));
+    let r_clone = running.clone();
+
+    let server_thread = std::thread::spawn(move || {
+        listener.set_nonblocking(true).unwrap();
+
+        while r_clone.load(Ordering::Relaxed) {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    let mut reader = BufReader::new(stream.try_clone().unwrap());
+                    let mut req_line = String::new();
+                    if reader.read_line(&mut req_line).is_err() || req_line.is_empty() {
+                        continue;
+                    }
+                    let parts: Vec<&str> = req_line.split_whitespace().collect();
+                    if parts.len() < 2 {
+                        continue;
+                    }
+                    let path = parts[1].to_string();
+
+                    if path.contains("/error401") {
+                        let _ = stream.write_all(b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n");
+                    } else if path.contains("/error500") {
+                        let _ = stream.write_all(b"HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
+                    } else if path.contains("/drop") {
+                        // 突然断开网络连接模拟
+                        drop(stream);
+                    } else {
+                        let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    // 1. 验证 401 Unauthorized 明确返回 SyncTransport 错误，且错误信息包含 401
+    let backend_401 = WebDavBackend::new(
+        format!("http://127.0.0.1:{port}/error401"),
+        "bad_user".into(),
+        "bad_pass".into(),
+        2,
+    );
+    let res_401 = backend_401.list_device_packs();
+    assert!(res_401.is_err());
+    if let Err(CoreError::SyncTransport(msg)) = res_401 {
+        assert!(msg.contains("401"), "错误信息必须指明 401: {}", msg);
+    } else {
+        panic!("Expected SyncTransport error for 401");
+    }
+
+    // 2. 验证 500 Internal Server Error 明确返回 SyncTransport 错误
+    let backend_500 = WebDavBackend::new(
+        format!("http://127.0.0.1:{port}/error500"),
+        "user".into(),
+        "pass".into(),
+        2,
+    );
+    let res_500 = backend_500.read_device_pack("dev-crash");
+    assert!(res_500.is_err());
+    if let Err(CoreError::SyncTransport(msg)) = res_500 {
+        assert!(msg.contains("500"), "错误信息必须指明 500: {}", msg);
+    } else {
+        panic!("Expected SyncTransport error for 500");
+    }
+
+    // 3. 验证连接中断 / 网络超时防御
+    let backend_drop = WebDavBackend::new(
+        format!("http://127.0.0.1:{port}/drop"),
+        "user".into(),
+        "pass".into(),
+        1,
+    );
+    let res_drop = backend_drop.list_device_packs();
+    assert!(res_drop.is_err());
+    assert!(matches!(res_drop, Err(CoreError::SyncTransport(_))));
+
+    running.store(false, Ordering::Relaxed);
+    let _ = server_thread.join();
+}

@@ -90,7 +90,7 @@ extension MainView {
         }
         let bounds = listContentSafeBoundsY
         let tolerance: CGFloat = 1.0
-        if let rect = rowFrames[frameKey] {
+        if let rect = rowFramesBox.frame(forKey: frameKey) {
             if rect.minY < bounds.top - tolerance {
                 proxy.scrollTo(scrollID, anchor: .top)
             } else if rect.maxY > bounds.bottom + tolerance {
@@ -103,7 +103,7 @@ extension MainView {
                 try? await Task.sleep(nanoseconds: 25_000_000)
                 guard !Task.isCancelled else { return }
                 let latestBounds = listContentSafeBoundsY
-                if let rect = rowFrames[frameKey] {
+                if let rect = rowFramesBox.frame(forKey: frameKey) {
                     if rect.minY < latestBounds.top - tolerance {
                         scrollProxy?.scrollTo(scrollID, anchor: .top)
                     } else if rect.maxY > latestBounds.bottom + tolerance {
@@ -178,6 +178,20 @@ extension MainView {
             filterState.updateStickyGroup(resolved)
         } else if groups.isEmpty {
             filterState.updateStickyGroup(nil)
+        }
+    }
+
+    /// 吸顶组节流刷新：行坐标每帧变化时调用，保证滚动期间每 ~60ms 至少刷新一次。
+    /// 注意必须用节流而非防抖：防抖会在连续滚动时不停取消定时器，
+    /// 导致吸顶组在整个滚动过程中完全停更、直到停下才跳变。
+    func scheduleStickyGroupRefresh() {
+        // 已有在途刷新任务：本帧跳过，等它在 60ms 后统一读取最新快照
+        guard stickyRefreshTask == nil else { return }
+        stickyRefreshTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(60))
+            guard !Task.isCancelled else { return }
+            stickyRefreshTask = nil
+            updateActiveStickyGroupFromVisibleRows(rowFramesBox.snapshot)
         }
     }
 
@@ -321,8 +335,10 @@ extension MainView {
                     }
                 }
                 .onPreferenceChange(RowFramesPreferenceKey.self) { frames in
-                    rowFrames = frames
-                    updateActiveStickyGroupFromVisibleRows(frames)
+                    // 滚动期帧率高：行坐标写入引用容器，不触发整树重求值；
+                    // 吸顶组经节流合并为一次性状态更新。
+                    rowFramesBox.update(frames)
+                    scheduleStickyGroupRefresh()
                 }
                 .onAppear { scrollProxy = proxy }
                 .onChange(of: selectionCoordinator.selectedID) { oldID, id in

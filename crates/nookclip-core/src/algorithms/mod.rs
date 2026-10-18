@@ -14,8 +14,21 @@ static EMAIL_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
 });
 
 pub fn analyze_content(text: &str) -> DetectionResult {
+    analyze_content_with_sensitivity(text, None)
+}
+
+/// 与 analyze_content 相同，但允许复用调用方已算出的敏感检测结果。
+/// 剪贴板摄取路径会先跑一次 detect_sensitive，非敏感分支再调本函数，
+/// 传 Some(false) 可避免同一套 PATTERNS 正则重复扫描整段文本。
+pub fn analyze_content_with_sensitivity(
+    text: &str,
+    known_sensitive: Option<bool>,
+) -> DetectionResult {
     let trimmed = text.trim();
-    let sensitive_type = sensitive::detect_sensitive_data(trimmed);
+    let sensitive_type = match known_sensitive {
+        Some(false) => None,
+        _ => sensitive::detect_sensitive_data(trimmed),
+    };
     let code_classification = language::classify_code(trimmed);
     let detected_color_hex = color::parse_color_hex(trimmed);
 

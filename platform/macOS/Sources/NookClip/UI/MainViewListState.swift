@@ -82,19 +82,51 @@ struct ListSelectionState<Row: Identifiable> where Row.ID: Hashable {
     }
 }
 
+/// 列表行实时坐标容器（列表列坐标系；key = 行 id 字符串）。
+/// 引用类型：GeometryReader 每帧写入不触发 SwiftUI 视图刷新，
+/// 读取方（按键滚动定位 / 节流吸顶组计算）按需取快照。
+/// 若直接以 @State 字典承载，滚动期会以帧率驱动 MainView 整树重求值。
+@MainActor
+final class RowFramesBox {
+    private var frames: [String: CGRect] = [:]
+
+    var snapshot: [String: CGRect] { frames }
+
+    func update(_ newFrames: [String: CGRect]) {
+        frames = newFrames
+    }
+
+    func frame(forKey key: String) -> CGRect? {
+        frames[key]
+    }
+}
+
 @MainActor
 final class RowMapCache {
     private(set) var version = 0
     private var cachedItems: [ClipboardItem] = []
     private var cachedRows: [ClipboardRowModel] = []
     private var cachedLanguage: String?
+    /// 上次构建行模型时的分钟时间桶：相对时间文案（刚刚/N 分钟前）随分钟变化，
+    /// 仅按 items 内容做缓存会让「刚刚」长期不更新。
+    private var cachedMinute: Int = .min
+
+    func invalidate() {
+        cachedItems = []
+        cachedRows = []
+        cachedMinute = .min
+    }
 
     func rows(for items: [ClipboardItem], language: String) -> [ClipboardRowModel] {
-        if items == cachedItems, language == cachedLanguage { return cachedRows }
+        let minute = Int(Date().timeIntervalSince1970 / 60)
+        if items == cachedItems, language == cachedLanguage, minute == cachedMinute {
+            return cachedRows
+        }
         let rows = ClipboardRowModel.map(items)
         cachedItems = items
         cachedRows = rows
         cachedLanguage = language
+        cachedMinute = minute
         version &+= 1
         return rows
     }
@@ -222,7 +254,30 @@ final class MainViewListState {
             matchedApps = []
             selectedAppID = nil
         } else {
-            matchedApps = AppSearchService.shared.search(query: trimmed, limit: 3)
+            let service = AppSearchService.shared
+            if !service.isIndexReady {
+                // 索引后台构建中：本次先返回空，构建完成后自动回填刷新
+                service.ensureIndexLoaded()
+                matchedApps = []
+                selectedAppID = nil
+                service.onIndexReady = { [weak self] in
+                    guard let self else { return }
+                    // 与 setSearchText 存储的原始输入比对时同样做 trim：
+                    // 用户输入带空格（" safari "）时不能因格式差异丢弃回填
+                    guard self.searchText.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed,
+                          self.categorySelection == 0 else { return }
+                    self.matchedApps = service.searchAsync(query: trimmed, limit: 3)
+                    // 与同步分支对齐：当前未聚焦到其他应用时默认选中首个匹配应用
+                    // （didSet 会自动清空剪贴板条目的默认选中态）
+                    if self.selectedAppID == nil,
+                       let first = self.matchedApps.first {
+                        self.selectedAppID = first.id
+                        self.selectedID = nil
+                    }
+                }
+                return
+            }
+            matchedApps = service.searchAsync(query: trimmed, limit: 3)
             if let first = matchedApps.first {
                 selectedAppID = first.id
                 selectedID = nil

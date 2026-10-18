@@ -165,7 +165,8 @@ fn ingest_text_or_url_item(
         }
         (String::new(), detection.masked_text, None, true, Some(text.to_string()), None)
     } else {
-        let feature = algorithms::analyze_content(text);
+        // 复用上方 detect_sensitive 的结论：非敏感时跳过第二次全量 PATTERNS 扫描
+        let feature = algorithms::analyze_content_with_sensitivity(text, Some(false));
         let title = snapshot
             .url_title
             .as_ref()

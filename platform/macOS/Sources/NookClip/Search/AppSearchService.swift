@@ -203,6 +203,9 @@ public final class AppSearchService {
     private var cachedApps: [InstalledApp] = []
     private var isLoaded = false
     private var loadTask: Task<Void, Never>?
+    /// 索引构建完成回调（主线程）：让搜索方在按需加载完成后回填结果。
+    /// 单槽设计：回调触发后立即清空，避免长期持有外部上下文。
+    public var onIndexReady: (() -> Void)?
 
     public init(provider: any AppSearchProvider = DefaultAppSearchProvider()) {
         self.provider = provider
@@ -218,19 +221,66 @@ public final class AppSearchService {
         loadTask = nil
         cachedApps.removeAll()
         isLoaded = false
+        onIndexReady = nil
     }
+
+    /// 索引是否已就绪（供调用方决定是否需要等待异步加载）
+    public var isIndexReady: Bool { isLoaded }
+
+    /// 触发后台索引构建（若尚未开始）。首字符输入时调用，避免主线程全盘扫描。
+    public func ensureIndexLoaded() {
+        guard !isLoaded, loadTask == nil else { return }
+        loadTask = Task.detached(priority: .utility) { [provider] in
+            let apps = provider.loadApplications()
+            // 取消后不得把旧索引写回：面板可能已收起并执行过 clearCache
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                self.cachedApps = apps
+                self.isLoaded = true
+                self.loadTask = nil
+                let callback = self.onIndexReady
+                self.onIndexReady = nil
+                callback?()
+            }
+        }
+    }
+
+    /// 同步检索：索引未就绪时当场同步构建（测试与一次性调用沿用此语义）。
+    /// 面板热路径请改用 `searchAsync`，避免首次输入在主线程全盘扫描。
     public func search(query: String, limit: Int = 3) -> [InstalledApp] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
-        if !isLoaded, loadTask == nil {
+        if !isLoaded {
+            // 若已在后台构建，取消后同步构建一次，保证同步接口返回值契约
+            loadTask?.cancel()
+            loadTask = nil
             cachedApps = provider.loadApplications()
             isLoaded = true
+            let callback = onIndexReady
+            onIndexReady = nil
+            callback?()
         }
 
+        return score(query: trimmed, limit: limit)
+    }
+
+    /// 异步检索：索引未就绪时后台构建，期间返回空；构建完成经 onIndexReady 回调刷新。
+    public func searchAsync(query: String, limit: Int = 3) -> [InstalledApp] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        guard isLoaded else {
+            ensureIndexLoaded()
+            return []
+        }
+        return score(query: trimmed, limit: limit)
+    }
+
+    private func score(query: String, limit: Int) -> [InstalledApp] {
         var scored: [(app: InstalledApp, score: Int)] = []
         for app in cachedApps {
-            let s = AppMatchScore.score(app: app, query: trimmed)
+            let s = AppMatchScore.score(app: app, query: query)
             if s > 0 {
                 scored.append((app, s))
             }

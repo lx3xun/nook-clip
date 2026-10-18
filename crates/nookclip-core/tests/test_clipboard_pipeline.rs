@@ -246,3 +246,153 @@ fn test_ingest_clipboard_snapshot_persists_now_ts_and_orders_newest_first() {
     assert_eq!(recopied.last_used_at, recopy_ts);
     assert_eq!(recopied.copy_count, 2);
 }
+
+#[test]
+fn test_ingest_extreme_payload_sizes_and_malformed_data() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("test_extreme.db");
+    let key = [0x55u8; 32];
+    let repo = StorageRepository::new(db_path.to_str().unwrap(), &key).unwrap();
+    let crypto = CryptoEngine::new(&key).unwrap();
+    let assets_dir = dir.path().join("assets");
+    fs::create_dir_all(&assets_dir).unwrap();
+
+    let config = IngestConfig {
+        sensitive_protection_enabled: true,
+        excluded_bundle_ids: Vec::new(),
+        local_assets_dir: assets_dir.to_str().unwrap().to_string(),
+        file_multi_title_template: None,
+        default_image_title: "Image".to_string(),
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
+    };
+
+    // 1. 超大文本测试（5MB 纯文本）：验证入库不崩溃、摘要安全截断、可完整检索与提取
+    let large_text = "NookClip large payload test paragraph. ".repeat(125_000); // 约 5 MB
+    let snap_large_text = RawClipboardSnapshot {
+        plain_text: Some(large_text.clone()),
+        ..Default::default()
+    };
+    let out_large = ingest_clipboard_snapshot(&repo, Some(&crypto), &snap_large_text, &config, None, None, 1000.0).unwrap();
+    let large_item = match out_large {
+        IngestOutcome::Saved { item } => item,
+        other => panic!("Expected Saved, got {:?}", other),
+    };
+    assert_eq!(large_item.item_type, "text");
+
+    // 验证列表按 summary_max_chars 检索时摘要被正确安全截断
+    let queried_list = repo.query_items(&nookclip_core::model::QueryFilter {
+        summary_max_chars: Some(200),
+        limit: 10,
+        ..Default::default()
+    }).unwrap();
+    assert_eq!(queried_list.len(), 1);
+    assert!(queried_list[0].summary.chars().count() <= 200, "超大文本的列表摘要必须被安全截断");
+    // 验证全文通过 get_item_detail 能完整取回
+    let detail = repo.get_item_detail(&large_item.id).unwrap();
+    assert_eq!(detail.raw_text.unwrap().len(), large_text.len());
+
+    // 2. 超长无换行连续字符（200,000 字符单行）：验证内容分析与敏感扫描不出现栈溢出或 panic
+    let long_line = "X".repeat(200_000);
+    let snap_long_line = RawClipboardSnapshot {
+        plain_text: Some(long_line.clone()),
+        ..Default::default()
+    };
+    let out_long_line = ingest_clipboard_snapshot(&repo, Some(&crypto), &snap_long_line, &config, None, None, 1001.0).unwrap();
+    assert!(matches!(out_long_line, IngestOutcome::Saved { .. }));
+
+    // 3. 含有空字符与畸形控制字符的文本
+    let text_with_nulls = "Header\0\0\tPayload with \x00 null bytes and control chars\r\n\0End";
+    let snap_nulls = RawClipboardSnapshot {
+        plain_text: Some(text_with_nulls.to_string()),
+        ..Default::default()
+    };
+    let out_nulls = ingest_clipboard_snapshot(&repo, Some(&crypto), &snap_nulls, &config, None, None, 1002.0).unwrap();
+    let null_item = match out_nulls {
+        IngestOutcome::Saved { item } => item,
+        other => panic!("Expected Saved, got {:?}", other),
+    };
+    let detail_null = repo.get_item_detail(&null_item.id).unwrap();
+    assert_eq!(detail_null.raw_text.unwrap(), text_with_nulls);
+
+    // 4. 大图片载荷测试（2MB 图片二进制）：验证哈希计算、PayloadAsset 落地和确定性 ID
+    let big_image_bytes = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]; // PNG 头部 + 2MB 填充
+    let mut image_payload = big_image_bytes;
+    image_payload.resize(2 * 1024 * 1024, 0xAA);
+    let snap_image = RawClipboardSnapshot {
+        image_data: Some(image_payload.clone()),
+        image_extension: Some("png".to_string()),
+        ..Default::default()
+    };
+    let out_image = ingest_clipboard_snapshot(&repo, Some(&crypto), &snap_image, &config, None, None, 1003.0).unwrap();
+    let img_item = match out_image {
+        IngestOutcome::Saved { item } => item,
+        other => panic!("Expected Saved, got {:?}", other),
+    };
+    assert_eq!(img_item.item_type, "image");
+    assert!(img_item.payload_path.is_some());
+
+    // 5. 校验图片资产被物理删除时的防御机制（CorruptedImagePayload）
+    let original_payload_file = assets_dir.join(img_item.payload_path.as_ref().unwrap());
+    if original_payload_file.exists() {
+        fs::remove_file(&original_payload_file).unwrap();
+    }
+    let paste_res = prepare_paste_payload(&repo, Some(&crypto), &img_item.id, false);
+    match paste_res {
+        Err(CoreError::CorruptedImagePayload) => {}, // 预期优雅捕获资产丢失
+        other => panic!("Expected CorruptedImagePayload, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_rapid_clipboard_burst_ingest_concurrency() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("test_burst.db");
+    let key = [0x77u8; 32];
+    let repo = StorageRepository::new(db_path.to_str().unwrap(), &key).unwrap();
+    let crypto = CryptoEngine::new(&key).unwrap();
+
+    let config = IngestConfig {
+        sensitive_protection_enabled: true,
+        excluded_bundle_ids: Vec::new(),
+        local_assets_dir: dir.path().to_str().unwrap().to_string(),
+        file_multi_title_template: None,
+        default_image_title: "Image".to_string(),
+        source_device_id: None,
+        source_device_name: None,
+        source_platform: None,
+    };
+
+    // 快速爆发 50 次复制事件（交替包含新条目与重复条目）
+    for i in 0..50 {
+        let content = if i % 5 == 0 {
+            "Shared Repeated Content".to_string()
+        } else {
+            format!("Burst Unique Content item index #{}", i)
+        };
+        let snap = RawClipboardSnapshot {
+            plain_text: Some(content),
+            ..Default::default()
+        };
+        let ts = 2000.0 + (i as f64) * 0.1;
+        let res = ingest_clipboard_snapshot(&repo, Some(&crypto), &snap, &config, None, None, ts);
+        assert!(res.is_ok(), "High frequency burst ingest iteration {} must succeed", i);
+    }
+
+    // 验证重复条目 copy_count 正确累加为 10
+    let repeated = repo.query_items(&nookclip_core::model::QueryFilter {
+        search_query: Some("Shared Repeated Content".to_string()),
+        limit: 10,
+        ..Default::default()
+    }).unwrap();
+    assert_eq!(repeated.len(), 1);
+    assert_eq!(repeated[0].copy_count, 10, "重复条目 copy_count 必须准确累加");
+
+    // 验证总条目数正确：40 个独立条目 + 1 个重复条目 = 41
+    let total = repo.query_items(&nookclip_core::model::QueryFilter {
+        limit: 100,
+        ..Default::default()
+    }).unwrap();
+    assert_eq!(total.len(), 41);
+}

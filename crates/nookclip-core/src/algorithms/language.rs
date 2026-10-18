@@ -1,10 +1,26 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 struct Profile {
     id: &'static str,
     keywords: Vec<(&'static str, f64)>,
     markers: Vec<(&'static str, f64, bool)>, // (literal, weight, case_insensitive)
+}
+
+/// ci = true 的 marker 小写形式缓存：字面量均为编译期 ASCII 静态值，
+/// 首次访问算一次，之后哈希查找零分配。
+static CI_MARKER_LOWER: LazyLock<HashMap<&'static str, String>> = LazyLock::new(|| {
+    PROFILES
+        .iter()
+        .flat_map(|p| p.markers.iter())
+        .filter(|(_, _, ci)| *ci)
+        .map(|(m, _, _)| (*m, m.to_ascii_lowercase()))
+        .collect()
+});
+
+/// marker 对应的小写查找目标；非 ci marker 或未命中时返回 None。
+fn marker_ci_lower(marker: &str) -> Option<&str> {
+    CI_MARKER_LOWER.get(marker).map(String::as_str)
 }
 
 static PROFILES: LazyLock<Vec<Profile>> = LazyLock::new(|| {
@@ -723,7 +739,10 @@ pub fn classify_code(text: &str) -> LanguageClassification {
         }
         for (marker, weight, ci) in &profile.markers {
             let hit = if *ci {
-                lower_sample.contains(&marker.to_lowercase())
+                match marker_ci_lower(marker) {
+                    Some(lower) => lower_sample.contains(lower),
+                    None => lower_sample.contains(&marker.to_lowercase()),
+                }
             } else {
                 sample.contains(*marker)
             };

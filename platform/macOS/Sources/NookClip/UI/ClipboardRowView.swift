@@ -251,7 +251,7 @@ struct ClipboardRowView: View {
             style: style,
             restingTintBackground: nil,
             isFavorite: item.isFavorite,
-            timestampText: RelativeTime.string(from: item.lastUsedAt),
+            timestampText: item.timestampText,
             accessibilitySummary: rowAccessibilitySummary,
             isRenaming: isRenaming,
             renameInitialText: item.title,
@@ -284,7 +284,7 @@ struct ClipboardRowView: View {
 
     /// T042④：无障碍摘要（标题 / 来源 App / 相对时间，顿号分隔整行朗读）
     private var rowAccessibilitySummary: String {
-        [item.displayTitle, item.source.name, RelativeTime.string(from: item.lastUsedAt)]
+        [item.displayTitle, item.source.name, item.timestampText]
             .filter { !$0.isEmpty }
             .joined(separator: "、")
     }

@@ -333,7 +333,12 @@ final class MainViewStateTests: XCTestCase {
     /// 分页列表只加载前 100 条时，时间导航锚点条仍须展示全部时间分组，
     /// 且能算出把未加载组拉进前缀所需的行数（扩页定位）
     func testTimeGroupsCoverOlderGroupsBeyondPageWindow() async {
-        let store = makeIsolatedStore()
+        // 本用例故意写入 2025-01 的「去年」数据；默认保留期 180 天，
+        // 启动时异步磁盘限额维护会把它当过期条目清掉，导致锚点断言偶发失败。
+        // 这里关闭保留期限制（0 = 无限制），只验证分页与时间锚点行为。
+        let defaults = makeIsolatedDefaults()
+        defaults.set(0, forKey: RetentionPolicy.defaultsKey)
+        let store = makeIsolatedStore(defaults: defaults)
         store.clearHistory(keepFavorites: false)
         // 100 条今天 + 3 条去年：分页只装下今天
         let calendar = Calendar(identifier: .gregorian)

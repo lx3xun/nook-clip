@@ -14,9 +14,9 @@ pub fn match_search_ranges(text: &str, keywords: &[String]) -> Vec<HighlightRang
         return Vec::new();
     }
 
-    // 将原文本展开为 (char_idx, byte_idx, lower_chars)
+    // 将原文本展开为 (char_idx, byte_idx, char)
     // 为了精确处理 Unicode 大小写折叠（如单字符或 ASCII/拉丁字符）并保持原串区间边界，
-    // 按原文本每个 char 的 lowercase 字符串匹配。
+    // 按原文本每个 char 的小写序列匹配。
     let text_chars: Vec<(usize, usize, char)> = text
         .char_indices()
         .enumerate()
@@ -27,11 +27,26 @@ pub fn match_search_ranges(text: &str, keywords: &[String]) -> Vec<HighlightRang
         return Vec::new();
     }
 
-    // 预计算每个原字符对应的 lowercase 序列（大多数字符为单字符）
-    let text_lower: Vec<String> = text_chars
-        .iter()
-        .map(|(_, _, ch)| ch.to_lowercase().collect::<String>())
-        .collect();
+    // 小写序列整体一次生成，再按「每个原 char 的小写字符段」切分：
+    // 绝大多数字符小写后仍是单字符，少数 Unicode 折叠会展开为多字符。
+    // 匹配在小写序列上进行，命中时用 lower_span 反查原 char 区间，
+    // 既保持 char 粒度语义，又把逐字符堆分配降为一次分配。
+    let lower_text = text.to_lowercase();
+    let mut lower_chars: Vec<char> = Vec::with_capacity(lower_text.len());
+    let mut lower_span: Vec<(usize, usize)> = Vec::with_capacity(total_chars + 1);
+    // 原文本与小写文本逐 char 同步推进：每个原字符消耗
+    // ch.lowercase().count() 个小写字符。
+    let mut lower_iter = lower_text.chars();
+    for (_, _, ch) in &text_chars {
+        let need = ch.to_lowercase().count();
+        let start = lower_chars.len();
+        for _ in 0..need {
+            let Some(lc) = lower_iter.next() else { break };
+            lower_chars.push(lc);
+        }
+        lower_span.push((start, lower_chars.len()));
+    }
+    let text_lower = &lower_chars;
 
     let mut found_char_ranges: Vec<(usize, usize)> = Vec::new();
 
@@ -39,17 +54,16 @@ pub fn match_search_ranges(text: &str, keywords: &[String]) -> Vec<HighlightRang
         if keyword.is_empty() {
             continue;
         }
-        let kw_lower: Vec<String> = keyword
-            .chars()
-            .map(|ch| ch.to_lowercase().collect::<String>())
-            .collect();
+        let kw_lower: Vec<char> = keyword.to_lowercase().chars().collect();
         let kw_len = kw_lower.len();
-        if kw_len == 0 || kw_len > total_chars {
+        // 只能用小写序列长度比较：Unicode 折叠可能让 1 个原字符展开成多个
+        // 小写字符（如 İ → i + 组合点），按原 char 数比较会漏报完全匹配。
+        if kw_len == 0 || kw_len > text_lower.len() {
             continue;
         }
 
         let mut cursor = 0;
-        while cursor + kw_len <= total_chars {
+        while cursor + kw_len <= text_lower.len() {
             let mut matched = true;
             for i in 0..kw_len {
                 if text_lower[cursor + i] != kw_lower[i] {
@@ -58,7 +72,17 @@ pub fn match_search_ranges(text: &str, keywords: &[String]) -> Vec<HighlightRang
                 }
             }
             if matched {
-                found_char_ranges.push((cursor, cursor + kw_len));
+                // 把小写序列区间映射回原 char 区间。lower_span[i] = 第 i 个原字符
+                // 占用的小写字符区间，天然按起点升序，用二分定位避免 O(N) 重扫。
+                let start_c = lower_span.partition_point(|&(_, e)| e <= cursor);
+                let end_cursor = cursor + kw_len;
+                let end_c = if end_cursor >= text_lower.len() {
+                    total_chars
+                } else {
+                    // 最后一个起点 < end_cursor 的段之后再切一刀
+                    lower_span.partition_point(|&(s, _)| s < end_cursor)
+                };
+                found_char_ranges.push((start_c.min(total_chars), end_c.min(total_chars)));
                 cursor += kw_len;
             } else {
                 cursor += 1;
@@ -140,6 +164,17 @@ mod tests {
         assert_eq!(extract(text, &ranges), vec!["中文", "Hello"]);
         assert_eq!(ranges[0].start_char, 3);
         assert_eq!(ranges[0].end_char, 5);
+    }
+
+    #[test]
+    fn test_unicode_fold_expands_beyond_char_count() {
+        // İ (U+0130) 小写展开为 i + U+0307：关键词小写长度(2) > 原文本字符数(1)，
+        // 不能因此跳过匹配。
+        let text = "İstanbul";
+        let ranges = match_search_ranges(text, &["İ".to_string()]);
+        assert_eq!(extract(text, &ranges), vec!["İ"]);
+        assert_eq!(ranges[0].start_char, 0);
+        assert_eq!(ranges[0].end_char, 1);
     }
 
     #[test]
