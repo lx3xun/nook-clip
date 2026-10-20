@@ -353,13 +353,14 @@ struct MainView: View {
                 }
             }
             .frame(width: NookClip.widthListCol)
-            .background {
+            // 列底色 + 顶部薄雾（同一层叠：先底色后环境光，见 nookClipAuroraBackground）
+            .nookClipAuroraBackground(base: {
                 if enableTranslucency {
                     Rectangle().fill(NookClip.bgContent.opacity(1 - min(max(backgroundTransparency, 0), 0.5)))
                 } else {
                     Rectangle().fill(NookClip.bgContent)
                 }
-            }
+            }, previewGlow: false)
             .overlay(alignment: .trailing) {
                 Rectangle().fill(NookClip.separator).frame(width: 0.5)
             }
@@ -423,13 +424,14 @@ struct MainView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-                .background {
+                // 右列底色 + 右缘冷暖双光 + 顶部薄雾（同一层叠）
+                .nookClipAuroraBackground(base: {
                     if enableTranslucency {
                         Rectangle().fill(NookClip.bgPreview.opacity(min(max((1 - backgroundTransparency) * 0.95, 0.45), 1.0)))
                     } else {
                         Rectangle().fill(NookClip.bgPreview)
                     }
-                }
+                }, previewGlow: true)
                 .transaction { $0.animation = nil }
         }
         .clipped()

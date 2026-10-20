@@ -174,6 +174,89 @@ enum NookClip {
     /// 底部操作指引栏：浅色 rgba(242,242,247,0.76) · 深色 rgba(30,30,34,0.84)
     static let bgFooter = dynamicRGBA(lr: 242, lg: 242, lb: 247, la: 0.76, dr: 30, dg: 30, db: 34, da: 0.84)
 
+    // MARK: 2.1b 面板环境光（Aurora · 唯一允许的结构性渐变，规范见 DESIGN.md §3.1b）
+    //
+    // 只做两件事，都服务于「这一层是玻璃、背后有光」的材质读感，不做装饰：
+    //   1. 顶部薄雾：3%（深色 5%）强调色自顶部垂直渐隐，两列共用同一几何，
+    //      分隔线两侧连续，不会在接缝处断掉。
+    //   2. 右缘微光：冷光锚在右上、暖光锚在右下，只落在右侧详情画布。
+    //
+    // 冷光锚点必须贴右缘而不是贴左缘（参考稿的 aurora 是 8%/0%）：左缘是搜索框与
+    // 分类胶囊的所在，实测把冷光锚到左侧会让「全部 72」胶囊与底色的 ΔE 从 0.312
+    // 掉到 0.055（仅剩 18%），选中态几乎消失；锚到右缘后 ΔE 为 0.330（106%），
+    // 选中行与底色对比 3.89（原 3.81）。抽样口径见 AuroraRenderTests。
+
+    /// 顶部薄雾：浅色 3% / 深色 5% 强调色，46% 处渐隐为透明。
+    /// 中间档按同一比例（0.4）缩放，保证薄雾的衰减曲线不变，只是整体加深。
+    static var auroraMist: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: dynamicAccentColor(lightAlpha: 0.030, darkAlpha: 0.050), location: 0),
+                .init(color: dynamicAccentColor(lightAlpha: 0.012, darkAlpha: 0.020), location: 0.22),
+                .init(color: .clear, location: 0.46)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// 预览区冷光：强调色本相，光心在右上，椭圆放大到铺满整块画布。
+    ///
+    /// 半径必须盖住整块预览区：早先用 `endRadiusFraction: 0.95`（≈半宽），
+    /// 渐变只铺到右半边，左侧 x<40% 处是纯白 255,255,255，看起来像「只染了一半」。
+    /// 改到 1.5 后最左上角仍有色，整块画布是连续的。
+    /// 强度在 2026-10 下调到约原来的一半（用户反馈「太重」），四档等比缩放。
+    static var auroraCoolGlow: EllipticalGradient {
+        EllipticalGradient(
+            // 四档为等比缩放：只降峰值会让形状变平，整块一起按比例降才是「变淡」。
+            stops: [
+                .init(color: dynamicAccentColor(lightAlpha: 0.045, darkAlpha: 0.063), location: 0),
+                .init(color: dynamicAccentColor(lightAlpha: 0.025, darkAlpha: 0.034), location: 0.40),
+                .init(color: dynamicAccentColor(lightAlpha: 0.010, darkAlpha: 0.014), location: 0.72),
+                .init(color: .clear, location: 1.0)
+            ],
+            // 光心略高于中线：预览正文从顶部开始，光落在标题区上方的空白，
+            // 避免压在工具栏那一行 11pt 三级灰字上。
+            center: UnitPoint(x: 1.0, y: 0.30),
+            startRadiusFraction: 0,
+            endRadiusFraction: 1.5
+        )
+    }
+
+    /// 右下暖光：强调色色相偏转 +0.19（系统蓝 → 紫），同样放大到铺满整块画布。
+    /// 强调色本身无彩（石墨）时偏转后仍是中性灰，此时极光退化为纯明度变化，不产生撞色。
+    static var auroraWarmGlow: EllipticalGradient {
+        EllipticalGradient(
+            stops: [
+                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.032, darkAlpha: 0.046), location: 0),
+                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.017, darkAlpha: 0.025), location: 0.42),
+                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.007, darkAlpha: 0.010), location: 0.74),
+                .init(color: .clear, location: 1.0)
+            ],
+            center: UnitPoint(x: 1.0, y: 1.0),
+            startRadiusFraction: 0,
+            endRadiusFraction: 1.5
+        )
+    }
+
+    /// 暖光基色：取系统强调色的色相并偏转，饱和度/明度按比例收敛，避免与强调色本身抢视觉
+    private static func dynamicAuroraWarmColor(lightAlpha: CGFloat, darkAlpha: CGFloat) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let match = appearance.bestMatch(from: [.darkAqua, .aqua])
+            let alpha = (match == .darkAqua) ? darkAlpha : lightAlpha
+            let base = NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue
+            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 1
+            base.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+            let warm = NSColor(
+                hue: (h + 0.19).truncatingRemainder(dividingBy: 1.0),
+                saturation: min(s * 0.92, 1),
+                brightness: min(b * 0.96, 1),
+                alpha: alpha
+            )
+            return warm
+        })
+    }
+
     // MARK: 2.2 文字层级（对比度符合 WCAG AA）
     /// 主文字：浅色 #1D1D1F · 深色 #F5F5F7
     static let textPrimary = dynamicHex(light: 0x1D1D1F, dark: 0xF5F5F7)
@@ -471,6 +554,34 @@ extension Font {
 // MARK: - 毛玻璃面板材质（半透明底色 + Material 组合，DESIGN.md §5.1/§10.1）
 
 extension View {
+    /// 面板环境光（Aurora）：铺在 `base` 底色之上、内容之下。
+    ///
+    /// 必须和底色写在同一个 `background` 层叠里（`ZStack { base; aurora }`）：
+    ///   · 用 `overlay` 会压在文字与控件上方，等于给全部内容蒙一层色；
+    ///   · 在既有 `.background{底色}` 之后再挂一个 `.background{}`，渐变会跑到
+    ///     底色**后面**被整层盖掉——左列 bgContent 88% 不透明、右列 bgPreview
+    ///     96% 不透明，等于没画。
+    ///
+    /// - Parameter previewGlow: 只有右侧详情画布开启右缘冷暖双光；左侧列表只吃顶部
+    ///   薄雾，确保没有任何染色落到搜索框与分类胶囊所在的顶部区域
+    ///   （原因见 auroraCoolGlow 的实测注释）。
+    func nookClipAuroraBackground<Base: View>(
+        @ViewBuilder base: () -> Base,
+        previewGlow: Bool
+    ) -> some View {
+        self.background {
+            ZStack {
+                base()
+                if previewGlow {
+                    NookClip.auroraCoolGlow
+                    NookClip.auroraWarmGlow
+                }
+                NookClip.auroraMist
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
     /// 毛玻璃表面：Material / NSVisualEffectView 打底 + 令牌半透明色叠加 + 发丝边 + 多级阴影
     func nookClipSurface(
         tint: Color,

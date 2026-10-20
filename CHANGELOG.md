@@ -56,6 +56,23 @@
   *Tightened SQLite page cache cap to 512KB (down from ~8MB default) and compacted history memory buffers when the panel is idle.*
 - **面板收起闲置自动回收**：释放隐藏面板视图树、缩略图、代码高亮与图标缓存。
   *Automatic idle garbage collection on panel hide: cleans up hidden view trees, thumbnails, code syntax highlights, and icon caches.*
+
+---
+
+### 🎨 界面与交互 (UI)
+
+- **主面板环境光（Aurora）**：左右两列新增结构性环境光——顶部薄雾（浅色 3% / 深色 5% 强调色，46% 处渐隐）与右侧画布冷暖双光（冷光锚右上、暖光锚右下，各自铺满整块画布）。渐变由系统强调色派生，跟随用户的强调色设置；只叠在列底色之上、内容之下，不覆盖文字。规范见 `docs/DESIGN.md` §3.1b。
+  *Panel ambient light (Aurora): added structural ambient gradients to both columns — a top mist (3% accent in light, 5% in dark, fading out by 46%) and a cool/warm dual glow on the right canvas, each covering the full pane. Gradients derive from the system accent color and render above the column fill but beneath all content.*
+
+- **冷光锚点从左上移到右上**：参考稿的极光锚在左上，但该处正是搜索框与分类胶囊所在，实测会让「全部」胶囊与底色的 ΔE 从 0.312 掉到 0.055（仅剩 18%），选中态几乎消失。锚到右缘后回升至 0.330，选中行对比 3.89（原 3.81）。
+  *Moved the cool glow from the top-left to the top-right: at the original anchor it sat on the search field and category chips, dropping chip-vs-ground ΔE from 0.312 to 0.055 (18% remaining) and nearly erasing the selected state; anchoring right restores it to 0.330.*
+
+- **移除三处面板分隔线**：底部快捷键栏上边、预览区顶部栏下边、批量工具栏上边。预览区与底栏现在靠渐变底色自然过渡，不再用硬边线分层。
+  *Removed three panel dividers — above the footer hint bar, below the preview toolbar, and above the batch toolbar. Both areas now separate through the gradient fill instead of a hard rule.*
+
+- **新增 `AuroraRenderTests`**：位图级回归测试，验证薄雾确实绘制、冷光确实右锚、左列无侧向光晕、预览区四向均被覆盖（防止半径收缩导致「只染一半」回归）。
+  *Added `AuroraRenderTests`: bitmap-level regression tests asserting the mist renders, the cool glow anchors right, the list column has no side glow, and the preview pane is covered edge to edge.*
+
 ---
 
 ## [0.1.1] - 2026-10-16

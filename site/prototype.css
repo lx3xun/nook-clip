@@ -59,6 +59,11 @@
   --nook-star-btn-text: #FFD60A;
 
   --nook-shadow-window: 0 24px 64px rgba(0, 0, 0, 0.50), 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  /* 面板环境光（DESIGN.md §3.1b）：深色档 */
+  --nook-aurora-mist: rgba(10, 132, 255, 0.050);
+  --nook-aurora-cool: rgba(10, 132, 255, 0.063);
+  --nook-aurora-warm: rgba(175, 82, 222, 0.046);
 }
 
 /* 浅色模式 (nookclip-light.png) */
@@ -97,6 +102,11 @@
   --nook-star-btn-text: #F59E0B;
 
   --nook-shadow-window: 0 24px 60px rgba(0, 0, 0, 0.14), 0 8px 20px rgba(0, 0, 0, 0.06);
+
+  /* 面板环境光（DESIGN.md §3.1b）：浅色档 */
+  --nook-aurora-mist: rgba(0, 122, 255, 0.030);
+  --nook-aurora-cool: rgba(0, 122, 255, 0.045);
+  --nook-aurora-warm: rgba(175, 82, 222, 0.032);
 }
 
 /* ==========================================================================
@@ -146,7 +156,11 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--nook-list-bg);
+  /* 底色 + 顶部薄雾：冷光不得进入左列（搜索框与分类胶囊所在），
+     原因见 DESIGN.md §3.1b 与台架 .taste-skill/gradient/ */
+  background:
+    linear-gradient(180deg, var(--nook-aurora-mist) 0%, rgba(0, 0, 0, 0) 46%), /* taste-skill-ignore: DESIGN.md §3.1b */
+    var(--nook-list-bg);
   border-right: 1px solid var(--nook-divider);
   position: relative;
   z-index: 2;
@@ -587,7 +601,6 @@
 .nook-hints-footer {
   height: var(--nook-h-footer);
   background: var(--nook-list-bg);
-  border-top: 1px solid var(--nook-divider);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -694,7 +707,14 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--nook-preview-bg);
+  /* 底色 + 右缘冷光（光心下移出工具栏行）+ 右缘暖光 + 顶部薄雾 */
+  /* 椭圆放大到盖住整块画布：早先用 95%×95% 只铺到右半边，左侧是纯白，
+     看起来「只染了一半」。150%×130% 后最左上角仍带 4-6 级色，整块连续。 */
+  background:
+    radial-gradient(150% 130% at 100% 30%, var(--nook-aurora-cool) 0%, rgba(0, 0, 0, 0) 100%), /* taste-skill-ignore: §3.1b */
+    radial-gradient(150% 120% at 100% 100%, var(--nook-aurora-warm) 0%, rgba(0, 0, 0, 0) 100%), /* taste-skill-ignore: §3.1b */
+    linear-gradient(180deg, var(--nook-aurora-mist) 0%, rgba(0, 0, 0, 0) 46%), /* taste-skill-ignore: §3.1b */
+    var(--nook-preview-bg);
   overflow: hidden;
   position: relative;
 }
@@ -706,7 +726,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--nook-divider);
   flex-shrink: 0;
 }
 
@@ -1588,7 +1607,6 @@ mark.nook-highlight {
   height: 50px;
   padding: 6px 12px;
   background: var(--nook-list-bg);
-  border-top: 1px solid var(--nook-divider);
   display: flex;
   flex-direction: column;
   justify-content: space-between;

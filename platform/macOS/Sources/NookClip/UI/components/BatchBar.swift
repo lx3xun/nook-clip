@@ -48,9 +48,6 @@ struct BatchBar: View {
         .padding(.vertical, 5)
         .frame(height: 54)
         .background(NookClip.bgFooter)
-        .overlay(alignment: .top) {
-            Rectangle().fill(NookClip.separator).frame(height: 0.5)
-        }
     }
 
     enum ButtonRole { case primary, danger }
