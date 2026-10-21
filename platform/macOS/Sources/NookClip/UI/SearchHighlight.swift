@@ -4,7 +4,9 @@ import SwiftUI
 // 在支持 TextRenderer 的系统上（macOS 15+）绘制圆角黄底；同时在 AttributedString 上保持背景色与前景色，
 // 兼容降级并保证测试断言与无缝回退。
 
+#if compiler(>=6.0)
 /// 用于在 Text.Layout.Run 标记搜索命中片段的自定义属性
+@available(macOS 15.0, *)
 struct SearchHighlightAttribute: TextAttribute {}
 
 /// 搜索关键词圆角黄底渲染器（macOS 15+）
@@ -67,16 +69,21 @@ struct SearchHighlightRenderer: TextRenderer {
         }
     }
 }
+#endif
 
 extension View {
     /// 为包含搜索高亮 Text 的视图应用圆角黄底渲染器
     @ViewBuilder
     func searchHighlightRenderer() -> some View {
+        #if compiler(>=6.0)
         if #available(macOS 15.0, *) {
             self.textRenderer(SearchHighlightRenderer())
         } else {
             self
         }
+        #else
+        self
+        #endif
     }
 }
 
@@ -198,8 +205,15 @@ enum SearchHighlight {
             }
             let hit = Text(verbatim: String(content[range]))
                 .foregroundColor(NookClip.searchHighlightForeground)
-                .customAttribute(SearchHighlightAttribute())
+            #if compiler(>=6.0)
+            if #available(macOS 15.0, *) {
+                segments.append(hit.customAttribute(SearchHighlightAttribute()))
+            } else {
+                segments.append(hit)
+            }
+            #else
             segments.append(hit)
+            #endif
             cursor = range.upperBound
         }
         if cursor < content.endIndex {

@@ -14,6 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 配置 Xcode 16 构建环境
+        run: |
+          XCODE_APP=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" | sort -V | tail -n 1)
+          if [ -n "$XCODE_APP" ]; then
+            echo "Using Xcode: $XCODE_APP"
+            sudo xcode-select -s "$XCODE_APP"
+          fi
+          xcodebuild -version
       - name: 构建 Universal 双架构 .app（含 Rust 与 Swift 编译）
         run: zsh scripts/build-app.sh --universal
 
