@@ -337,6 +337,7 @@
 "preview.sensitive.auto_remask" = "Automatically re-masked 30 seconds after viewing or pasting, and cleared from the system clipboard";
 "preview.image.fallback_type" = "Image";
 "preview.image.ocr_badge" = "Recognized offline";
+"preview.image.ocr_pending" = "Not yet extracted";
 "preview.empty.hint" = "Select an item to view details";
 "preview.mask.title" = "Sensitive content masked";
 "preview.mask.remask" = "Re-mask";

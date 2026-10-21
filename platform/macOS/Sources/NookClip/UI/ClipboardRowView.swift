@@ -200,24 +200,32 @@ struct NookClipRowShell<Leading: View, Title: View, TitleAccessory: View, Subtit
                 shape.fill(restingTintBackground)
             }
 
-            if isSelected {
-                if case .batch(let checked, _) = style, checked {
+            if case .batch(let checked, _) = style {
+                // 批量模式有两个独立事实，必须用两种标记表达：
+                //   1. 这一行被勾选了吗 → 行底填充（可扫视）
+                //   2. 右列预览的是哪一行 → 描边（唯一）
+                // 旧实现把两者挤进一个 if：只有「勾选 且 是锚点」才填，
+                // 于是勾选态完全由 16pt 圆圈承担，扫一眼分不出选了哪几条；
+                // 而锚点行又和普通勾选行用同一个填充，也看不出预览的是谁。
+                if checked {
+                    shape.fill(NookClip.bgRowSelectedStrong)
+                }
+                if isSelected {
+                    shape.strokeBorder(NookClip.borderRowSelected, lineWidth: 1)
+                }
+            } else if isSelected {
+                switch selectionStyle {
+                case .solidAccent:
+                    shape.fill(NookClip.accent)
+                case .subtleAccent:
                     shape
-                        .fill(NookClip.bgRowSelectedStrong)
-                } else {
-                    switch selectionStyle {
-                    case .solidAccent:
-                        shape.fill(NookClip.accent)
-                    case .subtleAccent:
-                        shape
-                            .fill(NookClip.bgRowSelectedSubtle)
-                            .overlay(alignment: .leading) {
-                                Capsule()
-                                    .fill(NookClip.accent)
-                                    .frame(width: 2.5, height: 20)
-                                    .padding(.leading, 2.5)
-                            }
-                    }
+                        .fill(NookClip.bgRowSelectedSubtle)
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(NookClip.accent)
+                                .frame(width: 2.5, height: 20)
+                                .padding(.leading, 2.5)
+                        }
                 }
             }
         }

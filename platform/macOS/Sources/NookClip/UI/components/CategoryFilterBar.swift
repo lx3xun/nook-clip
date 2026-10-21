@@ -221,8 +221,16 @@ struct CategoryChipButton: View {
 /// 每个子项在自然宽度上等量加宽，整行填满可用宽度（子项内部需以
 /// frame(maxWidth: .infinity) 吃满分配宽度）。自然总宽超出可用宽度时不压缩、
 /// 返回自然尺寸（长文案语言不截断），交由外层 ViewThatFits 的横向滚动档兜底。
+///
+/// `maxStretch` 限制单个子项能分到的富余量：类目数量会随数据变化
+/// （空库时类型类目计数为 0 被隐藏，4 个胶囊变 2 个），把同样的列宽摊给
+/// 更少的子项会让胶囊从 71pt 撑到 144pt——首次启动和清空历史后整条筛选条
+/// 会变形。加上限后子项保持自然宽度附近，余量留在行尾，形状不再随数据跳动。
 struct EqualShareFlex: Layout {
     var spacing: CGFloat
+    /// 单个子项可分配的最大富余（pt）。默认 24：正常 4 个胶囊时
+    /// 实际富余约 17pt，不受影响；只有类目变少时才生效。
+    var maxStretch: CGFloat = 24
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let size = naturalSize(subviews)
@@ -235,7 +243,7 @@ struct EqualShareFlex: Layout {
         let count = max(subviews.count, 1)
         let naturalTotal = widths.reduce(0, +) + spacing * CGFloat(max(subviews.count - 1, 0))
         // 富余均摊到每个子项；不足（滚动兜底档不会走到这里）则保持自然宽度
-        let share = max(0, (bounds.width - naturalTotal) / CGFloat(count))
+        let share = min(max(0, (bounds.width - naturalTotal) / CGFloat(count)), maxStretch)
         var x = bounds.minX
         for (index, subview) in subviews.enumerated() {
             let width = widths[index] + share

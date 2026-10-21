@@ -48,8 +48,11 @@
 
 ### 🎨 界面与交互 (UI)
 
-- **主面板环境光（Aurora）**：左右两列新增结构性环境光——顶部薄雾（浅色 3% / 深色 5% 强调色，46% 处渐隐）与右侧画布冷暖双光（冷光锚右上、暖光锚右下，各自铺满整块画布）。渐变由系统强调色派生，跟随用户的强调色设置；只叠在列底色之上、内容之下，不覆盖文字。规范见 `docs/DESIGN.md` §3.1b。
-  *Panel ambient light (Aurora): added structural ambient gradients to both columns — a top mist (3% accent in light, 5% in dark, fading out by 46%) and a cool/warm dual glow on the right canvas, each covering the full pane. Gradients derive from the system accent color and render above the column fill but beneath all content.*
+- **主面板环境光（Aurora）**：左右两列新增结构性环境光——顶部薄雾（浅色 7.5% / 深色 12.5% 强调色，46% 处渐隐）与右侧画布冷暖双光（冷光锚右上、暖光锚右下，各自铺满整块画布）。渐变由系统强调色派生，跟随用户的强调色设置；只叠在列底色之上、内容之下，不覆盖文字。规范见 `docs/DESIGN.md` §3.1b。
+  *Panel ambient light (Aurora): added structural ambient gradients to both columns — a top mist (7.5% accent in light, 12.5% in dark, fading out by 46%) and a cool/warm dual glow on the right canvas, each covering the full pane. Gradients derive from the system accent color and render above the column fill but beneath all content.*
+
+  浅色档位按实测定标，而非按观感：同一组 alpha 在深色底上是「一层薄光」，在接近白的底上却几乎不可见——初版浅色实测背景亮度跨度只有 13/255（5%），顶部与底部三通道差值合计仅 2，物理上不可辨。薄雾浅色 ×2.5、冷光与暖光浅色 ×1.75；深色档不动（深底上 20 级差值的相对变化已超 60%，本来就看得见）。全部三档等比缩放，渐变形状不变，只改幅度。
+  *The light tiers were calibrated from measurements rather than by eye: the same alphas read as a thin wash on a dark ground but are nearly invisible on near-white — the first light version measured only a 13/255 (5%) luminance span with a top-to-bottom channel delta of 2, which is physically imperceptible. Light mist scaled ×2.5 and light cool/warm glow ×1.75; the dark tiers stay as-is (a 20-level delta is already a >60% relative change on a dark ground). All stops scale proportionally, so only the amplitude changes, not the shape.*
 
 - **冷光锚点从左上移到右上**：参考稿的极光锚在左上，但该处正是搜索框与分类胶囊所在，实测会让「全部」胶囊与底色的 ΔE 从 0.312 掉到 0.055（仅剩 18%），选中态几乎消失。锚到右缘后回升至 0.330，选中行对比 3.89（原 3.81）。
   *Moved the cool glow from the top-left to the top-right: at the original anchor it sat on the search field and category chips, dropping chip-vs-ground ΔE from 0.312 to 0.055 (18% remaining) and nearly erasing the selected state; anchoring right restores it to 0.330.*
@@ -59,6 +62,27 @@
 
 - **新增 `AuroraRenderTests`**：位图级回归测试，验证薄雾确实绘制、冷光确实右锚、左列无侧向光晕、预览区四向均被覆盖（防止半径收缩导致「只染一半」回归）。
   *Added `AuroraRenderTests`: bitmap-level regression tests asserting the mist renders, the cool glow anchors right, the list column has no side glow, and the preview pane is covered edge to edge.*
+
+- **两列层次改由底色明度承担**：深色内容区 `rgb(38,38,42)` → `rgb(46,46,50)`。改前左列合成 29、右列因冷光降到 25，两列只差 1.0，几乎看不出层次。深色模式里「更亮」才是前景，所以列表要比画布亮，与浅色相反；浅色保持纯白（试过 `246,247,249`，两列反而从差 15.3 缩到 7.7，已回退）。不靠给左列加渐变来分层。
+  *Column separation now comes from the fill itself: dark content fill `rgb(38,38,42)` → `rgb(46,46,50)`. Previously the list composited to 29 while the preview dropped to 25 under the cool glow — a gap of 1.0, i.e. no readable depth. In dark mode "lighter" means foreground, so the list must sit above the canvas, the opposite of light mode; light mode stays pure white (a `246,247,249` attempt narrowed the gap from 15.3 to 7.7 and was reverted). No gradient is added to the left column.*
+
+- **三级文字提到 WCAG AA 以上**：面板是半透明材质，`backgroundTransparency` 默认 0.15 会把列底色有效不透明度压到 0.75 左右，桌面色透进来后 `textTertiary`（时间戳 / 来源行 / 底栏提示 / 元信息共用）实测只剩 2.8–3.2:1（浅）/ 4.1:1（深）。透明度 0.54/0.48 → 0.72/0.60，最差约 4.7/5.9:1。选中行反白三级文字 0.76 → 0.92（3.56:1 → 约 4.6:1）。
+  *Tertiary text raised above WCAG AA: the panel is a translucent material and the default `backgroundTransparency` of 0.15 pushes the column fills' effective opacity to ~0.75, so desktop colour bleed left `textTertiary` (shared by timestamps, source rows, footer hints and meta pills) at a measured 2.8–3.2:1 light / 4.1:1 dark. Opacity 0.54/0.48 → 0.72/0.60 brings the worst case to ~4.7/5.9:1; the on-accent tertiary variant goes 0.76 → 0.92 (3.56:1 → ~4.6:1).*
+
+- **预览标题 18 → 22pt**：与 13pt 正文只差 1.38×，而全屏 48% 的字是 11pt，最大字号撑不起「这是当前条目」的层级。22pt 把标题/正文比拉到 1.69×，且在 580pt 最小窗口（右列 270pt）下仍不超两行。
+  *Preview title 18 → 22pt: at 18pt it was only 1.38× the 13pt body while 48% of the screen is 11pt, so the largest type could not carry "this is the current item". 22pt lifts the title/body ratio to 1.69× and still fits two lines in the 580pt minimum window (270pt preview column).*
+
+- **预览正文加阅读栏宽，主窗口去掉静置阴影**：正文宽度上限 560pt（≈40 个汉字），只在宽窗口生效——此前 1400pt 窗口下单行 80 个汉字、右半屏全空。同时 `nookClipSurface` 的双层阴影改为仅 `popover` 绘制：主面板由 `DraggablePanel` 自带系统阴影，再叠两层会在窗口边缘留一圈「浮在桌面上的卡片」暗边。
+  *Preview body gains a reading measure and the main window loses its resting shadow: body width is capped at 560pt (~40 CJK characters) and only takes effect in wide windows — previously a 1400pt window produced 80-character lines with half the pane empty. `nookClipSurface`'s two-layer shadow now draws only for `popover`: the main panel already carries the system shadow via `DraggablePanel`, and stacking two more left a "card floating over the desktop" dark rim.*
+
+- **批量模式：勾选态与预览锚点分离**：旧实现把两个独立事实挤进一个条件——只有「勾选 且 是锚点」才填充，勾选态完全由 16pt 圆圈承担，扫一眼分不出选了哪几条；而锚点行又和普通勾选行同色，看不出预览的是谁。现在行底填充 = 勾选，描边 = 当前预览锚点。
+  *Batch mode separates "checked" from "preview anchor": the old code collapsed two independent facts into one condition — only "checked AND anchor" got a fill, leaving the checked state entirely to a 16pt circle so a glance could not tell which rows were selected, while the anchor row shared the plain checked fill and could not be identified. Now the row fill means checked and the border means the current preview anchor.*
+
+- **图片 OCR 徽标改为真实三态**：元信息行原先无条件打印「已离线识别」，而同一屏下方的 OCR 卡片写着「尚未提取文字」，两个断言互相矛盾。改为按 `hasOcr` / `isScanning` 渲染已识别 / 识别中 / 尚未提取三态（新增 `preview.image.ocr_pending`，三语同步）。
+  *Image OCR badge now reflects real state: the meta row unconditionally printed "Recognized offline" while the OCR card directly below said "No text extracted yet" — two contradictory claims on one screen. It now renders recognized / recognizing / not-yet-extracted from `hasOcr` / `isScanning` (new `preview.image.ocr_pending` key, all three locales).*
+
+- **分类胶囊条不再随数据量变形**：类目数量随数据变化（空库时类型类目计数为 0 被隐藏，4 个胶囊变 2 个），把同样的列宽摊给更少的子项会让胶囊从 71pt 撑到 144pt，首次启动和清空历史后整条筛选条会变形。`EqualShareFlex` 增加单子项富余上限 24pt，余量留在行尾。
+  *Category chips no longer deform with data: category count varies with content (type categories with a zero count are hidden on an empty library, turning 4 chips into 2), and spreading the same column width across fewer items stretched a chip from 71pt to 144pt, so the filter bar changed shape on first launch and after clearing history. `EqualShareFlex` now caps per-item stretch at 24pt and leaves the remainder at the row's end.*
 
 ---
 

@@ -6,6 +6,17 @@ import SwiftUI
 // 视觉规格与 nook-swiftui 原型 MainView.swift / OCRColorView.swift 逐项一致（contracts C4）；
 // 全部剪贴板写入经 PasteService（contracts C2），不直调 NSPasteboard。
 
+/// 预览列几何常量（单一来源，便于测试断言）
+enum PreviewLayout {
+    /// 正文阅读栏宽上限。
+    ///
+    /// 面板宽度 580–1400pt，右列 = 面板宽 − 310（列表列），即 270–1090pt。
+    /// 不限宽时 13pt 正文在 1400pt 窗口下单行实测 80 个汉字（舒适上限约 40）。
+    /// 560 = 40 个汉字 × 13pt + 左右各 22pt 内边距，实测文本宽 516pt ≈ 39.7 字。
+    /// 750pt 默认窗口右列只有 440pt，远小于此值，故默认窗口完全不受影响。
+    static let readingMeasure: CGFloat = 560
+}
+
 @MainActor
 struct PreviewPane: View {
     /// 预览数据源（nil = 空态）
@@ -111,6 +122,11 @@ struct PreviewPane: View {
                     .padding(.horizontal, 22)
                     .padding(.top, 10)
                     .padding(.bottom, 22)
+                    // 阅读栏宽：面板可拉到 1400pt，右列随之变成 1090pt；不限宽时
+                    // 13pt 正文单行会跑到 80 个汉字（舒适上限约 40），且右半屏全空。
+                    // 620pt 在 750pt 默认窗口下不生效（列宽 440 < 620），只在宽窗口
+                    // 下把内容收成一条阅读栏，右侧留白变成刻意的边距而非"没内容"。
+                    .frame(maxWidth: PreviewLayout.readingMeasure, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -291,7 +307,7 @@ struct PreviewPane: View {
                     isScanning: isScanningOCR,
                     onTriggerOCR: triggerAction
                 )
-                imageMetaRow(path: path, capturedAt: item.createdAt)
+                imageMetaRow(path: path, hasOcr: hasOcr, isScanning: isScanningOCR)
                     .padding(.top, 8)
             }
             OCRPreviewCard(
@@ -326,9 +342,17 @@ struct PreviewPane: View {
     }
 
     /// 图片元信息行（分辨率 / 格式 · 大小 · 识别状态，来自真实文件属性）
-    private func imageMetaRow(path: String, capturedAt: Date) -> some View {
+    ///
+    /// 识别状态必须是真实状态。原先这里无条件打印"已离线识别"，
+    /// 而同一屏下方的 OCR 卡片写着"尚未提取文字"——两个断言互相矛盾，
+    /// 用户无法判断到底识别过没有。改为按 hasOcr / isScanning 三态渲染。
+    private func imageMetaRow(path: String, hasOcr: Bool, isScanning: Bool) -> some View {
         let ext = (path as NSString).pathExtension.uppercased()
         let info = previewData.imageInfo(for: path)
+        let ocrStateText: String = {
+            if isScanning { return L10n.tr("preview.ocr.scanning") }
+            return hasOcr ? L10n.tr("preview.image.ocr_badge") : L10n.tr("preview.image.ocr_pending")
+        }()
         return HStack(spacing: 10) {
             if let dimensions = info?.dimensions, !dimensions.isEmpty {
                 Text(dimensions)
@@ -338,7 +362,7 @@ struct PreviewPane: View {
                 Text("\(ext.isEmpty ? L10n.tr("preview.image.fallback_type") : ext) · \(fileSize)")
                     .monospacedDigit()
             }
-            Text(L10n.tr("preview.image.ocr_badge"))
+            Text(ocrStateText)
         }
         .font(.nookClipMeta)
         .foregroundStyle(NookClip.textTertiary)

@@ -70,8 +70,21 @@ enum NookClip {
     // MARK: 2.1 面板与背景（三层材质进深 + SwiftUI Material 组合 · 自适应深浅）
     /// 主面板毛玻璃底层：浅色 rgba(242,242,247,0.88) · 深色 rgba(26,26,29,0.88)
     static let bgPanel = dynamicRGBA(lr: 242, lg: 242, lb: 247, la: 0.88, dr: 26, dg: 26, db: 29, da: 0.88)
-    /// 列表内容区与设置分组卡片（清晰分层）：浅色 rgba(255,255,255,0.88) · 深色 rgba(38,38,42,0.84)
-    static let bgContent = dynamicRGBA(lr: 255, lg: 255, lb: 255, la: 0.88, dr: 38, dg: 38, db: 42, da: 0.84)
+    /// 列表内容区与设置分组卡片（清晰分层）：浅色 rgba(255,255,255,0.88) · 深色 rgba(46,46,50,0.84)
+    ///
+    /// 两列靠**底色本身**的明度差建立层次，不靠给左列加渐变。
+    ///
+    /// **深色**：左列比右列亮一档（实测合成 34 vs 25，差 6.0）。深色模式里"更亮"才是
+    /// 前景，"更暗"是背景——所以列表要比预览画布亮，与浅色相反。
+    /// 改前左列 29、右列因 aurora 冷光降到 25，两列只差 1.0，几乎没有层次。
+    ///
+    /// **浅色保持纯白**：右列被 aurora 冷光压到 228，左列若也往下压（试过 246,247,249
+    /// → 合成 239）两列反而更接近（差 15.3 → 7.7）。浅色下"列表更白、画布更蓝"
+    /// 本身就是层次，不需要再动明度。
+    ///
+    /// 为什么不用调 alpha：两列底色都是白色，只改不透明度时桌面色只是更多地透出来，
+    /// 合成明度几乎不动（253 → 251），建立不起层次；必须改 RGB 本身。
+    static let bgContent = dynamicRGBA(lr: 255, lg: 255, lb: 255, la: 0.88, dr: 46, dg: 46, db: 50, da: 0.84)
     /// 预览区底色（高保真实底）：浅色 rgba(255,255,255,0.96) · 深色 rgba(22,22,25,0.97)
     static let bgPreview = dynamicRGBA(lr: 255, lg: 255, lb: 255, la: 0.96, dr: 22, dg: 22, db: 25, da: 0.97)
     /// Popover 级材质：浅色 rgba(252,252,254,0.96) · 深色 rgba(42,42,47,0.97)
@@ -186,13 +199,21 @@ enum NookClip {
     // 掉到 0.055（仅剩 18%），选中态几乎消失；锚到右缘后 ΔE 为 0.330（106%），
     // 选中行与底色对比 3.89（原 3.81）。抽样口径见 AuroraRenderTests。
 
-    /// 顶部薄雾：浅色 3% / 深色 5% 强调色，46% 处渐隐为透明。
+    /// 顶部薄雾：浅色 7.5% / 深色 12.5% 强调色，46% 处渐隐为透明。
     /// 中间档按同一比例（0.4）缩放，保证薄雾的衰减曲线不变，只是整体加深。
+    ///
+    /// 2026-10 按实测定标（与 auroraCoolGlow 同一批）：原 3%/5% 在隔离渲染里
+    /// 顶部只产生 B−R +7（浅）/ +14（深），到 46% 归零——曲线是对的，幅度太浅。
+    /// 浅色 ×2.5、深色 ×2.5 后顶部差值升到约 13 / 26。
+    ///
+    /// 曾担心薄雾加浓会削弱「选中胶囊 vs 周围底色」的区分度（胶囊就在薄雾区内）。
+    /// 实测否定：薄雾 1× → 3× 时两者 ΔE 为 9.14 → 8.94，基本不变——
+    /// 因为薄雾是给整块区域同时染色，胶囊和底色一起被抬，相对差不变。
     static var auroraMist: LinearGradient {
         LinearGradient(
             stops: [
-                .init(color: dynamicAccentColor(lightAlpha: 0.030, darkAlpha: 0.050), location: 0),
-                .init(color: dynamicAccentColor(lightAlpha: 0.012, darkAlpha: 0.020), location: 0.22),
+                .init(color: dynamicAccentColor(lightAlpha: 0.075, darkAlpha: 0.125), location: 0),
+                .init(color: dynamicAccentColor(lightAlpha: 0.030, darkAlpha: 0.050), location: 0.22),
                 .init(color: .clear, location: 0.46)
             ],
             startPoint: .top,
@@ -205,14 +226,25 @@ enum NookClip {
     /// 半径必须盖住整块预览区：早先用 `endRadiusFraction: 0.95`（≈半宽），
     /// 渐变只铺到右半边，左侧 x<40% 处是纯白 255,255,255，看起来像「只染了一半」。
     /// 改到 1.5 后最左上角仍有色，整块画布是连续的。
-    /// 强度在 2026-10 下调到约原来的一半（用户反馈「太重」），四档等比缩放。
+    ///
+    /// 浅色档位在 2026-10 按实测重新标定：同一组 alpha 在深色底上是「一层薄光」，
+    /// 在接近白的底上却几乎看不见——浅色实测背景亮度跨度只有 13/255（5%），
+    /// 顶部与底部三通道差值合计仅 2，物理上不可辨。深色档始终不动（深底上
+    /// 20 级差值的相对变化已超过 60%，本来就看得见）。
+    ///
+    /// 浅色档位标定历史（全部等比缩放，形状不变，只改幅度）：
+    ///   ×1.0（原始）跨度 13/255  → 不可辨
+    ///   ×2.5        跨度 29/255  → 可辨，但偏浓（用户反馈"再淡一些"）
+    ///   ×1.75（当前）跨度 20/255（7.8%）→ 右上淡蓝紫可辨，不压文字
+    /// 注意：浅色只调冷/暖光，**不动薄雾**——薄雾是顶部标题栏的光源，
+    /// 与画布的材质光晕是两件事，混在一起调会让顶部重新变淡。
     static var auroraCoolGlow: EllipticalGradient {
         EllipticalGradient(
-            // 四档为等比缩放：只降峰值会让形状变平，整块一起按比例降才是「变淡」。
+            // 四档为等比缩放：只降峰值会让形状变平，整块一起按比例缩放才是「变浓/变淡」。
             stops: [
-                .init(color: dynamicAccentColor(lightAlpha: 0.045, darkAlpha: 0.063), location: 0),
-                .init(color: dynamicAccentColor(lightAlpha: 0.025, darkAlpha: 0.034), location: 0.40),
-                .init(color: dynamicAccentColor(lightAlpha: 0.010, darkAlpha: 0.014), location: 0.72),
+                .init(color: dynamicAccentColor(lightAlpha: 0.0788, darkAlpha: 0.063), location: 0),
+                .init(color: dynamicAccentColor(lightAlpha: 0.0438, darkAlpha: 0.034), location: 0.40),
+                .init(color: dynamicAccentColor(lightAlpha: 0.0175, darkAlpha: 0.014), location: 0.72),
                 .init(color: .clear, location: 1.0)
             ],
             // 光心略高于中线：预览正文从顶部开始，光落在标题区上方的空白，
@@ -225,12 +257,13 @@ enum NookClip {
 
     /// 右下暖光：强调色色相偏转 +0.19（系统蓝 → 紫），同样放大到铺满整块画布。
     /// 强调色本身无彩（石墨）时偏转后仍是中性灰，此时极光退化为纯明度变化，不产生撞色。
+    /// 浅色档位与冷光同步 ×1.75（理由与标定历史见 auroraCoolGlow）。
     static var auroraWarmGlow: EllipticalGradient {
         EllipticalGradient(
             stops: [
-                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.032, darkAlpha: 0.046), location: 0),
-                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.017, darkAlpha: 0.025), location: 0.42),
-                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.007, darkAlpha: 0.010), location: 0.74),
+                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.056, darkAlpha: 0.046), location: 0),
+                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.0298, darkAlpha: 0.025), location: 0.42),
+                .init(color: dynamicAuroraWarmColor(lightAlpha: 0.0123, darkAlpha: 0.010), location: 0.74),
                 .init(color: .clear, location: 1.0)
             ],
             center: UnitPoint(x: 1.0, y: 1.0),
@@ -262,15 +295,25 @@ enum NookClip {
     static let textPrimary = dynamicHex(light: 0x1D1D1F, dark: 0xF5F5F7)
     /// 次要文字：浅色 rgba(60,60,67,0.76) · 深色 rgba(235,235,245,0.72)
     static let textSecondary = dynamicRGBA(lr: 60, lg: 60, lb: 67, la: 0.76, dr: 235, dg: 235, db: 245, da: 0.72)
-    /// 辅助/元数据文字：浅色 rgba(60,60,67,0.54) · 深色 rgba(235,235,245,0.48)
-    static let textTertiary = dynamicRGBA(lr: 60, lg: 60, lb: 67, la: 0.54, dr: 235, dg: 235, db: 245, da: 0.48)
+    /// 辅助/元数据文字：浅色 rgba(60,60,67,0.72) · 深色 rgba(235,235,245,0.60)
+    ///
+    /// 透明度按实测定，不按观感定。面板是半透明材质，`backgroundTransparency`
+    /// 默认 0.15 会把 bgContent/bgPreview 的有效不透明度压到 0.75 左右，
+    /// 桌面色透进来后旧的 0.54/0.48 合成对比度只剩 2.8–3.2:1（浅）/ 4.1:1（深），
+    /// 低于 WCAG AA 的 4.5:1。本 token 是时间戳、来源行、底栏提示、元信息胶囊
+    /// 共用的灰，提到 0.72/0.60 后最差约 4.7/5.9:1（实测见
+    /// .taste-skill/macos/audit-pixels.md §2）。
+    static let textTertiary = dynamicRGBA(lr: 60, lg: 60, lb: 67, la: 0.72, dr: 235, dg: 235, db: 245, da: 0.60)
     /// 禁用态文字：浅色 rgba(60,60,67,0.28) · 深色 rgba(235,235,245,0.26)
     static let textDisabled = dynamicRGBA(lr: 60, lg: 60, lb: 67, la: 0.28, dr: 235, dg: 235, db: 245, da: 0.26)
     static let textOnAccent = Color.white
     /// 列表行选中反白次级文本（纯白 88%）
     static let textOnAccentSecondary = Color.white.opacity(0.88)
-    /// 列表行选中反白三级文本（纯白 76%）
-    static let textOnAccentTertiary = Color.white.opacity(0.76)
+    /// 列表行选中反白三级文本（纯白 92%）
+    ///
+    /// 实底强调色（solidAccent 选中行）上，0.76 的合成对比度只有 3.56:1，
+    /// 低于 4.5:1；0.92 约 4.6:1。这是选中行副标题/时间戳唯一可读的位置。
+    static let textOnAccentTertiary = Color.white.opacity(0.92)
     /// 列表行选中反白胶囊底色（纯白 22%）
     static let bgPillOnAccent = Color.white.opacity(0.22)
     /// 经典系统强调色实色行底下的搜索命中高亮色：
@@ -524,10 +567,14 @@ extension Font {
     }
 
     // MARK: 语义化字阶 Token (Design System 2.0 §4)
-    /// 详情区大标题 (18pt Semibold · 方案 B 海报级层级)
-    static let nookClipTitle = Font.nookClip(18, .semibold)
-    /// 详情区等宽大标题 (18pt Semibold Mono)
-    static let nookClipTitleMono = Font.nookClipMono(18, .semibold)
+    /// 详情区大标题 (22pt Semibold · 方案 B 海报级层级)
+    ///
+    /// 原为 18pt：与 13pt 正文只差 1.38×，而全屏 48% 的字是 11pt，
+    /// 结果最大字号承担不起"这是当前条目"的层级。22pt 把标题/正文比拉到 1.69×，
+    /// 同时保证 580pt 最小窗口（右列 270pt、可用 226pt）下仍不超两行截断。
+    static let nookClipTitle = Font.nookClip(22, .semibold)
+    /// 详情区等宽大标题 (22pt Semibold Mono)
+    static let nookClipTitleMono = Font.nookClipMono(22, .semibold)
     /// 分组标题 / 卡片小标题 (13pt Semibold)
     static let nookClipSectionTitle = Font.nookClip(13, .semibold)
     /// 列表行主标题 / 正文 / 按钮文案 (13pt Regular)
@@ -583,6 +630,11 @@ extension View {
     }
 
     /// 毛玻璃表面：Material / NSVisualEffectView 打底 + 令牌半透明色叠加 + 发丝边 + 多级阴影
+    ///
+    /// 阴影只在 `popover` 为真时绘制。主面板由 `DraggablePanel` 自己带系统阴影
+    /// （`panel.hasShadow = true`，见 QuickPopoverController），这里再叠两层会让
+    /// 窗口边缘出现一圈"浮在桌面上的卡片"暗边，与"面板即窗口"的定位矛盾。
+    /// 真正浮起的东西（菜单、气泡、对话框）仍需要阴影，走 `popover: true`。
     func nookClipSurface(
         tint: Color,
         radius: CGFloat = NookClip.radiusPanel,
@@ -613,7 +665,22 @@ extension View {
                 RoundedRectangle(cornerRadius: radius)
                     .strokeBorder(hairline, lineWidth: 0.5)
             }
-            .shadow(color: .black.opacity(popover ? 0.22 : 0.16), radius: popover ? 25 : 17, x: 0, y: popover ? 18 : 12)
-            .shadow(color: .black.opacity(popover ? 0.12 : 0.10), radius: popover ? 7 : 5, x: 0, y: popover ? 4 : 3)
+            .modifier(FloatingShadow(enabled: popover))
+    }
+}
+
+/// 浮起元素的双层阴影（菜单 / 气泡 / 对话框）。`enabled == false` 时不加任何阴影层，
+/// 避免留下 radius 0 的空阴影修饰符干扰离屏渲染。
+private struct FloatingShadow: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .shadow(color: .black.opacity(0.22), radius: 25, x: 0, y: 18)
+                .shadow(color: .black.opacity(0.12), radius: 7, x: 0, y: 4)
+        } else {
+            content
+        }
     }
 }

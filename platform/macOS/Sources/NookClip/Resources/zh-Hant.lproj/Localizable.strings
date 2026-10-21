@@ -337,6 +337,7 @@
 "preview.sensitive.auto_remask" = "檢視或貼上 30 秒後自動重新遮罩，並清除系統剪貼簿";
 "preview.image.fallback_type" = "圖片";
 "preview.image.ocr_badge" = "已離線辨識";
+"preview.image.ocr_pending" = "尚未擷取";
 "preview.empty.hint" = "選取項目檢視詳情";
 "preview.mask.title" = "敏感內容已遮罩";
 "preview.mask.remask" = "重新遮罩";
