@@ -36,6 +36,7 @@ fn sync_record(id: &str, title: &str, updated_at: f64, deleted_at: Option<f64>) 
         created_at: 100.0,
         last_used_at: 150.0,
         updated_at,
+        favorite_updated_at: 0.0,
         copy_count: 1,
         asset_file_name: None,
         deleted_at,

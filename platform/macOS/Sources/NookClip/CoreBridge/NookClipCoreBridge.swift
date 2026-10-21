@@ -594,6 +594,11 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
     
     func enforceDiskLimit(managedDir: String, limitBytes: UInt64) throws  -> [PrunedItemRecord]
     
+    /**
+     * 这批 id 中实际存在的那些（导入去重用，单次 IN 查询，不做实体映射）
+     */
+    func existingItemIds(ids: [String]) throws  -> [String]
+    
     func exportJson(mode: SensitiveExportMode) throws  -> String
     
     func exportMarkdown(mode: SensitiveExportMode) throws  -> String
@@ -810,6 +815,17 @@ open func enforceDiskLimit(managedDir: String, limitBytes: UInt64)throws  -> [Pr
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_enforce_disk_limit(self.uniffiClonePointer(),
         FfiConverterString.lower(managedDir),
         FfiConverterUInt64.lower(limitBytes),$0
+    )
+})
+}
+    
+    /**
+     * 这批 id 中实际存在的那些（导入去重用，单次 IN 查询，不做实体映射）
+     */
+open func existingItemIds(ids: [String])throws  -> [String] {
+    return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_existing_item_ids(self.uniffiClonePointer(),
+        FfiConverterSequenceString.lower(ids),$0
     )
 })
 }
@@ -2741,6 +2757,10 @@ public struct QueryFilter {
     public var kind: String?
     public var favoriteOnly: Bool
     public var includeDeleted: Bool
+    /**
+     * 只看回收站（deleted_at IS NOT NULL，按删除时间倒序）
+     */
+    public var onlyDeleted: Bool
     public var limit: UInt32
     public var offset: UInt32
     public var summaryMaxChars: UInt32?
@@ -2750,13 +2770,17 @@ public struct QueryFilter {
     public init(
         /**
          * 按 id 精确取单条：Swift 侧按需取回全文 summary（列表查询只载入前缀）
-         */id: String? = nil, searchQuery: String?, itemType: String?, kind: String?, favoriteOnly: Bool, includeDeleted: Bool, limit: UInt32, offset: UInt32, summaryMaxChars: UInt32? = nil) {
+         */id: String? = nil, searchQuery: String?, itemType: String?, kind: String?, favoriteOnly: Bool, includeDeleted: Bool, 
+        /**
+         * 只看回收站（deleted_at IS NOT NULL，按删除时间倒序）
+         */onlyDeleted: Bool = false, limit: UInt32, offset: UInt32, summaryMaxChars: UInt32? = nil) {
         self.id = id
         self.searchQuery = searchQuery
         self.itemType = itemType
         self.kind = kind
         self.favoriteOnly = favoriteOnly
         self.includeDeleted = includeDeleted
+        self.onlyDeleted = onlyDeleted
         self.limit = limit
         self.offset = offset
         self.summaryMaxChars = summaryMaxChars
@@ -2785,6 +2809,9 @@ extension QueryFilter: Equatable, Hashable {
         if lhs.includeDeleted != rhs.includeDeleted {
             return false
         }
+        if lhs.onlyDeleted != rhs.onlyDeleted {
+            return false
+        }
         if lhs.limit != rhs.limit {
             return false
         }
@@ -2804,6 +2831,7 @@ extension QueryFilter: Equatable, Hashable {
         hasher.combine(kind)
         hasher.combine(favoriteOnly)
         hasher.combine(includeDeleted)
+        hasher.combine(onlyDeleted)
         hasher.combine(limit)
         hasher.combine(offset)
         hasher.combine(summaryMaxChars)
@@ -2824,6 +2852,7 @@ public struct FfiConverterTypeQueryFilter: FfiConverterRustBuffer {
                 kind: FfiConverterOptionString.read(from: &buf), 
                 favoriteOnly: FfiConverterBool.read(from: &buf), 
                 includeDeleted: FfiConverterBool.read(from: &buf), 
+                onlyDeleted: FfiConverterBool.read(from: &buf), 
                 limit: FfiConverterUInt32.read(from: &buf), 
                 offset: FfiConverterUInt32.read(from: &buf), 
                 summaryMaxChars: FfiConverterOptionUInt32.read(from: &buf)
@@ -2837,6 +2866,7 @@ public struct FfiConverterTypeQueryFilter: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.kind, into: &buf)
         FfiConverterBool.write(value.favoriteOnly, into: &buf)
         FfiConverterBool.write(value.includeDeleted, into: &buf)
+        FfiConverterBool.write(value.onlyDeleted, into: &buf)
         FfiConverterUInt32.write(value.limit, into: &buf)
         FfiConverterUInt32.write(value.offset, into: &buf)
         FfiConverterOptionUInt32.write(value.summaryMaxChars, into: &buf)
@@ -4819,6 +4849,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_enforce_disk_limit() != 20078) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_existing_item_ids() != 51524) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_export_json() != 16452) {

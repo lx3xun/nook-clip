@@ -22,67 +22,47 @@
 
 ## [Unreleased]
 
+### 🔒 安全与修复 (Fixes)
+
+- **敏感内容不再泄漏**：敏感条目的 OCR 文本改为加密存储；短词搜索也无法再探测到敏感正文。
+  *Sensitive content no longer leaks: OCR text of sensitive items is now stored encrypted, and short search queries can no longer probe sensitive bodies.*
+
+- **同步不再丢失另一台设备的改动**：在 A 设备粘贴，不会再把 B 设备的收藏或删除覆盖掉。
+  *Sync no longer loses edits from another device: pasting on device A no longer reverts a favorite or a deletion made on device B.*
+
+- **删除与恢复行为一致**：从回收站恢复的条目重新可被搜索，重复复制已删除的内容不再产生两条相同记录。
+  *Consistent delete and restore behaviour: restored items are searchable again, and re-copying deleted content no longer creates duplicates.*
+
+- **数据库迁移不再回退版本号**：升级过的库不会被旧逻辑写回旧版本。
+  *Migrations no longer regress the schema version: an upgraded database can no longer be written back to an older version.*
+
 ### 🚀 性能优化 (Performance)
-- **锚点时间分组改为 SQL 内聚合**：时间导航锚点不再把全库 `last_used_at` 搬进内存再逐条换算时区，改为按本地日/周/月边界在 SQLite 内直接分桶（`time_group_anchor_counts`）；分组结果与旧算法逐项一致（含 UTC+8 / UTC-5 校验用例）。
-  *Timeline anchor counts now aggregate inside SQLite against precomputed local day/week/month boundaries instead of transferring the full timestamp set into memory and converting each entry; grouping output verified identical to the previous algorithm across multiple time zones.*
 
-- **淘汰与驱逐批量化**：保留期清理与磁盘配额驱逐从每条约 5 条 SQL（2500 次/500 条）降为每 100 条一次集合操作；FTS 维护改用已取出的 rowid 数字，去掉 `(SELECT rowid …)` 全表子查询。
-  *Retention pruning and disk-limit eviction now run chunked set-based SQL instead of ~5 statements per item; FTS maintenance uses the already-fetched rowid, eliminating full-table subqueries.*
+- **历史变多后不再变慢**：4 万条库上单条保存 6.0ms → 1.3ms，批量写入 109s → 2.4s，不再随库增长退化；带搜索词的界面快照 116ms → 47ms。
+  *No longer slows down as history grows: on a 40k-item library a single save drops from 6.0ms to 1.3ms and a batch from 109s to 2.4s, staying flat with size; a searched view snapshot drops from 116ms to 47ms.*
 
-- **批量粘贴与文本摄取去重**：批量粘贴一次 `WHERE id IN (...)` 取回全部条目摘要，替代逐 ID 查询；文本摄取复用首次敏感检测结论，非敏感分支不再重复跑同一套敏感正则。
-  *Batch paste now fetches all item summaries in a single `WHERE id IN (…)` query instead of one query per id; text ingest reuses the first sensitivity detection result so the non-sensitive branch no longer re-runs the same pattern set.*
+- **数据库文件不再无限膨胀**：清空历史后空间会真正回收，查询统计信息首次自动生成。
+  *The database file no longer grows without bound: space is reclaimed after clearing history, and query-planner statistics are now generated automatically.*
 
-- **消除热路径堆分配**：搜索高亮把逐字符 `to_lowercase()` 堆分配改为整段一次小写 + 段区间反查；语言识别对静态大小写不敏感标记改预算小写查找表；时间线分组的「上周」基准提到循环外一次推导。
-  *Removed hot-path heap allocations: search highlight lowercases the whole text once and maps hits back to character ranges instead of allocating a String per character; language detection uses a precomputed lowercase lookup for static case-insensitive markers; the "last week" reference in timeline grouping is now derived once outside the loop.*
+- **耗时操作不再卡住界面**：清空历史、导入备份、启动清理都移到后台执行。
+  *Long operations no longer freeze the UI: clearing history, importing backups and startup cleanup all run in the background.*
 
-- **交互响应优化**：应用搜索索引首次构建移出主线程（输入即有结果到达前不再阻塞）；预览区完整实体改为按条目异步加载一次并缓存，单帧不再重复跨 FFI 查库；滚动期行坐标写入引用容器，吸顶组经节流合并为一次性状态更新（根视图不再以帧率重求值）；列表行相对时间构造期算一次。
-  *Interaction responsiveness: the app-search index is now built off the main thread; the preview pane loads the full entity once per item asynchronously and caches it instead of querying across FFI multiple times per frame; row frames are stored in a reference container during scrolling with throttled sticky-group updates, so the root view no longer re-evaluates at frame rate; list rows precompute their relative timestamp once.*
-
-- **启动与后台 IO 移出主线程**：孤儿载荷清理、Keychain 口令读取、文件存在性与系统图标加载全部改为后台执行；语法高亮行缓存满容时整体淘汰并接入面板闲置回收，搜索高亮缓存同步清理。
-  *Startup and background IO moved off the main thread: orphan payload sweeping, Keychain passphrase reads, file existence checks and system icon loading all run in background tasks; the syntax-highlight line cache evicts when full and is cleared on panel idle reclaim, alongside the search-highlight cache.*
-
-- **调整历史保留天数与磁盘限额默认值**：历史保留天数默认值调整为半年（180 天，原为 30 天）；磁盘空间上限默认值调整为 5GB（5120MB，原为无限制），防止媒体载荷长期累积占满磁盘。
-  *Default storage policy adjustments: History retention default changed to 6 months (180 days, previously 30 days); disk space limit default changed to 5GB (5120MB, previously unlimited) to prevent unbounded asset accumulation.*
-
----
+- **默认策略调整**：历史保留期改为半年，磁盘占用上限 5GB。
+  *Default policy changes: history retention is now six months with a 5GB disk cap.*
 
 ### 🎨 界面与交互 (UI)
 
-- **主面板环境光（Aurora）**：左右两列新增结构性环境光——顶部薄雾（浅色 7.5% / 深色 12.5% 强调色，46% 处渐隐）与右侧画布冷暖双光（冷光锚右上、暖光锚右下，各自铺满整块画布）。渐变由系统强调色派生，跟随用户的强调色设置；只叠在列底色之上、内容之下，不覆盖文字。规范见 `docs/DESIGN.md` §3.1b。
-  *Panel ambient light (Aurora): added structural ambient gradients to both columns — a top mist (7.5% accent in light, 12.5% in dark, fading out by 46%) and a cool/warm dual glow on the right canvas, each covering the full pane. Gradients derive from the system accent color and render above the column fill but beneath all content.*
+- **主面板新增环境光（Aurora）**：顶部薄雾与右侧冷暖光晕，跟随系统强调色；浅色模式按实测加深到刚好可见。
+  *Panel ambient light (Aurora): a top mist and a cool/warm glow on the right, following the system accent colour; light-mode tiers were deepened to just-visible based on measurement.*
 
-  浅色档位按实测定标，而非按观感：同一组 alpha 在深色底上是「一层薄光」，在接近白的底上却几乎不可见——初版浅色实测背景亮度跨度只有 13/255（5%），顶部与底部三通道差值合计仅 2，物理上不可辨。薄雾浅色 ×2.5、冷光与暖光浅色 ×1.75；深色档不动（深底上 20 级差值的相对变化已超 60%，本来就看得见）。全部三档等比缩放，渐变形状不变，只改幅度。
-  *The light tiers were calibrated from measurements rather than by eye: the same alphas read as a thin wash on a dark ground but are nearly invisible on near-white — the first light version measured only a 13/255 (5%) luminance span with a top-to-bottom channel delta of 2, which is physically imperceptible. Light mist scaled ×2.5 and light cool/warm glow ×1.75; the dark tiers stay as-is (a 20-level delta is already a >60% relative change on a dark ground). All stops scale proportionally, so only the amplitude changes, not the shape.*
+- **层级更清楚**：预览标题加大到 22pt，深色模式两列明度差拉开，正文限宽约 40 个汉字（此前宽窗口下一行排 80 字）。
+  *Clearer hierarchy: the preview title is now 22pt, the columns separate more clearly in dark mode, and body text is capped at ~40 CJK characters per line (previously 80).*
 
-- **冷光锚点从左上移到右上**：参考稿的极光锚在左上，但该处正是搜索框与分类胶囊所在，实测会让「全部」胶囊与底色的 ΔE 从 0.312 掉到 0.055（仅剩 18%），选中态几乎消失。锚到右缘后回升至 0.330，选中行对比 3.89（原 3.81）。
-  *Moved the cool glow from the top-left to the top-right: at the original anchor it sat on the search field and category chips, dropping chip-vs-ground ΔE from 0.312 to 0.055 (18% remaining) and nearly erasing the selected state; anchoring right restores it to 0.330.*
+- **灰字看得清了**：时间戳、来源行等辅助文字对比度从 2.8:1 提到 4.7:1 以上，达到 WCAG AA。
+  *Muted text is now legible: timestamps and source lines go from 2.8:1 to above 4.7:1, meeting WCAG AA.*
 
-- **移除三处面板分隔线**：底部快捷键栏上边、预览区顶部栏下边、批量工具栏上边。预览区与底栏现在靠渐变底色自然过渡，不再用硬边线分层。
-  *Removed three panel dividers — above the footer hint bar, below the preview toolbar, and above the batch toolbar. Both areas now separate through the gradient fill instead of a hard rule.*
-
-- **新增 `AuroraRenderTests`**：位图级回归测试，验证薄雾确实绘制、冷光确实右锚、左列无侧向光晕、预览区四向均被覆盖（防止半径收缩导致「只染一半」回归）。
-  *Added `AuroraRenderTests`: bitmap-level regression tests asserting the mist renders, the cool glow anchors right, the list column has no side glow, and the preview pane is covered edge to edge.*
-
-- **两列层次改由底色明度承担**：深色内容区 `rgb(38,38,42)` → `rgb(46,46,50)`。改前左列合成 29、右列因冷光降到 25，两列只差 1.0，几乎看不出层次。深色模式里「更亮」才是前景，所以列表要比画布亮，与浅色相反；浅色保持纯白（试过 `246,247,249`，两列反而从差 15.3 缩到 7.7，已回退）。不靠给左列加渐变来分层。
-  *Column separation now comes from the fill itself: dark content fill `rgb(38,38,42)` → `rgb(46,46,50)`. Previously the list composited to 29 while the preview dropped to 25 under the cool glow — a gap of 1.0, i.e. no readable depth. In dark mode "lighter" means foreground, so the list must sit above the canvas, the opposite of light mode; light mode stays pure white (a `246,247,249` attempt narrowed the gap from 15.3 to 7.7 and was reverted). No gradient is added to the left column.*
-
-- **三级文字提到 WCAG AA 以上**：面板是半透明材质，`backgroundTransparency` 默认 0.15 会把列底色有效不透明度压到 0.75 左右，桌面色透进来后 `textTertiary`（时间戳 / 来源行 / 底栏提示 / 元信息共用）实测只剩 2.8–3.2:1（浅）/ 4.1:1（深）。透明度 0.54/0.48 → 0.72/0.60，最差约 4.7/5.9:1。选中行反白三级文字 0.76 → 0.92（3.56:1 → 约 4.6:1）。
-  *Tertiary text raised above WCAG AA: the panel is a translucent material and the default `backgroundTransparency` of 0.15 pushes the column fills' effective opacity to ~0.75, so desktop colour bleed left `textTertiary` (shared by timestamps, source rows, footer hints and meta pills) at a measured 2.8–3.2:1 light / 4.1:1 dark. Opacity 0.54/0.48 → 0.72/0.60 brings the worst case to ~4.7/5.9:1; the on-accent tertiary variant goes 0.76 → 0.92 (3.56:1 → ~4.6:1).*
-
-- **预览标题 18 → 22pt**：与 13pt 正文只差 1.38×，而全屏 48% 的字是 11pt，最大字号撑不起「这是当前条目」的层级。22pt 把标题/正文比拉到 1.69×，且在 580pt 最小窗口（右列 270pt）下仍不超两行。
-  *Preview title 18 → 22pt: at 18pt it was only 1.38× the 13pt body while 48% of the screen is 11pt, so the largest type could not carry "this is the current item". 22pt lifts the title/body ratio to 1.69× and still fits two lines in the 580pt minimum window (270pt preview column).*
-
-- **预览正文加阅读栏宽，主窗口去掉静置阴影**：正文宽度上限 560pt（≈40 个汉字），只在宽窗口生效——此前 1400pt 窗口下单行 80 个汉字、右半屏全空。同时 `nookClipSurface` 的双层阴影改为仅 `popover` 绘制：主面板由 `DraggablePanel` 自带系统阴影，再叠两层会在窗口边缘留一圈「浮在桌面上的卡片」暗边。
-  *Preview body gains a reading measure and the main window loses its resting shadow: body width is capped at 560pt (~40 CJK characters) and only takes effect in wide windows — previously a 1400pt window produced 80-character lines with half the pane empty. `nookClipSurface`'s two-layer shadow now draws only for `popover`: the main panel already carries the system shadow via `DraggablePanel`, and stacking two more left a "card floating over the desktop" dark rim.*
-
-- **批量模式：勾选态与预览锚点分离**：旧实现把两个独立事实挤进一个条件——只有「勾选 且 是锚点」才填充，勾选态完全由 16pt 圆圈承担，扫一眼分不出选了哪几条；而锚点行又和普通勾选行同色，看不出预览的是谁。现在行底填充 = 勾选，描边 = 当前预览锚点。
-  *Batch mode separates "checked" from "preview anchor": the old code collapsed two independent facts into one condition — only "checked AND anchor" got a fill, leaving the checked state entirely to a 16pt circle so a glance could not tell which rows were selected, while the anchor row shared the plain checked fill and could not be identified. Now the row fill means checked and the border means the current preview anchor.*
-
-- **图片 OCR 徽标改为真实三态**：元信息行原先无条件打印「已离线识别」，而同一屏下方的 OCR 卡片写着「尚未提取文字」，两个断言互相矛盾。改为按 `hasOcr` / `isScanning` 渲染已识别 / 识别中 / 尚未提取三态（新增 `preview.image.ocr_pending`，三语同步）。
-  *Image OCR badge now reflects real state: the meta row unconditionally printed "Recognized offline" while the OCR card directly below said "No text extracted yet" — two contradictory claims on one screen. It now renders recognized / recognizing / not-yet-extracted from `hasOcr` / `isScanning` (new `preview.image.ocr_pending` key, all three locales).*
-
-- **分类胶囊条不再随数据量变形**：类目数量随数据变化（空库时类型类目计数为 0 被隐藏，4 个胶囊变 2 个），把同样的列宽摊给更少的子项会让胶囊从 71pt 撑到 144pt，首次启动和清空历史后整条筛选条会变形。`EqualShareFlex` 增加单子项富余上限 24pt，余量留在行尾。
-  *Category chips no longer deform with data: category count varies with content (type categories with a zero count are hidden on an empty library, turning 4 chips into 2), and spreading the same column width across fewer items stretched a chip from 71pt to 144pt, so the filter bar changed shape on first launch and after clearing history. `EqualShareFlex` now caps per-item stretch at 24pt and leaves the remainder at the row's end.*
+- **若干状态显示修正**：批量模式勾选与预览锚点用底色/描边区分；图片 OCR 徽标显示真实状态（此前同屏两处说法矛盾）；类目变少时分类胶囊不再被拉宽。
+  *Several state-display fixes: batch checked vs. preview anchor are now distinguished by fill and border; the image OCR badge reflects real state (it previously contradicted the card below it); category chips are no longer stretched when there are fewer categories.*
 
 ---
 

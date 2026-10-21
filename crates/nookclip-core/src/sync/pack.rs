@@ -16,8 +16,14 @@ pub struct SyncItemRecord {
     pub is_favorite: bool,
     pub created_at: f64,
     pub last_used_at: f64,
-    /// 元数据 LWW 判新时间戳（data-model §3）：收藏/标题等以它为准
+    /// 元数据 LWW 判新时间戳（data-model §3）：标题/摘要等以它为准。
+    /// 注意：`mark_used`（粘贴/再次使用）**不**推进它——使用不是编辑，
+    /// 否则一次粘贴会把对端更新的收藏状态顶掉。
     pub updated_at: f64,
+    /// 收藏状态的独立判新时间戳：与 `updated_at` 分开，使「A 粘贴 + B 收藏」
+    /// 不再互相覆盖。旧版 pack 无此字段时按 0 处理（对账侧回退到 `updated_at`）。
+    #[serde(default)]
+    pub favorite_updated_at: f64,
     /// 合并规则 copy_count = max(local, remote)
     pub copy_count: i64,
     /// 云端附件池文件名（content-addressed，<sha256>.<ext>）；

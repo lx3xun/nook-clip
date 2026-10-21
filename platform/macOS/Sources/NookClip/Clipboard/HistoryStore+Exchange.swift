@@ -19,15 +19,16 @@ extension InMemoryHistoryStore {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             if let legacyItems = try? decoder.decode([ClipboardItem].self, from: data) {
+                // 旧实现：page(limit: 100000) 拉全库 ID 建集合 + 逐条 rustStore.save（每条独立事务），
+                // 3000 条实测约 868ms 且全程占用主线程。改为：
+                // 1) 只按需查询已存在 ID（分批 IN 查询，而非全表实体映射）；
+                // 2) 剩余条目走单事务批量写入（save_items 语义与逐条一致）。
+                let candidateIDs = legacyItems.map(\.id.uuidString)
+                let existingIDs = Set(rust.existingItemIDs(among: candidateIDs))
+                let toInsert = legacyItems.filter { !existingIDs.contains($0.id.uuidString) }
                 var imported = 0
-                let existingIDs = Set(rust.page(limit: 100000, offset: 0).map(\.id))
-                for item in legacyItems {
-                    if existingIDs.contains(item.id) {
-                        continue
-                    }
-                    if rust.save(item) != nil {
-                        imported += 1
-                    }
+                if !toInsert.isEmpty {
+                    imported = rust.saveBatchCounting(toInsert)
                 }
                 if imported > 0 {
                     items = rust.page(limit: Self.pageSize, offset: 0)

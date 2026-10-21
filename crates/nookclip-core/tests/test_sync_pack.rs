@@ -13,6 +13,7 @@ fn test_sync_pack_serialization_and_compression_roundtrip() {
         created_at: 100.0,
         last_used_at: 200.0,
         updated_at: 200.0,
+        favorite_updated_at: 0.0,
         copy_count: 3,
         asset_file_name: None,
         deleted_at: None,
@@ -34,6 +35,7 @@ fn test_sync_pack_serialization_and_compression_roundtrip() {
         created_at: 300.0,
         last_used_at: 400.0,
         updated_at: 400.0,
+        favorite_updated_at: 0.0,
         copy_count: 1,
         asset_file_name: Some("abc123.png".to_string()),
         deleted_at: Some(500.0), // tombstone

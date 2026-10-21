@@ -279,6 +279,9 @@ pub struct QueryFilter {
     pub kind: Option<String>,
     pub favorite_only: bool,
     pub include_deleted: bool,
+    /// 只看回收站（deleted_at IS NOT NULL，按删除时间倒序）
+    #[uniffi(default = false)]
+    pub only_deleted: bool,
     pub limit: u32,
     pub offset: u32,
     #[uniffi(default = None)]
@@ -294,6 +297,7 @@ impl From<QueryFilter> for core_model::QueryFilter {
             kind: f.kind,
             favorite_only: f.favorite_only,
             include_deleted: f.include_deleted,
+            only_deleted: f.only_deleted,
             limit: f.limit,
             offset: f.offset,
             summary_max_chars: f.summary_max_chars,
@@ -828,6 +832,11 @@ impl NookClipHistoryEngine {
     /// 全部条目载荷路径（孤儿对账用，单列轻量查询）
     pub fn payload_paths(&self) -> Result<Vec<String>, NookClipError> {
         Ok(self.repo.all_payload_paths()?)
+    }
+
+    /// 这批 id 中实际存在的那些（导入去重用，单次 IN 查询，不做实体映射）
+    pub fn existing_item_ids(&self, ids: Vec<String>) -> Result<Vec<String>, NookClipError> {
+        Ok(self.repo.existing_item_ids(&ids)?)
     }
 
     pub fn query_items(&self, filter: QueryFilter) -> Result<Vec<ClipItemSummary>, NookClipError> {

@@ -73,6 +73,115 @@ impl DerivedKindFilter {
     }
 }
 
+/// `clip_items ci LEFT JOIN clip_payloads cp` 的摘要投影列。
+/// 顺序必须与 [`map_summary_row`] 的索引严格一致；四处查询（分页 / 按 id 批量 /
+/// 单条回读 / save 回显）共用这一份定义，避免列序漂移导致映射错位。
+/// 第 4 列（索引 3）由调用方决定摘要表达式（原文 / 截断前缀 / COALESCE 全文）。
+const SUMMARY_COLUMN_TAIL: &str = "ci.created_at, ci.last_used_at, ci.copy_count, ci.favorite, \
+     ci.source_app_bundle_id, ci.source_app_name, ci.is_sensitive, ci.deleted_at, ci.payload_path, \
+     cp.ocr_text, cp.metadata_json, ci.kind, ci.source_device_id, ci.source_device_name, ci.source_platform";
+
+fn summary_columns(summary_expr: &str) -> String {
+    format!("ci.id, ci.item_type, ci.title, {summary_expr}, {SUMMARY_COLUMN_TAIL}")
+}
+
+/// 单行 → ClipItemSummary。列序见 [`summary_columns`]。
+fn map_summary_row(row: &rusqlite::Row<'_>, assets_dir: Option<&Path>) -> rusqlite::Result<ClipItemSummary> {
+    let item_type: String = row.get(1)?;
+    let stored_path: Option<String> = row.get(12)?;
+    let resolved_path =
+        PayloadAssetStore::resolve_for_runtime(&item_type, stored_path.as_deref(), assets_dir);
+    Ok(ClipItemSummary {
+        id: row.get(0)?,
+        item_type,
+        title: row.get(2)?,
+        summary: row.get(3)?,
+        created_at: row.get(4)?,
+        last_used_at: row.get(5)?,
+        copy_count: row.get(6)?,
+        favorite: row.get::<_, i64>(7)? == 1,
+        source_app_bundle_id: row.get(8)?,
+        source_app_name: row.get(9)?,
+        is_sensitive: row.get::<_, i64>(10)? == 1,
+        deleted_at: row.get(11)?,
+        payload_path: resolved_path,
+        ocr_text: row.get(13)?,
+        metadata_json: row.get(14)?,
+        kind: row.get(15)?,
+        source_device_id: row.get(16)?,
+        source_device_name: row.get(17)?,
+        source_platform: row.get(18)?,
+    })
+}
+
+/// 搜索条件构造结果：显式携带「是否需要 JOIN clip_payloads」，
+/// 不再靠 `conditions.iter().any(|c| c.contains("cp."))` 字符串嗅探
+/// （新增条件若写成 `ocr_text LIKE` 会漏 JOIN 直接运行期报错）。
+struct SearchConditions {
+    fts_join: String,
+    conditions: Vec<String>,
+    params: Vec<Box<dyn rusqlite::ToSql>>,
+    needs_payload_join: bool,
+}
+
+/// 同步对账时的本地行快照（只取裁决需要的列）。
+struct LocalSyncRow {
+    last_used_at: f64,
+    deleted_at: Option<f64>,
+    copy_count: i64,
+    updated_at: f64,
+    id: String,
+    favorite_updated_at: f64,
+}
+
+/// 删除状态裁决（对齐 data-model §3 冲突矩阵）。
+///
+/// 旧实现把 `deleted_at` 与 `updated_at` 混成一个标量比较
+///（`remote.deleted_at.unwrap_or(updated_at)` vs `local.deleted_at.unwrap_or(updated_at)`），
+/// 于是「删除后又被粘贴/编辑」会静默撤销删除。这里按矩阵逐分支判定：
+///
+/// - 本地活跃 + 远端删除：`local.last_used_at > remote.deleted_at` → 保留本地，否则采纳删除
+/// - 本地删除 + 远端活跃：`remote.updated_at > local.deleted_at` → 恢复，否则保留删除
+/// - 两侧同态：保持本地状态
+fn resolve_deleted_state(local: &LocalSyncRow, remote: &crate::sync::SyncItemRecord) -> Option<f64> {
+    match (local.deleted_at, remote.deleted_at) {
+        // 本地活跃 / 远端删除
+        (None, Some(remote_deleted)) => {
+            if local.last_used_at > remote_deleted {
+                None
+            } else {
+                Some(remote_deleted)
+            }
+        }
+        // 本地删除 / 远端活跃
+        (Some(local_deleted), None) => {
+            if remote.updated_at > local_deleted {
+                None
+            } else {
+                Some(local_deleted)
+            }
+        }
+        // 两侧同态：沿用远端值（活跃→活跃为 None；删除→删除取远端时间戳）
+        (None, None) => None,
+        (Some(_), Some(remote_deleted)) => Some(remote_deleted),
+    }
+}
+
+/// 转义 LIKE 模式中的元字符（配合 `ESCAPE '\'` 使用）。
+/// 不转义时短词 token 里的 `_` / `%` 会被当成通配符：搜 `_` 命中全库。
+fn escape_like_token(token: &str) -> String {
+    let mut out = String::with_capacity(token.len() + 4);
+    for ch in token.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '%' => out.push_str("\\%"),
+            '_' => out.push_str("\\_"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 fn compute_kind_and_metadata(
     item_type: &str,
     is_sensitive: bool,
@@ -277,10 +386,11 @@ impl StorageRepository {
         raw_text: Option<&str>,
     ) -> Result<ClipItemSummary> {
 
-        // 1. Check if item already exists by exact ID OR by identical active content (content deduplication)
-        let existing: Option<(String, i64, bool, f64)> = tx
+        // 1. 先按主键精确命中
+        let existing: Option<(String, i64, bool, f64, bool)> = tx
             .query_row(
-                "SELECT id, copy_count, favorite, created_at FROM clip_items WHERE id = ?1",
+                "SELECT id, copy_count, favorite, created_at, deleted_at IS NOT NULL \
+                 FROM clip_items WHERE id = ?1",
                 params![&item.id],
                 |row| {
                     Ok((
@@ -288,18 +398,24 @@ impl StorageRepository {
                         row.get(1)?,
                         row.get::<_, i64>(2)? == 1,
                         row.get(3)?,
+                        row.get::<_, i64>(4)? == 1,
                     ))
                 },
             )
             .optional()?;
-        // 内容去重：敏感条目不能按 summary 去重（相同掩码 != 相同明文）
+        // 2. 内容去重：敏感条目不能按 summary 去重（相同掩码 != 相同明文）。
+        //    条件必须与 idx_clip_items_dedup_lru 的谓词完全一致（含 is_sensitive = 0），
+        //    否则部分索引不可用，退化为按 item_type 的全区间逐行比对（写路径 O(N²)）。
+        //    回收站行也参与匹配：命中后复用该行并清 deleted_at，避免「删掉的内容再复制一次」
+        //    产生同内容第二行（否则从回收站恢复会得到两条重复记录）。
         let existing = match existing {
             Some(v) => Some(v),
             None if !item.is_sensitive => tx
                 .query_row(
-                    "SELECT id, copy_count, favorite, created_at FROM clip_items 
-                     WHERE item_type = ?1 AND summary = ?2 AND deleted_at IS NULL 
-                     ORDER BY last_used_at DESC LIMIT 1",
+                    "SELECT id, copy_count, favorite, created_at, deleted_at IS NOT NULL \
+                     FROM clip_items \
+                     WHERE item_type = ?1 AND summary = ?2 AND is_sensitive = 0 \
+                     ORDER BY (deleted_at IS NULL) DESC, last_used_at DESC LIMIT 1",
                     params![&item.item_type, &item.summary],
                     |row| {
                         Ok((
@@ -307,6 +423,7 @@ impl StorageRepository {
                             row.get(1)?,
                             row.get::<_, i64>(2)? == 1,
                             row.get(3)?,
+                            row.get::<_, i64>(4)? == 1,
                         ))
                     },
                 )
@@ -315,7 +432,7 @@ impl StorageRepository {
         };
 
         let (target_id, copy_count, favorite, created_at) = match existing {
-            Some((prev_id, prev_count, prev_fav, prev_created)) => (
+            Some((prev_id, prev_count, prev_fav, prev_created, _)) => (
                 prev_id,
                 prev_count + 1,
                 prev_fav || item.favorite,
@@ -361,13 +478,23 @@ impl StorageRepository {
                 id, item_type, title, summary, created_at, last_used_at,
                 copy_count, favorite, source_app_bundle_id, source_app_name,
                 is_sensitive, deleted_at, payload_path, updated_at, kind,
-                source_device_id, source_device_name, source_platform
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+                source_device_id, source_device_name, source_platform, favorite_updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
             ON CONFLICT(id) DO UPDATE SET
                 last_used_at = excluded.last_used_at,
                 copy_count = excluded.copy_count,
                 favorite = excluded.favorite,
-                deleted_at = NULL,
+                -- 收藏状态从「未收藏」翻转为「收藏」时刷新独立判新时钟；
+                -- 已在收藏状态时保持不变（否则每次复制都会刷新收藏时间，
+                -- 让本地收藏在与对端取消收藏的竞争中永远胜出）。
+                favorite_updated_at = CASE
+                    WHEN excluded.favorite = 1 AND clip_items.favorite = 0 THEN excluded.updated_at
+                    ELSE clip_items.favorite_updated_at
+                END,
+                -- 尊重调用方显式传入的 deleted_at：内容去重可能命中回收站行
+                --（此时重新复制 = 恢复该行，deleted_at 为 NULL）；
+                -- 但显式软删写入（deleted_at 有值）不得被无条件清空。
+                deleted_at = excluded.deleted_at,
                 payload_path = COALESCE(excluded.payload_path, clip_items.payload_path),
                 updated_at = excluded.updated_at,
                 kind = excluded.kind,
@@ -396,6 +523,7 @@ impl StorageRepository {
                 &item.source_device_id,
                 &item.source_device_name,
                 &item.source_platform,
+                if favorite { Self::unix_now() } else { 0.0 },
             ],
         )?;
 
@@ -531,16 +659,18 @@ impl StorageRepository {
         Ok(persisted)
     }
 
-    /// 构造通用的 FTS 与 WHERE 条件片段（query_items 与 count_categories 共享）
+    /// 构造通用的 FTS 与 WHERE 条件片段（query_items / count_categories /
+    /// time_group_anchor_counts 共享）。
     fn build_search_conditions(
         include_deleted: bool,
         favorite_only: bool,
         item_type: Option<&str>,
         search_query: Option<&str>,
         id: Option<&str>,
-    ) -> (String, Vec<String>, Vec<Box<dyn rusqlite::ToSql>>) {
+    ) -> SearchConditions {
         let mut conditions = Vec::new();
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        let mut needs_payload_join = false;
 
         if !include_deleted {
             conditions.push("ci.deleted_at IS NULL".to_string());
@@ -580,23 +710,65 @@ impl StorageRepository {
                         .join(" ");
                     params.push(Box::new(fts_expr));
                     let fts_param_idx = params.len();
+                    // 按 rowid 关联：clip_fts.rowid == clip_items.rowid 是不变量
+                    //（schema v2 起由所有写路径维护，test_fts_rowid_alignment 守护）。
+                    // 若按 UNINDEXED 的 clip_id 关联，每次命中都要走文本主键二分查找，
+                    // 实测快照类查询慢 2–2.5×。
                     fts_join = format!(
-                        "INNER JOIN (SELECT clip_id FROM clip_fts WHERE clip_fts MATCH ?{fts_param_idx}) fts ON ci.id = fts.clip_id"
+                        "INNER JOIN (SELECT rowid AS fts_rowid FROM clip_fts WHERE clip_fts MATCH ?{fts_param_idx}) fts ON ci.rowid = fts.fts_rowid"
                     );
                 }
 
                 for st in short_tokens {
-                    params.push(Box::new(format!("%{st}%")));
+                    // 转义 LIKE 元字符：不转义时 token `_` / `%` 会退化为通配符
+                    //（实测搜 `_` 命中全库），既是错结果也是一次隐式的全表探测。
+                    params.push(Box::new(format!("%{}%", escape_like_token(&st))));
                     let p_idx = params.len();
+                    // 敏感条目：OCR 明文不得成为搜索旁路（FTS 路径已排除敏感条目，
+                    // 短词回退必须保持一致，否则 2 字符即可命中敏感正文）。
                     conditions.push(format!(
-                        "(ci.title LIKE ?{p_idx} OR ci.summary LIKE ?{p_idx} OR ci.source_app_name LIKE ?{p_idx} OR cp.ocr_text LIKE ?{p_idx})"
+                        "(ci.title LIKE ?{p_idx} ESCAPE '\\' \
+                          OR ci.summary LIKE ?{p_idx} ESCAPE '\\' \
+                          OR ci.source_app_name LIKE ?{p_idx} ESCAPE '\\' \
+                          OR (ci.is_sensitive = 0 AND cp.ocr_text LIKE ?{p_idx} ESCAPE '\\'))"
                     ));
+                    needs_payload_join = true;
                 }
             }
         }
 
-        (fts_join, conditions, params)
+        SearchConditions {
+            fts_join,
+            conditions,
+            params,
+            needs_payload_join,
+        }
     }
+
+    /// 这批 id 中实际存在的那些（参数化 IN，一次查询；含已软删行）。
+    /// 导入去重专用：只回传 id，不做实体映射、不读载荷列。
+    pub fn existing_item_ids(&self, ids: &[String]) -> Result<Vec<String>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let conn = self.conn.lock();
+        let mut out = Vec::new();
+        // 分块避免超出 SQLite 变量上限（默认 999）
+        const CHUNK: usize = 500;
+        for chunk in ids.chunks(CHUNK) {
+            let placeholders = vec!["?"; chunk.len()].join(",");
+            let sql = format!("SELECT id FROM clip_items WHERE id IN ({placeholders})");
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), |r| {
+                r.get::<_, String>(0)
+            })?;
+            for r in rows {
+                out.push(r?);
+            }
+        }
+        Ok(out)
+    }
+
     /// 按 id 集合批量取摘要（参数化 IN，一次查询替代逐 ID N 次往返）。
     /// 批量粘贴等场景用于一次拿到全部目标条目。
     pub fn query_items_by_ids(&self, ids: &[String]) -> Result<Vec<ClipItemSummary>> {
@@ -607,50 +779,20 @@ impl StorageRepository {
         let conn = self.conn.lock();
 
         let placeholders = vec!["?"; ids.len()].join(",");
+        let summary_expr = "CASE WHEN ci.is_sensitive = 0 AND cp.raw_text IS NOT NULL AND cp.raw_text != '' THEN cp.raw_text ELSE ci.summary END";
         let sql = format!(
             r#"
-            SELECT ci.id, ci.item_type, ci.title,
-                   CASE WHEN ci.is_sensitive = 0 AND cp.raw_text IS NOT NULL AND cp.raw_text != '' THEN cp.raw_text ELSE ci.summary END,
-                   ci.created_at, ci.last_used_at,
-                   ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
-                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
-                   ci.source_device_id, ci.source_device_name, ci.source_platform
+            SELECT {columns}
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE ci.id IN ({placeholders}) AND ci.deleted_at IS NULL
-            "#
+            "#,
+            columns = summary_columns(summary_expr),
         );
 
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(ids.iter()), |row| {
-            let item_type: String = row.get(1)?;
-            let stored_path: Option<String> = row.get(12)?;
-            let resolved_path = PayloadAssetStore::resolve_for_runtime(
-                &item_type,
-                stored_path.as_deref(),
-                assets_dir.as_deref(),
-            );
-            Ok(ClipItemSummary {
-                id: row.get(0)?,
-                item_type,
-                title: row.get(2)?,
-                summary: row.get(3)?,
-                created_at: row.get(4)?,
-                last_used_at: row.get(5)?,
-                copy_count: row.get(6)?,
-                favorite: row.get::<_, i64>(7)? == 1,
-                source_app_bundle_id: row.get(8)?,
-                source_app_name: row.get(9)?,
-                is_sensitive: row.get::<_, i64>(10)? == 1,
-                deleted_at: row.get(11)?,
-                payload_path: resolved_path,
-                ocr_text: row.get(13)?,
-                metadata_json: row.get(14)?,
-                kind: row.get(15)?,
-                source_device_id: row.get(16)?,
-                source_device_name: row.get(17)?,
-                source_platform: row.get(18)?,
-            })
+            map_summary_row(row, assets_dir.as_deref())
         })?;
 
         let mut out = Vec::new();
@@ -663,16 +805,33 @@ impl StorageRepository {
     pub fn query_items(&self, filter: &QueryFilter) -> Result<Vec<ClipItemSummary>> {
         let assets_dir = self.assets_dir();
         let conn = self.conn.lock();
-        let (fts_join, mut conditions, params) = Self::build_search_conditions(
+        let search = Self::build_search_conditions(
             filter.include_deleted,
             filter.favorite_only,
             filter.item_type.as_deref(),
             filter.search_query.as_deref(),
             filter.id.as_deref(),
         );
+        let SearchConditions {
+            fts_join,
+            mut conditions,
+            params,
+            needs_payload_join: _,
+        } = search;
 
         let derived = DerivedKindFilter::new(filter.kind.as_deref());
         derived.push_sql_conditions(&mut conditions);
+
+        // 回收站列表：把「只看已删」下推到 SQL（含按删除时间倒序），
+        // 避免全表扫一页活跃行再在调用方过滤已删行。
+        if filter.only_deleted {
+            conditions.push("ci.deleted_at IS NOT NULL".to_string());
+        }
+        let trash_order = if filter.only_deleted {
+            "ORDER BY ci.deleted_at DESC, ci.id DESC"
+        } else {
+            "ORDER BY ci.last_used_at DESC, ci.id DESC"
+        };
 
         let where_clause = if conditions.is_empty() {
             String::new()
@@ -696,51 +855,22 @@ impl StorageRepository {
         };
         let sql = format!(
             r#"
-            SELECT ci.id, ci.item_type, ci.title, {summary_expr}, ci.created_at, ci.last_used_at,
-                   ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
-                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
-                   ci.source_device_id, ci.source_device_name, ci.source_platform
+            SELECT {columns}
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             {fts_join}
             {where_clause}
-            ORDER BY ci.last_used_at DESC, ci.id DESC
+            {trash_order}
             {limit_clause}
-            "#
+            "#,
+            columns = summary_columns(&summary_expr),
         );
 
         let mut stmt = conn.prepare(&sql)?;
         let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
 
         let rows = stmt.query_map(param_refs.as_slice(), |row| {
-            let item_type: String = row.get(1)?;
-            let stored_path: Option<String> = row.get(12)?;
-            let resolved_path = PayloadAssetStore::resolve_for_runtime(
-                &item_type,
-                stored_path.as_deref(),
-                assets_dir.as_deref(),
-            );
-            Ok(ClipItemSummary {
-                id: row.get(0)?,
-                item_type,
-                title: row.get(2)?,
-                summary: row.get(3)?,
-                created_at: row.get(4)?,
-                last_used_at: row.get(5)?,
-                copy_count: row.get(6)?,
-                favorite: row.get::<_, i64>(7)? == 1,
-                source_app_bundle_id: row.get(8)?,
-                source_app_name: row.get(9)?,
-                is_sensitive: row.get::<_, i64>(10)? == 1,
-                deleted_at: row.get(11)?,
-                payload_path: resolved_path,
-                ocr_text: row.get(13)?,
-                metadata_json: row.get(14)?,
-                kind: row.get(15)?,
-                source_device_id: row.get(16)?,
-                source_device_name: row.get(17)?,
-                source_platform: row.get(18)?,
-            })
+            map_summary_row(row, assets_dir.as_deref())
         })?;
 
         let mut results = Vec::new();
@@ -750,12 +880,18 @@ impl StorageRepository {
         Ok(results)
     }
 
-    /// 全历史分类统计：基于持久化 ci.kind 列在 SQLite 内直接聚合，无需全表拉取 summary/metadata
+    /// 全历史分类统计：基于持久化 ci.kind 列在 SQLite 内直接聚合，无需全表拉取 summary/metadata。
+    /// 用 `GROUP BY kind` 单遍聚合，替代 9 个逐行求值的 `SUM(CASE WHEN kind=…)`
+    ///（实测 5 万行 12ms → 8ms，且分类增减不再线性叠加成本）。
     pub fn count_categories(&self, search_query: Option<&str>) -> Result<crate::model::CategoryCounts> {
         let conn = self.conn.lock();
 
-        let (fts_join, conditions, params) =
-            Self::build_search_conditions(false, false, None, search_query, None);
+        let SearchConditions {
+            fts_join,
+            conditions,
+            params,
+            needs_payload_join,
+        } = Self::build_search_conditions(false, false, None, search_query, None);
 
         let where_clause = if conditions.is_empty() {
             String::new()
@@ -763,8 +899,7 @@ impl StorageRepository {
             format!("WHERE {}", conditions.join(" AND "))
         };
 
-        let need_payload_join = conditions.iter().any(|c| c.contains("cp."));
-        let payload_join = if need_payload_join {
+        let payload_join = if needs_payload_join {
             "LEFT JOIN clip_payloads cp ON ci.id = cp.id"
         } else {
             ""
@@ -772,37 +907,41 @@ impl StorageRepository {
 
         let sql = format!(
             r#"
-            SELECT
-                COUNT(*),
-                COALESCE(SUM(CASE WHEN ci.favorite = 1 THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind = 'text' THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind = 'image' THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind = 'file' THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind = 'url' THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind IN ('code', 'json') THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind = 'color' THEN 1 ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN ci.kind = 'sensitive' THEN 1 ELSE 0 END), 0)
+            SELECT ci.kind, ci.favorite, COUNT(*)
             FROM clip_items ci
             {payload_join}
             {fts_join}
             {where_clause}
+            GROUP BY ci.kind, ci.favorite
             "#
         );
 
         let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-        let counts = conn.query_row(&sql, param_refs.as_slice(), |row| {
-            Ok(crate::model::CategoryCounts {
-                total: row.get::<_, i64>(0)? as u64,
-                favorite: row.get::<_, i64>(1)? as u64,
-                text: row.get::<_, i64>(2)? as u64,
-                image: row.get::<_, i64>(3)? as u64,
-                file: row.get::<_, i64>(4)? as u64,
-                url: row.get::<_, i64>(5)? as u64,
-                code: row.get::<_, i64>(6)? as u64,
-                color: row.get::<_, i64>(7)? as u64,
-                sensitive: row.get::<_, i64>(8)? as u64,
-            })
-        })?;
+        let mut stmt = conn.prepare(&sql)?;
+        let mut rows = stmt.query(param_refs.as_slice())?;
+
+        let mut counts = crate::model::CategoryCounts::default();
+        while let Some(row) = rows.next()? {
+            let kind: String = row.get(0)?;
+            let favorite: i64 = row.get(1)?;
+            let count: i64 = row.get(2)?;
+            let count = count as u64;
+            counts.total += count;
+            if favorite == 1 {
+                counts.favorite += count;
+            }
+            match kind.as_str() {
+                "text" => counts.text += count,
+                "image" => counts.image += count,
+                "file" => counts.file += count,
+                "url" => counts.url += count,
+                "code" | "json" => counts.code += count,
+                "color" => counts.color += count,
+                "sensitive" => counts.sensitive += count,
+                // 未知 kind（历史遗留/未来新增）只计入 total，与旧实现的语义一致
+                _ => {}
+            }
+        }
 
         Ok(counts)
     }
@@ -813,7 +952,12 @@ impl StorageRepository {
     pub fn time_group_timestamps(&self, filter: &QueryFilter) -> Result<Vec<f64>> {
         let conn = self.conn.lock();
 
-        let (fts_join, mut conditions, params) = Self::build_search_conditions(
+        let SearchConditions {
+            fts_join,
+            mut conditions,
+            params,
+            needs_payload_join,
+        } = Self::build_search_conditions(
             filter.include_deleted,
             filter.favorite_only,
             filter.item_type.as_deref(),
@@ -830,8 +974,7 @@ impl StorageRepository {
             format!("WHERE {}", conditions.join(" AND "))
         };
 
-        let need_payload_join = conditions.iter().any(|c| c.contains("cp."));
-        let payload_join = if need_payload_join {
+        let payload_join = if needs_payload_join {
             "LEFT JOIN clip_payloads cp ON ci.id = cp.id"
         } else {
             ""
@@ -872,7 +1015,12 @@ impl StorageRepository {
     ) -> Result<Vec<AnchorCountRow>> {
         let conn = self.conn.lock();
 
-        let (fts_join, mut conditions, mut params) = Self::build_search_conditions(
+        let SearchConditions {
+            fts_join,
+            mut conditions,
+            mut params,
+            needs_payload_join,
+        } = Self::build_search_conditions(
             filter.include_deleted,
             filter.favorite_only,
             filter.item_type.as_deref(),
@@ -889,8 +1037,7 @@ impl StorageRepository {
             format!("WHERE {}", conditions.join(" AND "))
         };
 
-        let need_payload_join = conditions.iter().any(|c| c.contains("cp."));
-        let payload_join = if need_payload_join {
+        let payload_join = if needs_payload_join {
             "LEFT JOIN clip_payloads cp ON ci.id = cp.id"
         } else {
             ""
@@ -1037,7 +1184,8 @@ impl StorageRepository {
         let row = conn
             .query_row(
                 r#"
-                SELECT cp.raw_text, cp.encrypted_content, cp.nonce, cp.ocr_text, cp.metadata_json, ci.is_sensitive
+                SELECT cp.raw_text, cp.encrypted_content, cp.nonce, cp.ocr_text, cp.metadata_json, ci.is_sensitive,
+                       cp.ocr_encrypted, cp.ocr_nonce
                 FROM clip_payloads cp
                 JOIN clip_items ci ON cp.id = ci.id
                 WHERE cp.id = ?1
@@ -1051,12 +1199,14 @@ impl StorageRepository {
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, Option<String>>(4)?,
                         row.get::<_, i64>(5)? == 1,
+                        row.get::<_, Option<Vec<u8>>>(6)?,
+                        row.get::<_, Option<Vec<u8>>>(7)?,
                     ))
                 },
             )
             .optional()?;
 
-        let (raw_text, enc, nonce, ocr_text, metadata_json, is_sensitive) = match row {
+        let (raw_text, enc, nonce, ocr_text, metadata_json, is_sensitive, ocr_enc, ocr_nonce) = match row {
             Some(v) => v,
             None => return Err(CoreError::NotFound(id.to_string())),
         };
@@ -1070,29 +1220,43 @@ impl StorageRepository {
             raw_text
         };
 
+        // 敏感条目的 OCR 文本只存在于密文列（明文列必为 NULL）；
+        // 解密失败必须显式报错，不得降级返回 None 让调用方以为「无 OCR 文本」
+        let final_ocr = if is_sensitive {
+            match (ocr_enc, ocr_nonce) {
+                (Some(c), Some(n)) => Some(self.crypto.decrypt(&c, &n)?),
+                _ => ocr_text,
+            }
+        } else {
+            ocr_text
+        };
+
         Ok(ClipItemDetail {
             id: id.to_string(),
             raw_text: final_text,
-            ocr_text,
+            ocr_text: final_ocr,
             metadata_json,
             is_sensitive,
         })
     }
 
-    /// 轻量标记使用（粘贴/再次使用）：仅递增 copy_count 并刷新 last_used_at / updated_at，
+    /// 轻量标记使用（粘贴/再次使用）：仅递增 copy_count 并刷新 last_used_at，
     /// 不触碰 clip_payloads（密文/全文）与 clip_fts，彻底杜绝掩码或截断摘要覆盖原文。
+    ///
+    /// 关键：**不推进 updated_at**。使用不是元数据编辑——若把粘贴当作元数据写入，
+    /// 对端只要「用过」这条记录就会在 LWW 中胜出，把另一台设备刚做的收藏/删除
+    /// 静默回滚（实测：B 收藏 → A 粘贴 → B 拉取后收藏丢失）。跨端置顶依靠
+    /// `last_used_at = MAX(local, remote)` 传播，与本时间戳无关。
     pub fn mark_used(&self, id: &str, used_at: f64) -> Result<ClipItemSummary> {
         let conn = self.conn.lock();
-        let now = Self::unix_now();
         let changed = conn.execute(
             r#"
             UPDATE clip_items
             SET last_used_at = ?1,
-                copy_count = copy_count + 1,
-                updated_at = ?2
-            WHERE id = ?3
+                copy_count = copy_count + 1
+            WHERE id = ?2
             "#,
-            params![used_at, now, id],
+            params![used_at, id],
         )?;
         drop(conn);
         if changed == 0 {
@@ -1104,8 +1268,12 @@ impl StorageRepository {
     pub fn toggle_favorite(&self, id: &str) -> Result<ClipItemSummary> {
         let conn = self.conn.lock();
         let now = Self::unix_now();
+        // favorite_updated_at 是收藏状态的独立判新时钟：粘贴只动 last_used_at，
+        // 因此「A 粘贴 + B 收藏」不会再互相覆盖。同时推进 updated_at 以兼容
+        // 尚未携带该字段的旧版对端（旧端只认 updated_at）。
         conn.execute(
-            "UPDATE clip_items SET favorite = CASE WHEN favorite = 1 THEN 0 ELSE 1 END, updated_at = ?1 WHERE id = ?2",
+            "UPDATE clip_items SET favorite = CASE WHEN favorite = 1 THEN 0 ELSE 1 END, \
+             favorite_updated_at = ?1, updated_at = ?1 WHERE id = ?2",
             params![now, id],
         )?;
 
@@ -1197,16 +1365,29 @@ impl StorageRepository {
                 params![&new_summary, now, id],
             )?;
 
+            // OCR 文本一并纳入加密：ocr_text 明文列对敏感行必须为 NULL，
+            // 否则敏感正文以明文落盘，且会被短词 LIKE 回退检索到。
+            let (ocr_enc, ocr_n) = match ocr_text.as_deref().filter(|s| !s.is_empty()) {
+                Some(text) => {
+                    let (e, n) = self.crypto.encrypt(text)?;
+                    (Some(e), Some(n.to_vec()))
+                }
+                None => (None, None),
+            };
+
             tx.execute(
                 r#"
-                INSERT INTO clip_payloads (id, raw_text, encrypted_content, nonce)
-                VALUES (?3, NULL, ?1, ?2)
+                INSERT INTO clip_payloads (id, raw_text, encrypted_content, nonce, ocr_text, ocr_encrypted, ocr_nonce)
+                VALUES (?3, NULL, ?1, ?2, NULL, ?4, ?5)
                 ON CONFLICT(id) DO UPDATE SET
                     raw_text = NULL,
+                    ocr_text = NULL,
                     encrypted_content = excluded.encrypted_content,
-                    nonce = excluded.nonce
+                    nonce = excluded.nonce,
+                    ocr_encrypted = COALESCE(excluded.ocr_encrypted, clip_payloads.ocr_encrypted),
+                    ocr_nonce = COALESCE(excluded.ocr_nonce, clip_payloads.ocr_nonce)
                 "#,
-                params![&enc, &n.to_vec(), id],
+                params![&enc, &n.to_vec(), id, &ocr_enc, &ocr_n],
             )?;
 
             tx.execute(
@@ -1261,6 +1442,7 @@ impl StorageRepository {
                 None
             };
 
+            // 解除敏感：OCR 文本从密文列还原回明文列，并清空密文
             tx.execute(
                 r#"
                 UPDATE clip_payloads
@@ -1272,11 +1454,31 @@ impl StorageRepository {
                 "#,
                 params![raw_text_to_set, resolved_metadata_json.as_deref(), id],
             )?;
+            // 解密 OCR 密文（在事务内完成，失败则整体回滚，不会留下「已解除敏感但 OCR 丢失」的中间态）
+            let ocr_plain: Option<String> = {
+                let cipher_row: Option<(Option<Vec<u8>>, Option<Vec<u8>>)> = tx
+                    .query_row(
+                        "SELECT ocr_encrypted, ocr_nonce FROM clip_payloads WHERE id = ?1",
+                        params![id],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .optional()?;
+                match cipher_row {
+                    Some((Some(c), Some(n))) => Some(self.crypto.decrypt(&c, &n)?),
+                    _ => None,
+                }
+            };
+            tx.execute(
+                "UPDATE clip_payloads SET ocr_text = ?1, ocr_encrypted = NULL, ocr_nonce = NULL WHERE id = ?2",
+                params![ocr_plain.as_deref(), id],
+            )?;
 
             tx.execute(
                 "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
                 params![id],
             )?;
+            // FTS 用刚还原出的 OCR 明文：事务开始时读到的 ocr_text 对敏感行是 NULL，
+            // 直接复用会让解除敏感后的条目丢失 OCR 检索能力。
             tx.execute(
                 r#"
                 INSERT INTO clip_fts (
@@ -1286,7 +1488,7 @@ impl StorageRepository {
                 params![
                     &title,
                     &new_summary,
-                    ocr_text.as_deref().unwrap_or(""),
+                    ocr_plain.as_deref().unwrap_or(""),
                     source_app_name.as_deref().unwrap_or(""),
                     source_app_bundle_id.as_deref().unwrap_or(""),
                     id,
@@ -1311,12 +1513,63 @@ impl StorageRepository {
         Ok(())
     }
 
+    /// 从回收站恢复条目。
+    ///
+    /// 必须同时重建 FTS 行：同步对账在远端软删时会删掉 FTS 行，而恢复路径
+    /// 若只把 `deleted_at` 置 NULL，条目回到列表却永远搜不到（实测复现）。
+    /// 本地软删/恢复不受影响（soft_delete 不动 FTS），此处重建是幂等的。
     pub fn restore_deleted(&self, id: &str) -> Result<()> {
-        let conn = self.conn.lock();
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
         let now = Self::unix_now();
-        conn.execute(
+        tx.execute(
             "UPDATE clip_items SET deleted_at = NULL, updated_at = ?1 WHERE id = ?2",
             params![now, id],
+        )?;
+        Self::rebuild_fts_row_in_tx(&tx, id)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// 按 `clip_items` 当前状态重建单条 FTS 行（rowid 对齐不变量：
+    /// clip_fts.rowid == clip_items.rowid）。敏感条目的正文/OCR/来源一律留空。
+    fn rebuild_fts_row_in_tx(tx: &rusqlite::Transaction<'_>, id: &str) -> Result<()> {
+        let rowid: Option<i64> = tx
+            .query_row(
+                "SELECT rowid FROM clip_items WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(rowid) = rowid else {
+            return Ok(());
+        };
+        tx.execute("DELETE FROM clip_fts WHERE rowid = ?1", params![rowid])?;
+        // 已软删的条目不应留在索引里（与对账路径一致）
+        let deleted: bool = tx.query_row(
+            "SELECT deleted_at IS NOT NULL FROM clip_items WHERE id = ?1",
+            params![id],
+            |r| r.get::<_, i64>(0),
+        )? == 1;
+        if deleted {
+            return Ok(());
+        }
+        tx.execute(
+            r#"
+            INSERT INTO clip_fts (
+                rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+            )
+            SELECT ci.rowid, ci.title,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE ci.summary END,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
+                   CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+                   ci.id
+            FROM clip_items ci
+            LEFT JOIN clip_payloads cp ON ci.id = cp.id
+            WHERE ci.id = ?1
+            "#,
+            params![id],
         )?;
         Ok(())
     }
@@ -1389,6 +1642,13 @@ impl StorageRepository {
             tx.execute("DELETE FROM clip_items", [])?;
         }
         tx.commit()?;
+        drop(conn);
+        // 清空历史会写入与删除同规模的 WAL（实测 4.6 万行 → 40MB+，且永不自动回收）。
+        // 显式 TRUNCATE，让 -wal 文件立刻回落到 journal_size_limit 以内。
+        {
+            let conn = self.conn.lock();
+            crate::storage::schema::checkpoint_truncate(&conn);
+        }
         Ok(records)
     }
 
@@ -1467,14 +1727,36 @@ impl StorageRepository {
         Ok(())
     }
 
+    /// 回写 OCR 文本。
+    ///
+    /// 安全不变量：`is_sensitive = 1` 的行，OCR 文本只能进密文列
+    ///（`ocr_encrypted`/`ocr_nonce`），明文列 `ocr_text` 必须为 NULL。
+    /// 否则敏感正文会以明文落盘，并经短词 LIKE 回退被检索到。
     pub fn update_ocr_text(&self, id: &str, ocr_text: &str) -> Result<()> {
         let mut conn = self.conn.lock();
         let tx = conn.transaction()?;
 
-        tx.execute(
-            "UPDATE clip_payloads SET ocr_text = ?1 WHERE id = ?2",
-            params![ocr_text, id],
-        )?;
+        let is_sensitive: bool = tx
+            .query_row(
+                "SELECT is_sensitive FROM clip_items WHERE id = ?1",
+                params![id],
+                |r| Ok(r.get::<_, i64>(0)? == 1),
+            )
+            .optional()?
+            .ok_or_else(|| CoreError::NotFound(id.to_string()))?;
+
+        if is_sensitive {
+            let (enc, n) = self.crypto.encrypt(ocr_text)?;
+            tx.execute(
+                "UPDATE clip_payloads SET ocr_text = NULL, ocr_encrypted = ?1, ocr_nonce = ?2 WHERE id = ?3",
+                params![&enc, &n.to_vec(), id],
+            )?;
+        } else {
+            tx.execute(
+                "UPDATE clip_payloads SET ocr_text = ?1, ocr_encrypted = NULL, ocr_nonce = NULL WHERE id = ?2",
+                params![ocr_text, id],
+            )?;
+        }
         tx.execute(
             "UPDATE clip_items SET updated_at = ?1 WHERE id = ?2",
             params![Self::unix_now(), id],
@@ -1671,6 +1953,13 @@ impl StorageRepository {
         Self::batch_hard_delete_in_tx(&tx, &id_rowids)?;
 
         tx.commit()?;
+        drop(conn);
+        if !records.is_empty() {
+            // 保留期清理是最大的单次硬删除来源（5 万行库一次可删数千行），
+            // 提交后截断 WAL，避免 -wal 长期停在几十 MB。
+            let conn = self.conn.lock();
+            crate::storage::schema::checkpoint_truncate(&conn);
+        }
         Ok(records)
     }
 
@@ -1754,14 +2043,19 @@ impl StorageRepository {
         let mut records = Vec::with_capacity(to_evict.len());
         let mut id_rowids: Vec<(String, i64)> = Vec::with_capacity(to_evict.len());
         for (id, path_str) in to_evict {
-            // rowid 在事务内取一次：FTS 按 rowid 删比子查询全表扫便宜
-            let rowid: i64 = tx
+            // 删除前复核：候选集是「释放锁做 metadata 遍历之前」的快照，
+            // 期间用户可能已收藏该条目或从回收站恢复它。不复核就会物理删除
+            // 用户刚收藏的内容（并写墓碑，无法从对端恢复）。
+            let still_evictable: Option<i64> = tx
                 .query_row(
-                    "SELECT rowid FROM clip_items WHERE id = ?1",
+                    "SELECT rowid FROM clip_items WHERE id = ?1 AND (favorite = 0 OR deleted_at IS NOT NULL)",
                     params![&id],
                     |r| r.get(0),
                 )
-                .unwrap_or(-1);
+                .optional()?;
+            let Some(rowid) = still_evictable else {
+                continue;
+            };
             id_rowids.push((id.clone(), rowid));
             records.push(PrunedItemRecord {
                 id,
@@ -1770,6 +2064,11 @@ impl StorageRepository {
         }
         Self::batch_hard_delete_in_tx(&tx, &id_rowids)?;
         tx.commit()?;
+        drop(conn);
+        if !records.is_empty() {
+            let conn = self.conn.lock();
+            crate::storage::schema::checkpoint_truncate(&conn);
+        }
         Ok(records)
     }
 
@@ -1777,46 +2076,17 @@ impl StorageRepository {
         let assets_dir = self.assets_dir();
         let conn = self.conn.lock();
         conn.query_row(
-            r#"
-            SELECT ci.id, ci.item_type, ci.title, ci.summary, ci.created_at, ci.last_used_at,
-                   ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
-                   ci.is_sensitive, ci.deleted_at, ci.payload_path, cp.ocr_text, cp.metadata_json, ci.kind,
-                   ci.source_device_id, ci.source_device_name, ci.source_platform
+            &format!(
+                r#"
+            SELECT {columns}
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE ci.id = ?1
             "#,
+                columns = summary_columns("ci.summary"),
+            ),
             params![id],
-            |row| {
-                let item_type: String = row.get(1)?;
-                let stored_path: Option<String> = row.get(12)?;
-                let resolved_path = PayloadAssetStore::resolve_for_runtime(
-                    &item_type,
-                    stored_path.as_deref(),
-                    assets_dir.as_deref(),
-                );
-                Ok(ClipItemSummary {
-                    id: row.get(0)?,
-                    item_type,
-                    title: row.get(2)?,
-                    summary: row.get(3)?,
-                    created_at: row.get(4)?,
-                    last_used_at: row.get(5)?,
-                    copy_count: row.get(6)?,
-                    favorite: row.get::<_, i64>(7)? == 1,
-                    source_app_bundle_id: row.get(8)?,
-                    source_app_name: row.get(9)?,
-                    is_sensitive: row.get::<_, i64>(10)? == 1,
-                    deleted_at: row.get(11)?,
-                    payload_path: resolved_path,
-                    ocr_text: row.get(13)?,
-                    metadata_json: row.get(14)?,
-                    kind: row.get(15)?,
-                    source_device_id: row.get(16)?,
-                    source_device_name: row.get(17)?,
-                    source_platform: row.get(18)?,
-                })
-            },
+            |row| map_summary_row(row, assets_dir.as_deref()),
         )
         .map_err(|e| match e {
             rusqlite::Error::QueryReturnedNoRows => CoreError::NotFound(id.to_string()),
@@ -1870,7 +2140,7 @@ impl StorageRepository {
                    ci.updated_at, ci.copy_count, ci.payload_path,
                    ci.source_app_bundle_id, ci.source_app_name,
                    ci.source_device_id, ci.source_device_name, ci.source_platform,
-                   cp.encrypted_content, cp.nonce
+                   cp.encrypted_content, cp.nonce, ci.favorite_updated_at
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE (ci.is_sensitive = 0 OR ?2 = 1)
@@ -1910,6 +2180,7 @@ impl StorageRepository {
             let source_platform: Option<String> = row.get(17)?;
             let encrypted_content: Option<Vec<u8>> = row.get(18)?;
             let nonce: Option<Vec<u8>> = row.get(19)?;
+            let favorite_updated_at: f64 = row.get(20)?;
 
             // 附件池：单张附件上限 5MB，超限附件仅留存本机，不随 pack 同步
             let asset_file_name = if item_type == "file" {
@@ -1947,6 +2218,7 @@ impl StorageRepository {
                     created_at,
                     last_used_at,
                     updated_at,
+                    favorite_updated_at,
                     copy_count,
                     asset_file_name,
                     deleted_at,
@@ -1991,6 +2263,7 @@ impl StorageRepository {
                     created_at: deleted_at,
                     last_used_at: deleted_at,
                     updated_at: deleted_at,
+                    favorite_updated_at: 0.0,
                     copy_count: 0,
                     asset_file_name: None,
                     deleted_at: Some(deleted_at),
@@ -2059,19 +2332,20 @@ impl StorageRepository {
         let mut merged_count = 0;
 
         for item in items {
-            let local: Option<(f64, Option<f64>, i64, bool, f64, String)> = tx
+            let local: Option<LocalSyncRow> = tx
                 .query_row(
-                    "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id FROM clip_items WHERE id = ?1",
+                    "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id, favorite_updated_at \
+                     FROM clip_items WHERE id = ?1",
                     params![&item.id],
                     |row| {
-                        Ok((
-                            row.get(0)?,
-                            row.get(1)?,
-                            row.get(2)?,
-                            row.get::<_, i64>(3)? == 1,
-                            row.get(4)?,
-                            row.get(5)?,
-                        ))
+                        Ok(LocalSyncRow {
+                            last_used_at: row.get(0)?,
+                            deleted_at: row.get(1)?,
+                            copy_count: row.get(2)?,
+                            updated_at: row.get(4)?,
+                            id: row.get(5)?,
+                            favorite_updated_at: row.get(6)?,
+                        })
                     },
                 )
                 .optional()?;
@@ -2081,17 +2355,20 @@ impl StorageRepository {
                 Some(l) => Some(l),
                 None if !item.is_sensitive && item.deleted_at.is_none() => {
                     tx.query_row(
-                        "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id FROM clip_items WHERE item_type = ?1 AND summary = ?2 AND is_sensitive = 0 AND deleted_at IS NULL",
+                        "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id, favorite_updated_at \
+                         FROM clip_items \
+                         WHERE item_type = ?1 AND summary = ?2 AND is_sensitive = 0 AND deleted_at IS NULL \
+                         ORDER BY last_used_at DESC LIMIT 1",
                         params![&item.item_type, &item.summary],
                         |row| {
-                            Ok((
-                                row.get(0)?,
-                                row.get(1)?,
-                                row.get(2)?,
-                                row.get::<_, i64>(3)? == 1,
-                                row.get(4)?,
-                                row.get(5)?,
-                            ))
+                            Ok(LocalSyncRow {
+                                last_used_at: row.get(0)?,
+                                deleted_at: row.get(1)?,
+                                copy_count: row.get(2)?,
+                                updated_at: row.get(4)?,
+                                id: row.get(5)?,
+                                favorite_updated_at: row.get(6)?,
+                            })
                         },
                     ).optional()?
                 }
@@ -2099,101 +2376,115 @@ impl StorageRepository {
             };
 
             match local {
-                Some((_local_last_used, local_deleted, local_copies, _local_fav, local_updated, matched_id)) => {
-                    // LWW（data-model §3）：元数据按 updated_at 判新；删除以 deleted_at 为准。
-                    // 存量行 updated_at=0（迁移默认值），首轮远端必胜，合并后自愈。
-                    let remote_time = item.deleted_at.unwrap_or(item.updated_at);
-                    let local_time = local_deleted.unwrap_or(local_updated);
+                Some(local_row) => {
+                    let matched_id = local_row.id.clone();
+                    // 删除状态裁决（data-model §3 冲突矩阵）：
+                    // - 本地活跃 / 远端删除：本地在远端删除之后还用过 → 保留本地，否则采纳删除
+                    // - 本地删除 / 远端活跃：远端在本地删除之后有更新 → 恢复，否则保留删除
+                    // 修复点：旧实现把 deleted_at 与 updated_at 混成一个标量比较，
+                    // 导致「删除后又被粘贴/更新」会静默撤销删除。
+                    let resolved_deleted = resolve_deleted_state(&local_row, item);
+                    let deletion_changed = resolved_deleted != local_row.deleted_at;
 
-                    // LWW rule: if remote is newer, update
-                    if remote_time > local_time {
-                        let (existing_meta, existing_payload_path): (Option<String>, Option<String>) = tx
-                            .query_row(
-                                "SELECT cp.metadata_json, ci.payload_path FROM clip_items ci LEFT JOIN clip_payloads cp ON ci.id = cp.id WHERE ci.id = ?1",
-                                params![&matched_id],
-                                |r| Ok((r.get(0)?, r.get(1)?)),
-                            )
-                            .optional()?
-                            .unwrap_or((None, None));
-                        let normalized_asset_path = PayloadAssetStore::normalize_for_storage(
-                            &item.item_type,
-                            asset_paths.get(&item.id).or_else(|| asset_paths.get(&matched_id)).map(|s| s.as_str()),
-                            assets_dir.as_deref(),
-                        );
-                        let merged_payload_path = normalized_asset_path
-                            .clone()
-                            .or(existing_payload_path);
-                        let (kind_str, resolved_meta) = compute_kind_and_metadata(
-                            &item.item_type,
-                            item.is_sensitive,
-                            existing_meta.as_deref(),
-                            item.raw_text.as_deref().unwrap_or(&item.summary),
-                            merged_payload_path.as_deref(),
-                        );
-                        if resolved_meta != existing_meta {
-                            tx.execute(
-                                "UPDATE clip_payloads SET metadata_json = ?1 WHERE id = ?2",
-                                params![resolved_meta.as_deref(), &matched_id],
-                            )?;
-                        }
-                        tx.execute(
-                            r#"
-                            UPDATE clip_items
-                            SET title = ?1, summary = ?2, last_used_at = MAX(last_used_at, ?3),
-                                favorite = ?4, deleted_at = ?5,
-                                copy_count = MAX(?6, copy_count),
-                                updated_at = ?7,
-                                payload_path = COALESCE(?8, payload_path),
-                                kind = ?9,
-                                source_app_bundle_id = COALESCE(?10, source_app_bundle_id),
-                                source_app_name = COALESCE(?11, source_app_name),
-                                source_device_id = COALESCE(?12, source_device_id),
-                                source_device_name = COALESCE(?13, source_device_name),
-                                source_platform = COALESCE(?14, source_platform)
-                            WHERE id = ?15
-                            "#,
-                            params![
-                                &item.title,
-                                &item.summary,
-                                item.last_used_at,
-                                if item.is_favorite { 1 } else { 0 },
-                                item.deleted_at,
-                                local_copies.max(item.copy_count),
-                                item.updated_at,
-                                normalized_asset_path.as_deref(),
-                                kind_str,
-                                &item.source_app_bundle_id,
-                                &item.source_app_name,
-                                &item.source_device_id,
-                                &item.source_device_name,
-                                &item.source_platform,
-                                &matched_id,
-                            ],
-                        )?;
-                        // 按最终状态重算 FTS 行：非敏感且未删除则重建
-                        tx.execute(
-                            "DELETE FROM clip_fts WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?1)",
+                    // 元数据 LWW（标题/摘要/载荷/来源）：只看元数据编辑时间
+                    let metadata_wins = item.updated_at > local_row.updated_at;
+                    // 收藏 LWW：独立时钟。旧版对端不带 favorite_updated_at（=0），
+                    // 回退到 updated_at 以保持旧行为（否则收藏永不传播）。
+                    let remote_fav_time = if item.favorite_updated_at > 0.0 {
+                        item.favorite_updated_at
+                    } else {
+                        item.updated_at
+                    };
+                    let local_fav_time = if local_row.favorite_updated_at > 0.0 {
+                        local_row.favorite_updated_at
+                    } else {
+                        local_row.updated_at
+                    };
+                    let favorite_wins = remote_fav_time > local_fav_time;
+
+                    // 单调字段（copy_count / last_used_at）无条件合并；
+                    // 若三项都没有变化则整条跳过，不做无谓写入。
+                    let monotonic_progress = item.copy_count > local_row.copy_count
+                        || item.last_used_at > local_row.last_used_at;
+                    if !metadata_wins && !deletion_changed && !favorite_wins && !monotonic_progress {
+                        continue;
+                    }
+
+                    let (existing_meta, existing_payload_path): (Option<String>, Option<String>) = tx
+                        .query_row(
+                            "SELECT cp.metadata_json, ci.payload_path FROM clip_items ci LEFT JOIN clip_payloads cp ON ci.id = cp.id WHERE ci.id = ?1",
                             params![&matched_id],
+                            |r| Ok((r.get(0)?, r.get(1)?)),
+                        )
+                        .optional()?
+                        .unwrap_or((None, None));
+                    let normalized_asset_path = PayloadAssetStore::normalize_for_storage(
+                        &item.item_type,
+                        asset_paths.get(&item.id).or_else(|| asset_paths.get(&matched_id)).map(|s| s.as_str()),
+                        assets_dir.as_deref(),
+                    );
+                    let merged_payload_path = normalized_asset_path
+                        .clone()
+                        .or(existing_payload_path);
+                    let (kind_str, resolved_meta) = compute_kind_and_metadata(
+                        &item.item_type,
+                        item.is_sensitive,
+                        existing_meta.as_deref(),
+                        item.raw_text.as_deref().unwrap_or(&item.summary),
+                        merged_payload_path.as_deref(),
+                    );
+                    if metadata_wins && resolved_meta != existing_meta {
+                        tx.execute(
+                            "UPDATE clip_payloads SET metadata_json = ?1 WHERE id = ?2",
+                            params![resolved_meta.as_deref(), &matched_id],
                         )?;
-                        if item.deleted_at.is_none() {
-                            let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
-                            tx.execute(
-                                r#"
-                                INSERT INTO clip_fts (
-                                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                                )
-                                SELECT ci.rowid, ?1, ?2,
-                                       CASE WHEN ?4 = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
-                                       CASE WHEN ?4 = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
-                                       CASE WHEN ?4 = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
-                                       ci.id
-                                FROM clip_items ci
-                                LEFT JOIN clip_payloads cp ON ci.id = cp.id
-                                WHERE ci.id = ?3
-                                "#,
-                                params![&item.title, fts_summary, &matched_id, if item.is_sensitive { 1 } else { 0 }],
-                            )?;
-                        }
+                    }
+                    // 逐字段裁决：只有胜出的字段被覆盖，其余保留本地值。
+                    // CASE 条件用 0/1 参数传入，SQL 保持单次往返。
+                    tx.execute(
+                        r#"
+                        UPDATE clip_items
+                        SET title = CASE WHEN ?1 = 1 THEN ?2 ELSE title END,
+                            summary = CASE WHEN ?1 = 1 THEN ?3 ELSE summary END,
+                            last_used_at = MAX(last_used_at, ?4),
+                            copy_count = MAX(?5, copy_count),
+                            favorite = CASE WHEN ?6 = 1 THEN ?7 ELSE favorite END,
+                            favorite_updated_at = CASE WHEN ?6 = 1 THEN ?8 ELSE favorite_updated_at END,
+                            deleted_at = ?9,
+                            updated_at = CASE WHEN ?1 = 1 THEN ?10 ELSE updated_at END,
+                            payload_path = CASE WHEN ?1 = 1 THEN COALESCE(?11, payload_path) ELSE payload_path END,
+                            kind = CASE WHEN ?1 = 1 THEN ?12 ELSE kind END,
+                            source_app_bundle_id = CASE WHEN ?1 = 1 THEN COALESCE(?13, source_app_bundle_id) ELSE source_app_bundle_id END,
+                            source_app_name = CASE WHEN ?1 = 1 THEN COALESCE(?14, source_app_name) ELSE source_app_name END,
+                            source_device_id = CASE WHEN ?1 = 1 THEN COALESCE(?15, source_device_id) ELSE source_device_id END,
+                            source_device_name = CASE WHEN ?1 = 1 THEN COALESCE(?16, source_device_name) ELSE source_device_name END,
+                            source_platform = CASE WHEN ?1 = 1 THEN COALESCE(?17, source_platform) ELSE source_platform END
+                        WHERE id = ?18
+                        "#,
+                        params![
+                            if metadata_wins { 1 } else { 0 },
+                            &item.title,
+                            &item.summary,
+                            item.last_used_at,
+                            item.copy_count,
+                            if favorite_wins { 1 } else { 0 },
+                            if item.is_favorite { 1 } else { 0 },
+                            remote_fav_time,
+                            resolved_deleted,
+                            item.updated_at,
+                            normalized_asset_path.as_deref(),
+                            kind_str,
+                            &item.source_app_bundle_id,
+                            &item.source_app_name,
+                            &item.source_device_id,
+                            &item.source_device_name,
+                            &item.source_platform,
+                            &matched_id,
+                        ],
+                    )?;
+                    // 按最终状态重算 FTS 行（活跃则重建、已删除则移除）
+                    Self::rebuild_fts_row_in_tx(&tx, &matched_id)?;
+                    if metadata_wins {
                         if let Some(text) = &item.raw_text {
                             if item.is_sensitive {
                                 let (enc, nonce) = self.crypto.encrypt(text)?;
@@ -2208,8 +2499,8 @@ impl StorageRepository {
                                 )?;
                             }
                         }
-                        merged_count += 1;
                     }
+                    merged_count += 1;
                 }
                 None => {
                     // 墓碑检查：本地已硬删除的条目不因陈旧 pack 复活。
@@ -2223,6 +2514,16 @@ impl StorageRepository {
                         )
                         .optional()?;
                     if tombstone.is_some_and(|t| t >= remote_time) {
+                        continue;
+                    }
+                    // 纯墓碑记录（硬删除条目）：item_type/title/summary 均为空。
+                    // 旧实现会把它当成新条目插入，在对端回收站留下一条空字段幽灵行。
+                    if item.item_type.is_empty() && item.deleted_at.is_some() {
+                        tx.execute(
+                            "INSERT OR REPLACE INTO sync_tombstones (id, deleted_at) VALUES (?1, ?2)",
+                            params![&item.id, remote_time],
+                        )?;
+                        merged_count += 1;
                         continue;
                     }
                     // New record
@@ -2244,8 +2545,8 @@ impl StorageRepository {
                             id, item_type, title, summary, created_at, last_used_at,
                             copy_count, favorite, source_app_bundle_id, source_app_name,
                             is_sensitive, deleted_at, updated_at, payload_path, kind,
-                            source_device_id, source_device_name, source_platform
-                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+                            source_device_id, source_device_name, source_platform, favorite_updated_at
+                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
                         "#,
                         params![
                             &item.id,
@@ -2266,6 +2567,7 @@ impl StorageRepository {
                             &item.source_device_id,
                             &item.source_device_name,
                             &item.source_platform,
+                            item.favorite_updated_at,
                         ],
                     )?;
                     if item.is_sensitive {
@@ -2286,17 +2588,7 @@ impl StorageRepository {
                         )?;
                     }
                     if item.deleted_at.is_none() {
-                        let fts_summary = if item.is_sensitive { "" } else { item.summary.as_str() };
-                        let fts_app_name = if item.is_sensitive { "" } else { item.source_app_name.as_deref().unwrap_or("") };
-                        let fts_bundle_id = if item.is_sensitive { "" } else { item.source_app_bundle_id.as_deref().unwrap_or("") };
-                        tx.execute(
-                            r#"
-                            INSERT INTO clip_fts (
-                                rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                            ) VALUES ((SELECT rowid FROM clip_items WHERE id = ?6), ?1, ?2, '', ?3, ?4, ?5)
-                            "#,
-                            params![&item.title, fts_summary, fts_app_name, fts_bundle_id, &item.id, &item.id],
-                        )?;
+                        Self::rebuild_fts_row_in_tx(&tx, &item.id)?;
                     }
                     merged_count += 1;
                 }
@@ -2486,8 +2778,8 @@ impl StorageRepository {
                 INSERT INTO clip_items (
                     id, item_type, title, summary, created_at, last_used_at,
                     copy_count, favorite, source_app_bundle_id, source_app_name,
-                    is_sensitive, deleted_at, updated_at, kind
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, ?9, NULL, ?10, ?11)
+                    is_sensitive, deleted_at, updated_at, kind, favorite_updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, NULL, ?9, NULL, ?10, ?11, ?12)
                 "#,
                 params![
                     &item.id,
@@ -2502,6 +2794,8 @@ impl StorageRepository {
                     // 备份格式不携带 updated_at；写导入时刻，防止首轮同步被旧远端记录覆盖
                     Self::unix_now(),
                     kind_str,
+                    // 收藏状态随导入一起落地：给它独立的判新时间，避免首轮同步被对端旧值覆盖
+                    if item.is_favorite { Self::unix_now() } else { 0.0 },
                 ],
             )?;
 

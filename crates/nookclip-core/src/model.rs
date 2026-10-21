@@ -40,6 +40,9 @@ pub struct QueryFilter {
     pub kind: Option<String>,
     pub favorite_only: bool,
     pub include_deleted: bool,
+    /// 只看回收站（`deleted_at IS NOT NULL`，按删除时间倒序）。
+    /// 用于把回收站过滤下推到 SQL：不再「全表拉一页活跃行再在调用方过滤已删行」。
+    pub only_deleted: bool,
     pub limit: u32,
     pub offset: u32,
     /// 列表摘要截断上限（字符数，None 或 Some(0) = 不截断，返回全文 summary）

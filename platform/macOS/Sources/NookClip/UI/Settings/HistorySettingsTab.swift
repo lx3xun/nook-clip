@@ -398,7 +398,9 @@ struct HistorySettingsTab: View {
             titleVisibility: .visible
         ) {
             Button(L10n.tr("settings.general.clear_button"), role: .destructive) {
-                historyStore?.clearHistory(keepFavorites: true)
+                // 清空历史是阻塞型大批量删除（万级历史约数十毫秒 + 整页重查），
+                // 放到后台任务执行，避免设置面板卡顿。
+                Task { await historyStore?.clearHistoryInBackground(keepFavorites: true) }
             }
             Button(L10n.tr("settings.general.cancel_button"), role: .cancel) {}
         } message: {

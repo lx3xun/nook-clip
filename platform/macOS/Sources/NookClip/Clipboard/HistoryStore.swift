@@ -224,6 +224,9 @@ final class InMemoryHistoryStore {
     func save(_ item: ClipboardItem) {
         guard !item.isBlankText else { return }
         guard let persisted = rustStore.save(item) else { return }
+        // 去重命中回收站行时，该 id 会从回收站「复活」为活跃行；
+        // 不同步移除会在回收站列表里留下一条实际已活跃的幽灵记录。
+        trashItems.removeAll { $0.id == persisted.id }
         items.removeAll { $0.id == persisted.id }
         items.insert(persisted, at: 0)
         if items.count > Self.pageSize {
@@ -239,6 +242,7 @@ final class InMemoryHistoryStore {
     /// `ingestClipboardSnapshot` 已在 Rust 引擎事务中完成落盘、去重与敏感加密，
     /// 此处直接将持久化结果置顶写入内存页，避免二次 `rustStore.save` 重复落库或用 nil 明文覆盖。
     func applyCapturedItem(_ persisted: ClipboardItem) {
+        trashItems.removeAll { $0.id == persisted.id }
         items.removeAll { $0.id == persisted.id }
         items.insert(persisted, at: 0)
         if items.count > Self.pageSize {
@@ -287,6 +291,10 @@ final class InMemoryHistoryStore {
             var restored = item
             restored.deletedAt = nil
             restored.lastUsedAt = Date()
+            // 恢复前先去掉同内容的活跃行：存储层的内容去重会把「重新复制已删内容」
+            // 合并回回收站那一行，但历史数据/跨端同步可能已存在同内容活跃行，
+            // 直接插入会让列表出现两条一模一样的记录。
+            items.removeAll { $0.type == restored.type && $0.summary == restored.summary }
             items.insert(restored, at: 0)
         }
         refreshHasMore()
@@ -482,9 +490,35 @@ final class InMemoryHistoryStore {
         }
     }
 
-    func clearHistory(keepFavorites: Bool = true) {
+    /// 清空历史（同步核心）：供测试与已持有后台上下文的调用方使用。
+    /// UI 路径请用 `clearHistoryInBackground`，避免万级历史下主线程卡顿。
+    @discardableResult
+    func clearHistory(keepFavorites: Bool = true) -> Int {
         let pruned = rustStore.clearAllHistory(keepFavorites: keepFavorites)
         let deletedFromTrash = trashItems.filter { !keepFavorites || !$0.isFavorite }
+        for record in pruned {
+            payloadStore.remove(path: record.payloadPath)
+        }
+        for item in deletedFromTrash {
+            payloadStore.remove(path: item.payloadPath)
+        }
+        trashItems.removeAll()
+        items = rustStore.page(limit: Self.pageSize, offset: 0)
+        refreshHasMore()
+        publishMutation(scheduleSync: false)
+        return pruned.count
+    }
+
+    /// 清空历史（UI 路径）：数据库硬删除 + FTS/载荷清理是阻塞型工作
+    /// （万级历史实测约 56ms，且伴随一次整页重查），整段放到后台任务执行，
+    /// 主线程只负责发起与结果应用。
+    func clearHistoryInBackground(keepFavorites: Bool = true) async {
+        let rustStore = self.rustStore
+        let payloadStore = self.payloadStore
+        let deletedFromTrash = trashItems.filter { !keepFavorites || !$0.isFavorite }
+        let pruned = await Task.detached(priority: .userInitiated) { () -> [PrunedItemRecord] in
+            rustStore.clearAllHistory(keepFavorites: keepFavorites)
+        }.value
         for record in pruned {
             payloadStore.remove(path: record.payloadPath)
         }

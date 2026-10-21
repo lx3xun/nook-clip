@@ -127,21 +127,23 @@ public class RustHistoryStore: @unchecked Sendable {
     }
 
     public func trashItems() -> [ClipboardItem] {
+        // 回收站过滤与排序下推到 SQL：只取已删行、按删除时间倒序。
+        // 旧实现拉一页活跃行（默认按 last_used_at 排序）再在 Swift 侧过滤已删行，
+        // 既浪费扫描也导致重启后回收站顺序与删除时间不一致。
         let filter = QueryFilter(
             searchQuery: nil,
             itemType: nil,
             kind: nil,
             favoriteOnly: false,
             includeDeleted: true,
+            onlyDeleted: true,
             limit: 1000,
             offset: 0,
             summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1)
         )
         do {
             let summaries = try engine.queryItems(filter: filter)
-            return summaries
-                .filter { $0.deletedAt != nil }
-                .compactMap { self.toClipboardItem($0) }
+            return summaries.compactMap { self.toClipboardItem($0) }
         } catch {
             Self.logger.error("trashItems query failed: \(error.localizedDescription)")
             return []
@@ -330,6 +332,14 @@ public class RustHistoryStore: @unchecked Sendable {
     /// （内容去重合并、敏感加密、FTS 维护），任一条目失败整体回滚
     @discardableResult
     public func saveBatch(_ items: [ClipboardItem]) -> Bool {
+        saveBatchCounting(items) > 0
+    }
+
+    /// 批量写入并返回实际写入条数（导入报告需要真实计数）。
+    /// 语义与 `save` 一致：单事务、内容去重合并、敏感加密、FTS 维护；
+    /// 任一条失败整体回滚并返回 0。
+    @discardableResult
+    public func saveBatchCounting(_ items: [ClipboardItem]) -> Int {
         let entries = items.map { item in
             BatchSaveItem(
                 item: ffiSummary(from: item),
@@ -340,12 +350,20 @@ public class RustHistoryStore: @unchecked Sendable {
             )
         }
         do {
-            _ = try engine.saveItems(items: entries)
-            return true
+            let persisted = try engine.saveItems(items: entries)
+            return persisted.count
         } catch {
             Self.logger.error("Failed to batch save in Rust engine: \(error.localizedDescription)")
-            return false
+            return 0
         }
+    }
+
+    /// 查询这批 id 中已存在于数据库的部分（单次 IN 查询，不做实体映射）。
+    /// 用于导入前跳过重复项：旧实现用 page(limit: 100000) 拉全库实体映射，
+    /// 万级历史下会把整库摘要搬进内存。
+    public func existingItemIDs(among ids: [String]) -> [String] {
+        guard !ids.isEmpty else { return [] }
+        return (try? engine.existingItemIds(ids: ids)) ?? []
     }
 
     /// 全部条目载荷路径（孤儿对账用，单列轻量查询）

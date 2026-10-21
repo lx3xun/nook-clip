@@ -65,6 +65,7 @@ fn test_sync_engine_push_and_pull_reconciliation() {
         // save_item 写入的本地 updated_at 是真实 now（~1.7e9），
         // 远端记录需更大的 updated_at 才能在 LWW 判新中胜出
         updated_at: 5_000_000_000.0,
+        favorite_updated_at: 5_000_000_000.0,
         copy_count: 5,
         asset_file_name: None,
         deleted_at: None,
@@ -157,6 +158,7 @@ fn test_sync_engine_pull_resilience_to_corrupt_pack() {
         created_at: 100.0,
         last_used_at: 100.0,
         updated_at: 100.0,
+        favorite_updated_at: 0.0,
         copy_count: 1,
         asset_file_name: None,
         deleted_at: None,
