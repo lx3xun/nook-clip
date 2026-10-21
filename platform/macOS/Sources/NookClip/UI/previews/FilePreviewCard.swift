@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - US6 文件列表卡片（多文件逐条 · 系统类型图标 / 名称 / 路径 / 大小 / 复制路径）
 
@@ -49,7 +50,7 @@ struct FilePreviewRow: View {
     }
 
     private var fallbackIcon: NSImage {
-        NSWorkspace.shared.icon(forFileType: "public.text")
+        NSWorkspace.shared.icon(for: .text)
     }
 
     /// 展示用图标：NSCache 命中即用；未命中在主线程取一次并写回。
