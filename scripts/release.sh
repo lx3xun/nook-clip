@@ -155,8 +155,8 @@ fi
 # 3. 分支与工作区校验
 CURRENT_BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
 if [[ "$DRY_RUN" = false ]]; then
-  if [[ "$CURRENT_BRANCH" != "main" ]]; then
-    echo "error: 正式发布必须在 'main' 分支执行（当前处于: $CURRENT_BRANCH）" >&2
+  if [[ "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "dev" ]]; then
+    echo "error: 正式发布必须在 'main' 或 'dev' 分支执行（当前处于: $CURRENT_BRANCH）" >&2
     exit 1
   fi
   if [[ -n "$(git -C "$ROOT" status --porcelain)" ]]; then
@@ -167,7 +167,6 @@ if [[ "$DRY_RUN" = false ]]; then
 else
   echo "==> [Dry-Run 模式] 当前分支: $CURRENT_BRANCH"
 fi
-
 # 4. 凭证检查
 if [[ "$DRY_RUN" = false ]]; then
   [[ -f "$GITHUB_TOKEN_FILE" ]] || { echo "error: 缺少 GitHub 令牌 $GITHUB_TOKEN_FILE" >&2; exit 1; }
@@ -188,7 +187,19 @@ if [[ ! -x "$SPARKLE_TOOLS/bin/generate_appcast" ]]; then
   rm -f "$SPARKLE_TOOLS/sparkle.tar.xz"
 fi
 
-# 5. 双端测试门禁
+
+# 5. 分支对齐与合并（若从 dev 分支发起发版）
+if [[ "$CURRENT_BRANCH" == "dev" && "$DRY_RUN" = false ]]; then
+  echo "==> 检测到当前处于 dev 分支，正在合入 main 分支..."
+  git -C "$ROOT" checkout main
+  git -C "$ROOT" pull origin main --quiet || true
+  if ! git -C "$ROOT" merge dev --no-edit -m "merge: dev to main for release $TAG"; then
+    echo "error: 合并 dev 到 main 产生冲突，请先在本地手动解决冲突后再发版" >&2
+    exit 1
+  fi
+  echo "    dev 已成功合入 main"
+fi
+# 6. 双端测试门禁
 echo "==> [门禁 1/2] 运行 Rust 单元测试..."
 cargo test --workspace --quiet
 
@@ -198,7 +209,7 @@ pkill -x Nook 2>/dev/null || true
 pkill -f "swift-test" 2>/dev/null || true
 swift test --package-path platform/macOS
 
-# 6. 版本号同步更新 (Info.plist + Cargo.toml + site/index.html)
+# 7. 版本号同步更新 (Info.plist + Cargo.toml + site/index.html)
 echo "==> 更新版本号为 $VER..."
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VER" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VER" "$PLIST"
@@ -255,13 +266,13 @@ with open(path, "w", encoding="utf-8") as f:
 PYEOF
   echo "    已自动将 CHANGELOG.md 中的 [Unreleased] 归档为 [$VER] - $TODAY"
 fi
-# 7. 构建 Universal DMG
+# 8. 构建 Universal DMG
 echo "==> 构建 Universal 双架构 DMG 产物..."
 zsh "$ROOT/scripts/build-dmg.sh" --universal
 
 DMG_ASSET="NookClip-$VER.dmg"
 
-# 8. 生成 GitHub 与 Gitee 两套 Appcast 清单（带 EdDSA 签名）
+# 9. 生成 GitHub 与 Gitee 两套 Appcast 清单（带 EdDSA 签名）
 echo "==> 生成并签名 Sparkle 更新清单 (Appcast)..."
 rm -rf "$STAGING"
 for SRC in github gitee; do
@@ -306,7 +317,7 @@ if [[ "$DRY_RUN" = true ]]; then
   exit 0
 fi
 
-# 9. Git 提交与打 Tag
+# 10. Git 提交与打 Tag
 echo "==> 提交版本与创建 Git Tag: $TAG..."
 git -C "$ROOT" add "$PLIST" "$CARGO_TOML" "$ROOT/Cargo.lock"
 [[ -f "$SITE_INDEX" ]] && git -C "$ROOT" add "$SITE_INDEX"
@@ -315,7 +326,7 @@ if ! git -C "$ROOT" diff --cached --quiet; then
   git -C "$ROOT" commit -m "release: $TAG" --quiet
 fi
 git -C "$ROOT" tag -f "$TAG"
-# 10. 推送代码与远端发布
+# 11. 推送代码与远端发布
 echo "==> GitHub 发布 $TAG ..."
 git -C "$ROOT" push origin main
 git -C "$ROOT" push -f origin "$TAG"
@@ -388,7 +399,7 @@ fi
 github_upload_asset "$APPCAST_REL_ID" "$STAGING/github/appcast.xml"
 echo "==> GitHub 发布完成"
 
-# 11. Gitee 发布
+# 12. Gitee 发布
 if ! git -C "$ROOT" remote | grep -qx gitee; then
   git -C "$ROOT" remote add gitee "https://gitee.com/${GITEE_OWNER_REPO}.git"
 fi
@@ -465,6 +476,16 @@ gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$APPCAST_REL_ID/attach_files?a
   -F "file=@$STAGING/gitee/appcast.xml" >/dev/null
 
 rm -rf "$STAGING"
+
+# 13. 如果发版由 dev 发起，自动将 main 发版提交同步回 dev
+if [[ "$CURRENT_BRANCH" == "dev" && "$DRY_RUN" = false ]]; then
+  echo "==> 正在将发版提交自动合并回 dev 分支..."
+  git -C "$ROOT" checkout dev
+  git -C "$ROOT" merge main --no-edit
+  git -C "$ROOT" push origin dev
+  git -C "$ROOT" push gitee dev 2>/dev/null || true
+  echo "    已成功同步回 dev 分支。"
+fi
 echo ""
 echo "=========================================="
 echo "✅ 发布完成: NookClip $VER"
