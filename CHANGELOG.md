@@ -44,19 +44,6 @@
 - **调整历史保留天数与磁盘限额默认值**：历史保留天数默认值调整为半年（180 天，原为 30 天）；磁盘空间上限默认值调整为 5GB（5120MB，原为无限制），防止媒体载荷长期累积占满磁盘。
   *Default storage policy adjustments: History retention default changed to 6 months (180 days, previously 30 days); disk space limit default changed to 5GB (5120MB, previously unlimited) to prevent unbounded asset accumulation.*
 
-- **大幅降低常驻内存**：后台常驻内存从 ~106MB 优化至 ~19MB（实测峰值 181MB → 19.6MB），开启常用功能后仍稳定在 ~60MB 以内。
-  *Significantly reduced idle memory from ~106MB to ~19MB (tested peak 181MB → 19.6MB), staying well within ~60MB during typical daily usage.*
-- **OCR 改为独立短生命周期子进程按需执行**：识别引擎的神经网络与 Metal 权重不再驻留主进程，识别完成退出即 100% 回收 ~35MB 内存。
-  *Moved OCR to an on-demand, short-lived subprocess: Neural network and Metal weights no longer linger in the main process, fully reclaiming ~35MB upon completion.*
-- **应用搜索改为输入时按需构建**：纯英文应用名走 ASCII 快路，不触发 ICU 汉字转拼音表加载；面板闲置后释放缓存。
-  *On-demand app search index on input: English app names take the fast ASCII path without loading ICU Pinyin tables, with cache eviction upon panel idle.*
-- **偏好设置窗口关闭即释放视图树**，下次打开按需重建，回收 ~15~25MB。
-  *Preference window view tree is now deallocated immediately upon closing and rebuilt on demand, saving ~15–25MB.*
-- **SQLite 页缓存上限收紧至 512KB**（默认约 8MB），并在面板闲置后压缩历史内存镜像。
-  *Tightened SQLite page cache cap to 512KB (down from ~8MB default) and compacted history memory buffers when the panel is idle.*
-- **面板收起闲置自动回收**：释放隐藏面板视图树、缩略图、代码高亮与图标缓存。
-  *Automatic idle garbage collection on panel hide: cleans up hidden view trees, thumbnails, code syntax highlights, and icon caches.*
-
 ---
 
 ### 🎨 界面与交互 (UI)
@@ -72,6 +59,25 @@
 
 - **新增 `AuroraRenderTests`**：位图级回归测试，验证薄雾确实绘制、冷光确实右锚、左列无侧向光晕、预览区四向均被覆盖（防止半径收缩导致「只染一半」回归）。
   *Added `AuroraRenderTests`: bitmap-level regression tests asserting the mist renders, the cool glow anchors right, the list column has no side glow, and the preview pane is covered edge to edge.*
+
+---
+
+## [0.2.0] - 2026-10-16
+
+### 🚀 性能优化 (Performance)
+
+- **大幅降低常驻内存**：后台常驻内存从 ~106MB 优化至 ~19MB（实测峰值 181MB → 19.6MB），开启常用功能后仍稳定在 ~60MB 以内。
+  *Significantly reduced idle memory from ~106MB to ~19MB (tested peak 181MB → 19.6MB), staying well within ~60MB during typical daily usage.*
+- **OCR 改为独立短生命周期子进程按需执行**：识别引擎的神经网络与 Metal 权重不再驻留主进程，识别完成退出即 100% 回收 ~35MB 内存。
+  *Moved OCR to an on-demand, short-lived subprocess: Neural network and Metal weights no longer linger in the main process, fully reclaiming ~35MB upon completion.*
+- **应用搜索改为输入时按需构建**：纯英文应用名走 ASCII 快路，不触发 ICU 汉字转拼音表加载；面板闲置后释放缓存。
+  *On-demand app search index on input: English app names take the fast ASCII path without loading ICU Pinyin tables, with cache eviction upon panel idle.*
+- **偏好设置窗口关闭即释放视图树**，下次打开按需重建，回收 ~15~25MB。
+  *Preference window view tree is now deallocated immediately upon closing and rebuilt on demand, saving ~15–25MB.*
+- **SQLite 页缓存上限收紧至 512KB**（默认约 8MB），并在面板闲置后压缩历史内存镜像。
+  *Tightened SQLite page cache cap to 512KB (down from ~8MB default) and compacted history memory buffers when the panel is idle.*
+- **面板收起闲置自动回收**：释放隐藏面板视图树、缩略图、代码高亮与图标缓存。
+  *Automatic idle garbage collection on panel hide: cleans up hidden view trees, thumbnails, code syntax highlights, and icon caches.*
 
 ---
 
