@@ -134,11 +134,15 @@ cp "$ROOT/platform/macOS/Packaging/Info.plist" "$APP/Contents/Info.plist"
 if [[ -f "$ROOT/platform/macOS/Sources/NookClip/Resources/AppIcon.icns" ]]; then
   cp "$ROOT/platform/macOS/Sources/NookClip/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 fi
-rsync -a --update "$ROOT/platform/macOS/Sources/NookClip/Resources/" "$APP/Contents/Resources/" 2>/dev/null || true
+# 不用 --update：dist 里上次构建的残留往往比源码新，--update 会跳过真正的新文案
+rsync -a "$ROOT/platform/macOS/Sources/NookClip/Resources/" "$APP/Contents/Resources/" 2>/dev/null || true
 
 if ls "$BUILD_DIR"/*.bundle 1> /dev/null 2>&1; then
-  rsync -a --update "$BUILD_DIR"/*.bundle "$APP/Contents/Resources/" 2>/dev/null || true
-  find -L "$BUILD_DIR" -name "*.lproj" -maxdepth 5 -exec cp -R {} "$APP/Contents/Resources/" \; 2>/dev/null || true
+  rsync -a "$BUILD_DIR"/*.bundle "$APP/Contents/Resources/" 2>/dev/null || true
+  # 只从当前产品的资源包取 lproj：旧版残留的 Nook_Nook.bundle 会把过期的
+  # Localizable.strings 覆盖到 app 顶层 Resources，导致发行版文案落后于源码
+  find -L "$BUILD_DIR" -maxdepth 1 -name "NookClip_*.bundle" -exec \
+    find {} -maxdepth 5 -name "*.lproj" -exec cp -R {} "$APP/Contents/Resources/" \; \; 2>/dev/null || true
 fi
 
 # Sparkle 2 framework：Release / Universal 构建强制刷新，确保不混入旧 Debug 框架

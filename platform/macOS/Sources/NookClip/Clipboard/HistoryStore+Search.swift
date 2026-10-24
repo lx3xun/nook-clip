@@ -54,28 +54,28 @@ extension InMemoryHistoryStore {
     /// 自然时间区间与分类预筛在结果限制前应用；多个关键词保持 AND。
     /// nonisolated：FFI 查询在 RustHistoryStore 的串行队列执行（见 searchAsync），
     /// 主 actor 仅做发起与结果应用，过期结果由调用方代际守卫丢弃。
-    nonisolated func searchHistory(queryText: String, categoryID: Int, limit: Int) async -> HistorySearchOutcome {
+    nonisolated func searchHistory(queryText: String, categoryID: Int, limit: Int, tag: String? = nil) async -> HistorySearchOutcome {
         let cleanQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let result = await rustStore.searchAsync(query: cleanQuery, categoryID: categoryID, limit: limit, offset: 0)
+        let result = await rustStore.searchAsync(query: cleanQuery, categoryID: categoryID, limit: limit, offset: 0, tag: tag)
         return HistorySearchOutcome(items: result.items, hasMore: result.items.count >= limit, failed: result.failed)
     }
 
     /// 全历史分类统计：在 Rust 聚合出真实的 9 大分类条数，不拉取明细条目
-    nonisolated func countCategories(queryText: String) async -> CategoryCounts {
+    nonisolated func countCategories(queryText: String, tag: String? = nil) async -> CategoryCounts {
         let cleanQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return await rustStore.countCategoriesAsync(query: cleanQuery)
+        return await rustStore.countCategoriesAsync(query: cleanQuery, tag: tag)
     }
 
     /// 全量时间戳聚合：当前筛选（关键词 + 分类）下全部命中条目的 last_used_at，
     /// 供时间导航锚点条做全历史时间分组——不受分页 pageSize 截断
-    nonisolated func timeGroupTimestamps(queryText: String, categoryID: Int) async -> [Date] {
+    nonisolated func timeGroupTimestamps(queryText: String, categoryID: Int, tag: String? = nil) async -> [Date] {
         let cleanQuery = queryText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return await rustStore.timeGroupTimestampsAsync(query: cleanQuery, categoryID: categoryID)
+        return await rustStore.timeGroupTimestampsAsync(query: cleanQuery, categoryID: categoryID, tag: tag)
     }
 
     /// 全局视图快照聚合（查询 + 分类统计 + 时间分桶 + 锚点单次出库）：
     /// 替代分别调用 searchHistory、countCategories、timeGroupTimestamps 三次独立 FFI
-    nonisolated func queryViewSnapshot(queryText: String, categoryID: Int, limit: Int) async -> QueryViewSnapshot? {
-        await rustStore.queryViewSnapshotAsync(query: queryText, categoryID: categoryID, limit: limit)
+    nonisolated func queryViewSnapshot(queryText: String, categoryID: Int, limit: Int, tag: String? = nil) async -> QueryViewSnapshot? {
+        await rustStore.queryViewSnapshotAsync(query: queryText, categoryID: categoryID, limit: limit, tag: tag)
     }
 }

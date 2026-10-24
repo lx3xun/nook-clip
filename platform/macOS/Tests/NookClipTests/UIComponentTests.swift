@@ -231,7 +231,7 @@ final class UIComponentTests: XCTestCase {
             leading: { _ in Image(systemName: "checkmark.circle") },
             title: { _ in Text("完成周报") },
             titleAccessory: { _ in EmptyView() },
-            subtitle: { _ in Text("截止今天 18:00") }
+            subtitle: { _, _ in Text("截止今天 18:00") }
         )
         XCTAssertTrue(shell.isSelected)
         XCTAssertTrue(shell.isFavorite)
@@ -239,37 +239,67 @@ final class UIComponentTests: XCTestCase {
         XCTAssertNotNil(renderView(shell), "NookClipRowShell 应能独立于 ClipboardRowModel 承载自定义笔记/待办插槽")
     }
 
-    // MARK: - CategoryFilterBar 测试
+    /// 回归：多选（批量）模式下「当前记录 / 锚点」可能未勾选（取消勾选锚点、↑↓ 导航、
+    /// shift 扩选后锚点都会落在未勾选行上）。此时该行必须仍有可见高亮背景，
+    /// 不能只剩 1pt 描边。此处构造锚点选中但未勾选的行，确保能正常渲染（背景分支成立）。
+    func testNookRowShellBatchAnchorUncheckedStillRendersHighlighted() {
+        let anchorUnchecked = NookClipRowShell(
+            isSelected: true,
+            style: .batch(isChecked: false, isRemoving: false),
+            leading: { _ in Image(systemName: "checkmark.circle") },
+            title: { _ in Text("当前记录") },
+            titleAccessory: { _ in EmptyView() },
+            subtitle: { _, _ in Text("未勾选但为预览锚点") }
+        )
+        XCTAssertTrue(anchorUnchecked.isSelected)
+        XCTAssertNotNil(
+            renderView(anchorUnchecked),
+            "批量模式下未勾选的当前记录行也应有高亮背景（回归：曾仅剩描边、缺少底色）"
+        )
+    }
 
-    func testCategoryFilterBarRendersSlotButtonWithAndWithoutMenu() {
-        let chips: [SidebarCategory] = [
-            SidebarCategory(id: 0, name: "全部", symbol: "square.grid.2x2", count: 10),
-            SidebarCategory(id: 8, name: "收藏", symbol: "star", count: 2),
+    // MARK: - CategoryFilterPanel 测试（搜索框展开面板）
+
+    func testCategoryFilterPanelRendersWithFixedGridAndTags() {
+        var picked: (category: Int?, tag: String?) = (nil, nil)
+        let categories: [SidebarCategory] = [
+            SidebarCategory(id: 8, name: "收藏", symbol: "star.fill", count: 2),
+            SidebarCategory(id: 2, name: "图片", symbol: "photo.fill", count: 3),
             SidebarCategory(id: 1, name: "文本", symbol: "doc.text", count: 5),
+            SidebarCategory(id: 4, name: "链接", symbol: "globe.americas.fill", count: 1),
+            SidebarCategory(id: 5, name: "代码", symbol: "chevron.left.forwardslash.chevron.right", count: 4),
+            SidebarCategory(id: 3, name: "文件", symbol: "doc.fill", count: 0),
+            SidebarCategory(id: 6, name: "颜色", symbol: "paintpalette.fill", count: 0),
+            SidebarCategory(id: 7, name: "回收站", symbol: "trash.fill", count: 0),
         ]
-        let slot = SidebarCategory(id: 2, name: "链接", symbol: "link", count: 3)
+        let tags = [TagStat(name: "灵感", count: 3), TagStat(name: "api", count: 2), TagStat(name: "待办", count: 1)]
 
-        let barWithMenu = CategoryFilterBar(
-            chips: chips,
-            slotCategory: slot,
-            hasSlotMenu: true,
-            selectedID: 0,
-            isSlotMenuOpen: false,
-            onSelect: { _ in },
-            onToggleSlotMenu: {}
+        let panel = CategoryFilterPanel(
+            categories: categories,
+            selectedCategoryID: 2,
+            tags: tags,
+            selectedTag: "灵感",
+            onSelectCategory: { picked.category = $0 },
+            onSelectTag: { picked.tag = $0 }
         )
-        XCTAssertNotNil(renderView(barWithMenu), "带有动态槽下拉菜单的分类筛选条应正常渲染")
+        XCTAssertNotNil(renderView(panel), "带固定类型网格与标签胶囊的过滤面板应正常渲染")
+        panel.onSelectCategory(5)
+        XCTAssertEqual(picked.category, 5)
+        panel.onSelectTag("api")
+        XCTAssertEqual(picked.tag, "api")
+    }
 
-        let barWithoutMenu = CategoryFilterBar(
-            chips: chips,
-            slotCategory: slot,
-            hasSlotMenu: false,
-            selectedID: 2,
-            isSlotMenuOpen: false,
-            onSelect: { _ in },
-            onToggleSlotMenu: nil
+    func testCategoryFilterPanelRendersWithoutTags() {
+        let categories = [SidebarCategory(id: 8, name: "收藏", symbol: "star.fill", count: 0)]
+        let panel = CategoryFilterPanel(
+            categories: categories,
+            selectedCategoryID: 0,
+            tags: [],
+            selectedTag: nil,
+            onSelectCategory: { _ in },
+            onSelectTag: { _ in }
         )
-        XCTAssertNotNil(renderView(barWithoutMenu), "选中第 4 槽的分类筛选条应正常渲染")
+        XCTAssertNotNil(renderView(panel), "无标签时下半区隐藏，面板仍应正常渲染（卡片变薄）")
     }
 
     // MARK: - GroupHeaderView 下拉菜单测试
@@ -290,6 +320,34 @@ final class UIComponentTests: XCTestCase {
         XCTAssertNotNil(renderView(header), "带有 allGroups 的吸顶分组头应始终渲染时间跳转下拉菜单入口")
         header.onSelectGroup?("yesterday")
         XCTAssertEqual(selectedGroupID, "yesterday")
+    }
+
+    /// 方案 B：标题即入口 —— 有分组数据时整个标题可点；
+    /// 视口固定 24pt 高，悬停前不显示 ⌄，因此渲染宽度不应因图标而额外占用。
+    func testGroupHeaderTitleEntryRendersWithinFixedHeight() {
+        let items: [TimelineRailItem] = [
+            TimelineRailItem(id: "today", title: "今天", count: 6),
+            TimelineRailItem(id: "yesterday", title: "昨天", count: 2),
+        ]
+        let header = GroupHeaderView(
+            title: "今天",
+            count: 6,
+            allGroups: items,
+            onSelectGroup: { _ in }
+        )
+        let host = NSHostingView(rootView: header)
+        host.layoutSubtreeIfNeeded()
+        let size = host.fittingSize
+        XCTAssertEqual(size.height, NookClip.heightGroupHeader, accuracy: 0.5, "组头高度必须仍是恒定 24pt，点击目标扩到标题不得撑高")
+        XCTAssertLessThan(size.width, NookClip.widthListCol, "标题即入口不应把组头撑出列表列宽")
+    }
+
+    /// 无分组数据时不注入跳转入口（避免弹出空菜单）
+    func testGroupHeaderWithoutGroupsCarriesNoJumpEntry() {
+        let plain = GroupHeaderView(title: "今天", count: 6, allGroups: nil, onSelectGroup: nil)
+        XCTAssertNil(plain.allGroups)
+        XCTAssertNil(plain.onSelectGroup)
+        XCTAssertNotNil(renderView(plain))
     }
 
     func testGroupHeaderViewHidesDropdownWhenGroupsNotProvided() {

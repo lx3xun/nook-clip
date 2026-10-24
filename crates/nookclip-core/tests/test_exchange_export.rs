@@ -28,6 +28,9 @@ fn test_export_json_and_markdown_sensitive_modes() {
     };
     repo.save_item(&normal_item, Some("Normal content"))
         .unwrap();
+    // 标签：导出应携带
+    repo.set_tags("id-normal", &["api".to_string(), "work".to_string()])
+        .unwrap();
 
     let secret_item = ClipItemSummary {
         id: "id-secret".to_string(),
@@ -51,6 +54,10 @@ fn test_export_json_and_markdown_sensitive_modes() {
     let json_exclude = export_json(&repo, SensitiveExportMode::Exclude).unwrap();
     assert!(json_exclude.contains("Normal Note"));
     assert!(!json_exclude.contains("API Secret"));
+    // 标签随 JSON 导出（#[serde(default)] tags 字段）
+    assert!(json_exclude.contains("\"tags\""));
+    assert!(json_exclude.contains("\"api\""));
+    assert!(json_exclude.contains("\"work\""));
 
     // Mode 2: Masked
     let json_masked = export_json(&repo, SensitiveExportMode::Masked).unwrap();
@@ -69,4 +76,6 @@ fn test_export_json_and_markdown_sensitive_modes() {
     assert!(md_masked.contains("## Normal Note"));
     assert!(md_masked.contains("## API Secret"));
     assert!(md_masked.contains("••••••••"));
+    // Markdown 每行带 `  Tags: a, b`
+    assert!(md_masked.contains("  Tags: api, work"));
 }

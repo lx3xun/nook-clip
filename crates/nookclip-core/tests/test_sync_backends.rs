@@ -70,6 +70,7 @@ fn test_sync_engine_two_devices_local_backend() {
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     };
     repo_a.save_item(&item, Some("Sync payload")).unwrap();
 

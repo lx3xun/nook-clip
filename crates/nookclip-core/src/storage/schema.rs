@@ -8,7 +8,8 @@ use crate::error::Result;
 /// - v4：派生分类 kind 列回填
 /// - v5：FTS 中敏感条目的正文/OCR/来源置空
 /// - v6：索引结构与统计信息修订（见 `migrate_to_v6`）
-pub const SCHEMA_VERSION: i64 = 6;
+/// - v7：轻量标签（clip_tags 表 + clip_fts.tags 列 + clip_items.tags_updated_at）
+pub const SCHEMA_VERSION: i64 = 7;
 
 /// WAL 文件大小上限（8 MiB）。默认 -1 表示永不截断，一次「清空历史」或大批量
 /// 清理会把 -wal 文件永久撑到几十 MB 直到进程退出。
@@ -105,12 +106,25 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
         );
 
 
+        -- 轻量标签：每条目多标签（大小写不敏感判重，保留原始大小写展示）。
+        -- clip_id 外键级联：条目硬删除时标签一并清除。
+        CREATE TABLE IF NOT EXISTS clip_tags (
+            clip_id TEXT NOT NULL,
+            tag TEXT NOT NULL COLLATE NOCASE,
+            created_at REAL NOT NULL,
+            PRIMARY KEY (clip_id, tag),
+            FOREIGN KEY (clip_id) REFERENCES clip_items(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_clip_tags_tag ON clip_tags (tag COLLATE NOCASE, clip_id);
+        CREATE INDEX IF NOT EXISTS idx_clip_tags_clip ON clip_tags (clip_id);
+
         CREATE VIRTUAL TABLE IF NOT EXISTS clip_fts USING fts5(
             title,
             summary,
             ocr_text,
             source_app_name,
             source_app_bundle_id,
+            tags,
             clip_id UNINDEXED,
             tokenize = 'trigram'
         );
@@ -132,6 +146,7 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
             "favorite_updated_at",
             "favorite_updated_at REAL NOT NULL DEFAULT 0",
         ),
+        ("tags_updated_at", "tags_updated_at REAL NOT NULL DEFAULT 0"),
     ] {
         if !existing_columns.iter().any(|c| c == name) {
             conn.execute(&format!("ALTER TABLE clip_items ADD COLUMN {ddl};"), [])?;
@@ -168,9 +183,9 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
         conn.execute_batch(
             r#"
             DELETE FROM clip_fts;
-            INSERT INTO clip_fts (rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id)
+            INSERT INTO clip_fts (rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, tags, clip_id)
             SELECT ci.rowid, ci.title, ci.summary, COALESCE(cp.ocr_text, ''),
-                   COALESCE(ci.source_app_name, ''), COALESCE(ci.source_app_bundle_id, ''), ci.id
+                   COALESCE(ci.source_app_name, ''), COALESCE(ci.source_app_bundle_id, ''), '', ci.id
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE ci.is_sensitive = 0;
@@ -244,12 +259,13 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
         conn.execute_batch(
             r#"
             DELETE FROM clip_fts;
-            INSERT INTO clip_fts (rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id)
+            INSERT INTO clip_fts (rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, tags, clip_id)
             SELECT ci.rowid, ci.title,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE ci.summary END,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+                   '',
                    ci.id
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id;
@@ -259,6 +275,10 @@ pub fn initialize_database(conn: &Connection) -> Result<()> {
     }
     if version < 6 {
         migrate_to_v6(conn)?;
+    }
+
+    if version < 7 {
+        migrate_to_v7(conn)?;
     }
 
     // 每次打开顺带让优化器按需刷新统计信息（无统计需求时是空操作）。
@@ -309,6 +329,50 @@ fn migrate_to_v6(conn: &Connection) -> Result<()> {
     // ANALYZE 在空库/小库上是毫秒级；万级历史约数十毫秒，一次性成本。
     conn.execute_batch("ANALYZE;")?;
     conn.execute_batch("PRAGMA user_version = 6;")?;
+    Ok(())
+}
+
+/// v7：轻量标签。
+///
+/// 1. `clip_tags` 表与索引由 initialize 的 `CREATE ... IF NOT EXISTS` 保证存在
+///    （新库与存量库都在此处之前建好）。
+/// 2. `clip_items.tags_updated_at` 由列级软迁移补齐（本函数之前已执行）。
+/// 3. `clip_fts` 需要新增 `tags` 列：FTS5 不支持 ALTER ADD COLUMN，只能 DROP 后
+///    按新结构重建，并全量回填每行的 tags 文本（敏感条目也写入 tags，
+///    正文/OCR/来源仍置空）。
+fn migrate_to_v7(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        r#"
+        DROP TABLE IF EXISTS clip_fts;
+        CREATE VIRTUAL TABLE clip_fts USING fts5(
+            title,
+            summary,
+            ocr_text,
+            source_app_name,
+            source_app_bundle_id,
+            tags,
+            clip_id UNINDEXED,
+            tokenize = 'trigram'
+        );
+        "#,
+    )?;
+    // 全量回填：tags 列聚合该条目全部标签（空格分隔，配合 trigram 分词可子串命中）。
+    // 敏感条目：title + tags 正常写入；summary/ocr/来源置空。
+    conn.execute_batch(
+        r#"
+        INSERT INTO clip_fts (rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, tags, clip_id)
+        SELECT ci.rowid, ci.title,
+               CASE WHEN ci.is_sensitive = 1 THEN '' ELSE ci.summary END,
+               CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
+               CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
+               CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+               COALESCE((SELECT group_concat(ct.tag, ' ') FROM clip_tags ct WHERE ct.clip_id = ci.id), ''),
+               ci.id
+        FROM clip_items ci
+        LEFT JOIN clip_payloads cp ON ci.id = cp.id;
+        "#,
+    )?;
+    conn.execute_batch("PRAGMA user_version = 7;")?;
     Ok(())
 }
 

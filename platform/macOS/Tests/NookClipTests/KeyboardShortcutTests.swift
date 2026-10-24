@@ -432,6 +432,44 @@ final class KeyboardShortcutTests: XCTestCase {
         XCTAssertFalse(panel.isVisible, "无搜索词/分类/菜单时 Esc 应收起面板")
     }
 
+    /// 回归：聚焦搜索框展开过滤面板后，Esc 只收起过滤面板（不关闭整个界面）；
+    /// 再按一次 Esc 才收起面板。
+    func testEscapeCollapsesFilterPanelBeforeClosingWholePanel() {
+        let (controller, panel, _, _) = makeShortcutPanel(seeds: standardSeeds)
+        defer { controller.close() }
+
+        // ⌘F 聚焦搜索框（空）→ 展开过滤面板
+        focusSearchField(to: panel)
+        runLoop(0.15)
+
+        // 第一次 Esc：仅收起过滤面板，界面保持打开
+        sendKey(kVK_Escape, "\u{1b}", to: panel)
+        runLoop(0.15)
+        XCTAssertTrue(panel.isVisible, "聚焦展开过滤面板后，首次 Esc 只收起过滤面板，不应关闭整个界面")
+
+        // 第二次 Esc：此时无筛选可清，收起面板
+        sendKey(kVK_Escape, "\u{1b}", to: panel)
+        runLoop(0.15)
+        XCTAssertFalse(panel.isVisible, "过滤面板已收起后，再次 Esc 应关闭面板")
+    }
+
+    /// 回归：聚焦展开过滤面板 → Esc 收起 → 再次点击搜索框应能重新展开（不关闭界面）
+    func testClickSearchFieldReopensFilterPanelAfterEscape() {
+        let (controller, panel, _, _) = makeShortcutPanel(seeds: standardSeeds)
+        defer { controller.close() }
+
+        focusSearchField(to: panel)
+        runLoop(0.15)
+        sendKey(kVK_Escape, "\u{1b}", to: panel) // 收起过滤面板
+        runLoop(0.15)
+        XCTAssertTrue(panel.isVisible)
+
+        // 模拟再次点击搜索框区域：⌘F 等价聚焦 + 展开
+        sendKey(kVK_ANSI_F, "f", modifiers: [.command], to: panel)
+        runLoop(0.15)
+        XCTAssertTrue(panel.isVisible, "Esc 收起过滤面板后，再次聚焦搜索框不应关闭界面")
+    }
+
     /// Esc 先清搜索词再考虑收起：清空后面板保持打开、列表恢复
     func testEscapeClearsSearchTextBeforeClosing() {
         let (controller, panel, writer, _) = makeShortcutPanel(seeds: standardSeeds)
@@ -461,7 +499,25 @@ final class KeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(writer.pastedItems.first?.item.summary, "Charlie", "Esc 后分类应回到「全部」")
     }
 
-    /// Esc 关闭分类下拉但不改筛选（下拉开着时 Esc 不清分类、不收面板）
+    /// 搜索框为空、有分类条件胶囊时按 ⌫：删除胶囊（分类回「全部」），面板保持打开
+    func testBackspaceRemovesCategoryChipWhenSearchEmpty() {
+        let (controller, panel, writer, _) = makeShortcutPanel(seeds: mixedSeeds)
+        defer { controller.close() }
+
+        // 先切到「收藏」分类（搜索框为空）
+        sendKey(kVK_ANSI_RightBracket, "]", modifiers: [.command], to: panel)
+        // 聚焦搜索框（空）后按 ⌫ → 应删除分类胶囊
+        focusSearchField(to: panel)
+        sendKey(kVK_Delete, "\u{8}", to: panel)
+        XCTAssertTrue(panel.isVisible, "删除过滤胶囊不应收起面板")
+
+        // 分类已回「全部」：⏎ 应粘贴「全部」首行（Charlie）
+        sendKey(kVK_Return, "\r", to: panel)
+        XCTAssertEqual(writer.pastedItems.first?.item.summary, "Charlie",
+                       "⌫ 删除分类胶囊后应回到「全部」")
+    }
+
+    /// Esc 先收起过滤面板但不改筛选／不收面板（面板展开时 Esc 只关面板）
     func testEscapeClosesCategoryMenuWithoutClearingFilter() {
         let (controller, panel, writer, _) = makeShortcutPanel(seeds: mixedSeeds)
         defer { controller.close() }
@@ -539,33 +595,35 @@ final class KeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(writer.pastedItems.first?.item.summary, "Charlie", "⌥→ 不应再循环分类，应保持首行选中")
     }
 
-    // MARK: - ⌘↓ 分类下拉
+    // MARK: - ⌘↓ 开合过滤面板
 
-    /// ⌘↓ 打开分类下拉（高亮首项 = 收藏），⏎ 选中该分类
-    func testCommandDownOpensCategoryMenuAndReturnSelectsHighlightedCategory() {
+    /// ⌘↓ 打开搜索框展开过滤面板（不改变当前筛选）；参数计数为 0 的占位槽不会触发过滤
+    func testCommandDownOpensFilterPanelWithoutChangingFilter() {
         let (controller, panel, writer, _) = makeShortcutPanel(seeds: mixedSeeds)
         defer { controller.close() }
 
+        // 打开过滤面板后直接 ⏎：仍粘贴「全部」首行（打开面板不改变筛选）
         sendKey(kVK_DownArrow, "\u{F701}", modifiers: [.command], to: panel)
         sendKey(kVK_Return, "\r", to: panel)
-        sendKey(kVK_Return, "\r", to: panel)
 
-        XCTAssertEqual(writer.pastedItems.first?.item.summary, "Alpha", "⌘↓ + ⏎ 应选中下拉首项（收藏）")
+        XCTAssertEqual(writer.pastedItems.first?.item.summary, "Charlie",
+                       "⌘↓ 打开过滤面板不应改变当前筛选（仍为全部首行）")
     }
 
-    /// 下拉内 ↓↓ 移动高亮到链接分类，⏎ 选中
-    func testArrowKeysNavigateCategoryMenuHighlight() {
+    // MARK: - 过滤面板键盘联动：方向键仍驱动列表选中
+    //
+    // 过滤面板为独立浮层（鼠标点选分类/标签），键盘 ↑↓ 始终驱动列表选中，
+    // 不再有「下拉菜单内移动高亮」语义（原分类下拉已移除）。
+    func testArrowKeysMoveListSelectionWhileFilterPanelOpen() {
         let (controller, panel, writer, _) = makeShortcutPanel(seeds: mixedSeeds)
         defer { controller.close() }
 
         sendKey(kVK_DownArrow, "\u{F701}", modifiers: [.command], to: panel)
         sendArrow(kVK_DownArrow, to: panel)
-        sendArrow(kVK_DownArrow, to: panel)
-        sendKey(kVK_Return, "\r", to: panel)
         sendKey(kVK_Return, "\r", to: panel)
 
-        XCTAssertEqual(writer.pastedItems.first?.item.summary, "https://example.com/nook",
-                       "下拉内 ↓↓ 应把高亮移到链接分类")
+        XCTAssertEqual(writer.pastedItems.first?.item.summary, "Bravo",
+                       "⌘↓ 打开过滤面板后 ↓ 仍移动列表选中（第二行）")
     }
 
     // MARK: - ⌘R 重命名与编辑态守卫

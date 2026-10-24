@@ -2,9 +2,9 @@ use crate::error::CoreError;
 use serde::{Deserialize, Serialize};
 
 /// pack 格式版本：v2 引入 updated_at/copy_count/asset_file_name；
-/// v3 引入 source_app_bundle_id/source_app_name/source_device_id/source_device_name/source_platform。
-/// 兼容 v2 与 v3 包反序列化。
-pub const SYNC_PACK_SCHEMA_VERSION: u32 = 3;
+/// v3 引入 source_app_bundle_id/source_app_name/source_device_id/source_device_name/source_platform；
+/// v4 引入 tags / tags_updated_at。兼容 v2、v3 与 v4 包反序列化。
+pub const SYNC_PACK_SCHEMA_VERSION: u32 = 4;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SyncItemRecord {
     pub id: String,
@@ -40,6 +40,12 @@ pub struct SyncItemRecord {
     pub source_device_name: Option<String>,
     #[serde(default)]
     pub source_platform: Option<String>,
+    /// 标签列表（升序）。旧版 pack 无此字段时为空。
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// 标签最后修改时间戳（LWW 判新）：仅标签变更推进，独立于 updated_at。
+    #[serde(default)]
+    pub tags_updated_at: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -84,7 +90,7 @@ impl DeviceSyncPack {
 
         let pack: Self = rmp_serde::from_slice(&decompressed)
             .map_err(|e| CoreError::InvalidData(format!("MsgPack unpack failed: {}", e)))?;
-        if pack.schema_version != SYNC_PACK_SCHEMA_VERSION && pack.schema_version != 2 {
+        if !matches!(pack.schema_version, 2 | 3 | 4) {
             return Err(CoreError::InvalidData(format!("Unsupported sync pack schema version: {}", pack.schema_version)));
         }
         Ok(pack)

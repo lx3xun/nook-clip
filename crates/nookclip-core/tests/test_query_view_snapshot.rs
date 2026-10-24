@@ -50,6 +50,7 @@ fn test_query_view_snapshot_integration() {
             ocr_text: None,
             metadata_json: None,
             kind: item_type.to_string(),
+            tags: Vec::new(),
         };
         repo.save_item(&summary, Some(content)).unwrap();
     }
@@ -130,6 +131,7 @@ fn test_anchor_counts_match_timestamp_grouping() {
                 ocr_text: None,
                 metadata_json: None,
                 kind: "text".to_string(),
+                tags: Vec::new(),
             };
             repo.save_item(&summary, Some(&format!("s{i}"))).unwrap();
         }
@@ -156,10 +158,11 @@ fn test_anchor_counts_match_timestamp_grouping() {
     }
 }
 
-/// 周一边界回归：周日条目属于「昨天」，不得同时计入「上周」。
-/// now = 2026-10-12（周一）12:00 UTC，插入上周日与更早的条目。
+/// 分档回归：「上周」桶已退役，距今 > 7 天的条目直接进月份桶。
+/// 曾经在周一边界上出现「周日 → 上周」的归属歧义，改为按自然日差分档后不再存在。
+/// now = 2026-10-12（周一）12:00 UTC。
 #[test]
-fn test_anchor_counts_do_not_double_count_sunday_on_monday() {
+fn test_anchor_counts_retired_last_week_bucket() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("test_monday.db");
     let key = [0x33u8; 32];
@@ -172,11 +175,11 @@ fn test_anchor_counts_do_not_double_count_sunday_on_monday() {
         first_weekday: 1,
     };
 
-    // 周日 10:00（昨天）、上周三、上周二
+    // 周日 10:00（= 昨天）、6 天前（仍在 7 天近档内）、9 天前（远档）
     let offsets = [
         ("sunday", monday_noon - 26.0 * 3600.0),
-        ("last-wed", monday_noon - 5.0 * 86400.0),
-        ("last-tue", monday_noon - 6.0 * 86400.0),
+        ("d6", monday_noon - 6.0 * 86400.0),
+        ("d9", monday_noon - 9.0 * 86400.0),
     ];
     for (id, ts) in offsets {
         let summary = ClipItemSummary {
@@ -201,8 +204,18 @@ fn test_anchor_counts_do_not_double_count_sunday_on_monday() {
         .map(|a| (a.id.clone(), a.count))
         .collect();
 
-    assert_eq!(counts.get("yesterday"), Some(&1), "周日应只计入昨天");
-    assert_eq!(counts.get("last-week"), Some(&2), "上周只应有周二/周三两条");
+    assert_eq!(counts.get("yesterday"), Some(&1), "周日应计入昨天");
+    assert_eq!(counts.get("this-week"), Some(&1), "6 天前仍属近档");
+    assert_eq!(
+        counts.get("month-10"),
+        Some(&1),
+        "9 天前应进月份桶；实际锚点：{:?}",
+        counts
+    );
+    assert!(
+        !counts.contains_key("last-week"),
+        "「上周」桶已退役，SQL 聚合不得再产出；实际锚点：{counts:?}"
+    );
     assert_eq!(
         counts.values().sum::<u32>(),
         3,
@@ -218,5 +231,5 @@ fn test_anchor_counts_do_not_double_count_sunday_on_monday() {
         .iter()
         .map(|s| (s.id.clone(), s.count))
         .collect();
-    assert_eq!(got, want, "周一 SQL 聚合必须与逐条分组一致");
+    assert_eq!(got, want, "SQL 聚合必须与逐条分组一致");
 }

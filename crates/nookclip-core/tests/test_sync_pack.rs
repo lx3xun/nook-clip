@@ -22,6 +22,8 @@ fn test_sync_pack_serialization_and_compression_roundtrip() {
         source_device_id: Some("mac-1".to_string()),
         source_device_name: Some("MacBook Pro".to_string()),
         source_platform: Some("macos".to_string()),
+        tags: vec!["api".to_string(), "work".to_string()],
+        tags_updated_at: 123.0,
     };
 
     let item2 = SyncItemRecord {
@@ -44,6 +46,8 @@ fn test_sync_pack_serialization_and_compression_roundtrip() {
         source_device_id: None,
         source_device_name: None,
         source_platform: None,
+        tags: Vec::new(),
+        tags_updated_at: 0.0,
     };
 
     let pack = DeviceSyncPack::new(

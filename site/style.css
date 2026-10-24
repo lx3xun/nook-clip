@@ -919,16 +919,25 @@ body.mobile-nav-locked {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  /* 六枚能力胶囊按内容宽度排布。容器仅 960px（原 12px 间距/12px 内边距下 5 枚≈1086px）：
+     若容忍换行，第 6 枚会单独占第二行、居中吊在中间读作排版事故。所以桌面端不换行、
+     整体收窄到约 1100px，居中时左右各溢出容器 ~70px（仍在版心视觉内）；
+     窄屏由下方媒体查询切成两列网格 */
+  gap: 8px;
+  flex-wrap: nowrap;
   margin-top: 20px;
+}
+
+/* 桌面端胶囊内容一律单行（实测 6 枚总宽 1100px，居中时左右各溢出容器 ~70px） */
+.mockup-highlights .highlight-chip span {
+  white-space: nowrap;
 }
 
 .highlight-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-pill);

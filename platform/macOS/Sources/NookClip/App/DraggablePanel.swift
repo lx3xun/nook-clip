@@ -14,8 +14,10 @@ enum PanelGeometry {
     static let collapsedMaxWidth: CGFloat = 600
     /// 折叠态宽度下限（拖拽记录入库的判定下界）
     static let collapsedMinWidthFloor: CGFloat = 340
-    /// 面板高度下限（正好完整展示 10 条数据：顶栏 78 + 顶部锚点 1 + 组头 24 + 10×50 行 + 底栏 22）
-    static let minHeight: CGFloat = 625
+    /// 面板高度下限（正好完整展示 10 条数据：顶栏 42 + 顶部锚点 1 + 组头 24 + 10×54 行 + 底栏 22 = 629）。
+    /// 分类/标签收进搜索框展开面板后，常驻分类条（30pt）已移除；
+    /// 搜索框下方 6pt 间距撤销后视口再上移 6pt。
+    static let minHeight: CGFloat = 629
     /// 面板高度上限
     static let maxHeight: CGFloat = 900
     /// 外部点击/切换应用判定的边缘容差热区（含阴影及外扩边缘）：
@@ -273,6 +275,7 @@ final class DraggablePanel: NSPanel {
         // 但点击落在可选中文本上（预览区 .textSelection 的 NSTextView）时不抢焦点：
         // 抢焦点会在 super.sendEvent 分发前打断选择，导致预览文本无法选中复制
         if !isSearchBarArea(at: point),
+           !isTagDropdownArea(at: point),
            isSelectableTextResponder(firstResponder),
            !hitSelectableText(at: point) {
             makeFirstResponder(nil)
@@ -379,9 +382,9 @@ final class DraggablePanel: NSPanel {
         }
         if keyCode == kVK_DownArrow {
             if modifiers.contains(.command) {
-                // ⌘↓：开合分类下拉（⇧ 组合交还系统；搜索态交还光标移动）
+                // ⌘↓：开合搜索框展开过滤面板（⇧ 组合交还系统；搜索态交还光标移动）
                 if !modifiers.contains(.shift), !isSearchFocused {
-                    actions.toggleCategoryMenu()
+                    actions.toggleFilterPanel()
                     return true
                 }
                 return false
@@ -411,6 +414,13 @@ final class DraggablePanel: NSPanel {
         }
 
 
+        // ⌫（无修饰）：搜索框为空且有过滤条件胶囊时，删除最近一枚胶囊
+        //（标签优先，其次分类）；否则交还输入框做正常文本删除。
+        if keyCode == kVK_Delete, modifiers.isEmpty, isSearchFocused {
+            if actions.removeLastFilterChip() { return true }
+            return false
+        }
+
         // ⌘⌫ / ⌘⌦：删除选中（前向删除键同 ⌫；搜索态交还输入框：macOS 文本
         // 编辑语义「删除到行首」，避免误删历史条目）
         if keyCode == kVK_Delete || keyCode == kVK_ForwardDelete, modifiers.contains(.command) {
@@ -436,6 +446,10 @@ final class DraggablePanel: NSPanel {
                     actions.beginRename()
                     return true
                 }
+            case kVK_ANSI_L:
+                // ⌘L：打开标签编辑器（与 ⌘S 一致，搜索框聚焦时仍触发）
+                actions.beginTagEdit()
+                return true
             case kVK_ANSI_S:
                 actions.toggleFavorite()
                 return true
@@ -469,6 +483,9 @@ final class DraggablePanel: NSPanel {
     //（NookTheme.swift「4.4b 面板交互热区」），与 UI 布局同源，勿在此硬编码
     func isInteractiveArea(at point: NSPoint) -> Bool {
         if isSearchBarArea(at: point) { return true }
+        // 搜索框下方 `#` 候选下拉带：必须按交互区正常分发，否则点击候选会被
+        // 当成「点空白处」而先触发 makeFirstResponder(nil)，导致点击落空
+        if isTagDropdownArea(at: point) { return true }
 
         // 预览区顶部工具栏（复制/收藏/删除按钮）
         if point.x >= NookClip.widthListCol
@@ -476,12 +493,6 @@ final class DraggablePanel: NSPanel {
             return true
         }
 
-        // 时间锚点刻度轨区域（列表列右缘）
-        let isTimeRailArea = point.x >= (NookClip.widthListCol - NookClip.hotZoneTimeRailWidth)
-            && point.x <= NookClip.widthListCol
-            && point.y >= NookClip.hotZoneTopControlHeight
-            && point.y <= (frame.height - NookClip.hotZoneTopControlHeight)
-        if isTimeRailArea { return true }
 
         // 底部提示与帮助栏
         if point.y <= NookClip.heightFooter && point.x <= NookClip.widthListCol {
@@ -496,6 +507,15 @@ final class DraggablePanel: NSPanel {
             && point.x <= NookClip.widthListCol
             && point.y >= (frame.height - NookClip.hotZoneSearchBarTopInset)
             && point.y <= (frame.height - NookClip.hotZoneSearchBarBottomInset)
+    }
+
+    /// 搜索框下方 `#` 标签候选下拉的热区（搜索框带下沿 → 下拉卡片底部）。
+    /// 命中时按交互区正常分发，且不算「搜索框外点击」，避免抢走搜索焦点。
+    func isTagDropdownArea(at point: NSPoint) -> Bool {
+        return point.x >= NookClip.hotZoneSearchBarLeading
+            && point.x <= NookClip.widthListCol
+            && point.y >= (frame.height - NookClip.hotZoneTagDropdownHeight)
+            && point.y <= (frame.height - NookClip.hotZoneSearchBarTopInset)
     }
 
     /// T039：debug 断言热区矩形覆盖预期交互区（面板创建时由

@@ -9,7 +9,6 @@ struct AppearanceSettingsTab: View {
     /// 背景透明度 0~0.5：越大背景越透明（默认 0.15）
     @AppStorage("backgroundTransparency") private var backgroundTransparency: Double = 0.15
     @AppStorage(UserDefaultsKey.rowSelectionStyle.rawValue) private var rowSelectionStyle = RowSelectionStyle.subtleAccent.rawValue
-    @AppStorage(UserDefaultsKey.timelineJumpMode.rawValue) private var timelineJumpMode = TimelineJumpMode.indexRail.rawValue
 
     var body: some View {
         VStack(spacing: 16) {
@@ -102,18 +101,6 @@ struct AppearanceSettingsTab: View {
                     .frame(width: 170)
                 }
 
-                SettingsRowView(
-                    title: L10n.tr("settings.appearance.timeline_jump"),
-                    subtitle: L10n.tr("settings.appearance.timeline_jump_desc")
-                ) {
-                    Picker("", selection: $timelineJumpMode) {
-                        Text(L10n.tr("settings.appearance.timeline_rail")).tag(TimelineJumpMode.indexRail.rawValue)
-                        Text(L10n.tr("settings.appearance.timeline_header_menu")).tag(TimelineJumpMode.groupHeaderMenu.rawValue)
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .frame(width: 170)
-                }
             }
         }
         .onAppear {

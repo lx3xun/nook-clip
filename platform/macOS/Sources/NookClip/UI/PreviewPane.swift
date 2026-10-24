@@ -6,16 +6,6 @@ import SwiftUI
 // 视觉规格与 nook-swiftui 原型 MainView.swift / OCRColorView.swift 逐项一致（contracts C4）；
 // 全部剪贴板写入经 PasteService（contracts C2），不直调 NSPasteboard。
 
-/// 预览列几何常量（单一来源，便于测试断言）
-enum PreviewLayout {
-    /// 正文阅读栏宽上限。
-    ///
-    /// 面板宽度 580–1400pt，右列 = 面板宽 − 310（列表列），即 270–1090pt。
-    /// 不限宽时 13pt 正文在 1400pt 窗口下单行实测 80 个汉字（舒适上限约 40）。
-    /// 560 = 40 个汉字 × 13pt + 左右各 22pt 内边距，实测文本宽 516pt ≈ 39.7 字。
-    /// 750pt 默认窗口右列只有 440pt，远小于此值，故默认窗口完全不受影响。
-    static let readingMeasure: CGFloat = 560
-}
 
 @MainActor
 struct PreviewPane: View {
@@ -32,6 +22,23 @@ struct PreviewPane: View {
     var entityProvider: ((ClipboardRowModel) -> ClipboardItem?)? = nil
     /// 预览数据出口（文件元数据/剪贴板操作；集中自此，视图不直连 FileStore/PasteService）
     var previewData: PreviewDataProvider
+    /// 当前条目完整标签（由宿主按 id 提供；空则不渲染标签行）
+    var tagsProvider: ((UUID) -> [String])? = nil
+    /// 点击某标签 → 按该标签过滤列表（设置 selectedTag）
+    var onSelectTag: ((String) -> Void)? = nil
+    /// 移除当前条目的某标签
+    var onRemoveTag: ((UUID, String) -> Void)? = nil
+    /// 打开标签编辑器（末尾 + 胶囊）
+    var onEditTags: ((UUID) -> Void)? = nil
+    /// 右键标签：全局重命名该标签
+    var onRenameTag: ((String) -> Void)? = nil
+    /// 右键标签：全局删除该标签（不删条目）
+    var onDeleteTag: ((String) -> Void)? = nil
+    /// 敏感条目跨端同步**当前是否真正生效**（E2EE 开 + 口令非空 + 用户显式开启），
+    /// 由宿主从 `ICloudDriveSyncEngine.isE2EESensitiveSyncActive` 注入。
+    /// 预览区不能无条件断言「绝不上云」：用户开启敏感同步后那条断言会变成谎言，
+    /// 所以胶囊文案随本开关在「仅本机」与「端到端加密跨端同步」之间切换。
+    var isSensitiveSyncActive: Bool = false
 
     // MARK: US3 脱敏状态（data-model §3.2：明文态持续 ≤30s，离开明文态必清剪贴板）
 
@@ -108,8 +115,19 @@ struct PreviewPane: View {
                     showQRCode: showQRCode,
                     onToggleQRCode: { showQRCode.toggle() },
                     onFavorite: onFavorite,
-                    onDelete: onDelete
+                    onDelete: onDelete,
+                    onEditTags: { onEditTags?(item.id) },
+                    tags: tagsProvider?(item.id) ?? item.tags,
+                    onSelectTag: { onSelectTag?($0) },
+                    onRemoveTag: { tag in onRemoveTag?(item.id, tag) },
+                    onRenameTag: onRenameTag,
+                    onDeleteTag: onDeleteTag
                 )
+                // 顶栏必须绘制在其下方内容之上：工具栏按钮的即时微气泡会向下偏移
+                // 探入内容区（offset y≈25），若此栏与下方 ScrollView 同层，后者作为
+                // 后声明兄弟会把气泡整块盖住（左侧列表列与下方卡片亦会遮挡）。
+                // 仅抬升层级即可让气泡完整浮于所有内容之上。
+                .zIndex(1)
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         if !item.isSubtitleRedundant {
@@ -122,11 +140,6 @@ struct PreviewPane: View {
                     .padding(.horizontal, 22)
                     .padding(.top, 10)
                     .padding(.bottom, 22)
-                    // 阅读栏宽：面板可拉到 1400pt，右列随之变成 1090pt；不限宽时
-                    // 13pt 正文单行会跑到 80 个汉字（舒适上限约 40），且右半屏全空。
-                    // 620pt 在 750pt 默认窗口下不生效（列宽 440 < 620），只在宽窗口
-                    // 下把内容收成一条阅读栏，右侧留白变成刻意的边距而非"没内容"。
-                    .frame(maxWidth: PreviewLayout.readingMeasure, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -265,7 +278,10 @@ struct PreviewPane: View {
                 .frame(height: 18)
                 .background(NookClip.colorSuccess.opacity(0.12), in: Capsule())
 
-                Text(L10n.tr("preview.sensitive.local_only"))
+                // 同步状态胶囊：文案随实际同步开关切换。敏感同步未生效时保持
+                // 「纯本机 · 不同步 iCloud」的本地边界承诺；生效后该承诺已不成立，
+                // 必须换成「端到端加密 · 跨端同步」，否则预览区会与设置页自相矛盾。
+                Text(L10n.tr(Self.sensitiveSyncBadgeKey(isSensitiveSyncActive: isSensitiveSyncActive)))
                     .font(.nookClipBadge)
                     .foregroundStyle(NookClip.textSecondary)
                     .padding(.horizontal, 8)
@@ -489,6 +505,12 @@ struct PreviewPane: View {
 
     // MARK: US3 30s 定时器（D6：视图消失 / 切换选中取消；到期回遮罩 + 清剪贴板）
 
+    /// 预览区同步状态胶囊的文案键：敏感条目跨端同步真正生效时不得再声称「绝不上云」。
+    /// 抽成静态函数便于单测覆盖两种状态的绑定关系（避免再次出现写死的静态断言）。
+    static func sensitiveSyncBadgeKey(isSensitiveSyncActive: Bool) -> String {
+        isSensitiveSyncActive ? "preview.sensitive.e2ee_sync" : "preview.sensitive.local_only"
+    }
+
     /// 解析敏感条目的明文（按需经 entityProvider 查库解密，不依赖预加载缓存 loadedEntity）
     static func resolveSensitivePlainText(
         for item: ClipboardRowModel,
@@ -566,4 +588,3 @@ struct PreviewPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-

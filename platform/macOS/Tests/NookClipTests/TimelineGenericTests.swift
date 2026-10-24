@@ -42,19 +42,133 @@ final class TimelineGenericTests: XCTestCase {
         XCTAssertEqual(groups.first?.items.first?.title, "今天项")
     }
 
-    func testThisWeekAndLastWeek() {
-        // 基准周三 2026-09-23（gregorian 周界=周日起，本周=9-20~9-26）：
-        // 9-21（周一）= 本周（非今昨）；9-17（周四）= 上周
+    /// 分档按「自然日差」而非周界：2–7 天前都进「本周」档
+    func testSpanWindowFoldsIntoThisWeek() {
         let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 12))!
         let items = [
-            makeItem(title: "本周项", daysAgo: 2, now: now),
-            makeItem(title: "上周项", daysAgo: 6, now: now),
+            makeItem(title: "两天前", daysAgo: 2, now: now),
+            makeItem(title: "六天前", daysAgo: 6, now: now),
         ]
         let groups = Timeline.group(items, now: now, calendar: calendar)
-        let titles = groups.map(\.title)
-        XCTAssertTrue(titles.contains("本周"))
-        XCTAssertTrue(titles.contains("上周"))
+        XCTAssertEqual(groups.map(\.title), ["本周"])
+        XCTAssertEqual(groups.first?.items.count, 2, "2 天前与 6 天前同属「本周」档")
     }
+
+    func testJustifiedDaysBoundary() {
+        // 阈值本身必须被钉住：第 7 天仍是「本周」，第 8 天进月档
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 12))!
+        let atEdge = makeItem(title: "七天前", daysAgo: TimeGroupSpan.justifiedDays, now: now)
+        let beyond = makeItem(title: "八天前", daysAgo: TimeGroupSpan.justifiedDays + 1, now: now)
+
+        let edgeGroups = Timeline.group([atEdge], now: now, calendar: calendar)
+        XCTAssertEqual(edgeGroups.map(\.title), ["本周"])
+
+        let beyondGroups = Timeline.group([beyond], now: now, calendar: calendar)
+        XCTAssertEqual(beyondGroups.map(\.title), ["9月 1–15日"], "第 8 天应直接进当月档（带范围）")
+    }
+
+    /// 回归：「上周」档已退役，分组中不得再出现该标题
+    func testLastWeekBucketIsRetired() {
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 23, hour: 12))!
+        let items = [
+            makeItem(title: "今天项", daysAgo: 0, now: now),
+            makeItem(title: "昨天项", daysAgo: 1, now: now),
+            makeItem(title: "上周项", daysAgo: 9, now: now),
+        ]
+        let titles = Timeline.group(items, now: now, calendar: calendar).map(\.title)
+        XCTAssertFalse(titles.contains("上周"), "实际分组：\(titles)")
+        // 近档之后立即进入月档，粒度断层消失
+        XCTAssertEqual(titles, ["今天", "昨天", "9月 1–15日"])
+    }
+
+    // MARK: 月份桶的范围标签（消除「10月」看起来包含整月的歧义）
+
+    /// 当月桶只覆盖到「今天 - 近档窗口」，标题必须带范围：
+    /// 今天 2026-10-23 → 本月桶是 10/1–10/15，显示「10月 1–15日」
+    func testCurrentMonthBucketTitleCarriesRange() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 12))!
+        let item = item(at: cal.date(from: DateComponents(year: 2026, month: 10, day: 5))!, title: "月初项")
+
+        let groups = Timeline.group([item], now: now, calendar: cal)
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(
+            groups[0].title, "10月 1–15日",
+            "当月桶只装 10/1–10/15，标题必须写明范围，否则会被读成整月"
+        )
+    }
+
+    /// 历史月份覆盖整月，不加范围（仍显示「9月」）
+    func testHistoricalMonthBucketTitleHasNoRange() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 12))!
+        let item = item(at: cal.date(from: DateComponents(year: 2026, month: 9, day: 10))!, title: "九月项")
+
+        let groups = Timeline.group([item], now: now, calendar: cal)
+        XCTAssertEqual(groups.map(\.title), ["9月"], "历史月份是完整的，不该带范围")
+    }
+
+    /// 月初（今天 = 10/3）：近档覆盖 9/27–10/3，整个 10 月都还没进月档 → 本月桶为空
+    func testEarlyInMonthYieldsNoCurrentMonthBucket() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 12))!
+        // 10/1 距今 2 天 → 近档
+        let octItem = item(at: cal.date(from: DateComponents(year: 2026, month: 10, day: 1))!, title: "一号项")
+        let groups = Timeline.group([octItem], now: now, calendar: cal)
+        XCTAssertEqual(groups.map(\.title), ["本周"], "月初时 10 月条目全在近档，不该出现月份桶")
+    }
+
+    /// 桶边界如实反映覆盖范围：本月桶最大日期必须正好在近档窗口之外
+    func testCurrentMonthBucketRangeDoesNotOverlapNearTiers() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 12))!
+        let lastDay = Timeline.monthBucketLastDay(month: 10, today: now, calendar: cal)
+        XCTAssertEqual(lastDay, 15)
+
+        // 15 日当天的条目进月档，16 日（近档起点）不进——两者不得重叠也不得遗漏
+        let inside = item(at: cal.date(from: DateComponents(year: 2026, month: 10, day: 15))!, title: "15日")
+        let outside = item(at: cal.date(from: DateComponents(year: 2026, month: 10, day: 16))!, title: "16日")
+        let insideTitle = Timeline.group([inside], now: now, calendar: cal).map(\.title)
+        let outsideTitle = Timeline.group([outside], now: now, calendar: cal).map(\.title)
+        XCTAssertEqual(insideTitle, ["10月 1–15日"])
+        XCTAssertEqual(outsideTitle, ["本周"])
+    }
+
+    /// 跨语言契约：Swift `TimeGroupSpan.justifiedDays` 必须等于 Rust
+    /// `TimeGroupLevel::SPAN_JUSTIFIED_DAYS`。两处各写一个数字极易漂移，
+    /// 漂移后锚点计数（Rust/SQL）与列表分组（Swift）会静默错位。
+    func testThresholdMatchesRustContract() {
+        XCTAssertEqual(TimeGroupSpan.justifiedDays, 7, "改动须同步 crates/nookclip-core/src/model.rs")
+    }
+
+    /// 不论星期几，第 8 天都必须离开近档——分档只看自然日差，不看周界
+    func testBucketBoundaryIsWeekdayIndependent() {
+        for weekdayOffset in 0..<7 {
+            let now = calendar.date(
+                byAdding: .day, value: weekdayOffset,
+                to: calendar.date(from: DateComponents(year: 2026, month: 9, day: 21, hour: 12))!
+            )!
+            let day7 = makeItem(title: "七天前", daysAgo: TimeGroupSpan.justifiedDays, now: now)
+            let day8 = makeItem(title: "八天前", daysAgo: TimeGroupSpan.justifiedDays + 1, now: now)
+
+            XCTAssertEqual(
+                Timeline.group([day7], now: now, calendar: calendar).map(\.title), ["本周"],
+                "第 7 天应仍在近档（基准：\(now)）"
+            )
+            let m = calendar.component(.month, from: day8.lastUsedAt)
+            let expectedLastDay = Timeline.monthBucketLastDay(month: m, today: now, calendar: calendar)
+            XCTAssertEqual(
+                Timeline.group([day8], now: now, calendar: calendar).map(\.title),
+                ["\(m)月 1–\(expectedLastDay)日"],
+                "第 8 天应进当月档（基准：\(now)）"
+            )
+        }
+    }
+
 
     func testMonthAndYearArchive() {
         let may = calendar.date(from: DateComponents(year: 2026, month: 5, day: 10))!
@@ -155,7 +269,7 @@ final class TimelineGenericTests: XCTestCase {
 
         let summaries = Timeline.groupTimestamps(timestamps, now: now, calendar: calendar)
 
-        XCTAssertEqual(summaries.map(\.title), ["今天", "9月", "2025年"], "全量分组不缺失更早的组")
+        XCTAssertEqual(summaries.map(\.title), ["今天", "9月 1–20日", "2025年"], "全量分组不缺失更早的组")
         XCTAssertEqual(summaries.map(\.count), [2, 1, 1], "各组计数来自全部命中时间戳")
         XCTAssertEqual(summaries.map(\.id), ["today", "month-9", "year-2025"])
     }

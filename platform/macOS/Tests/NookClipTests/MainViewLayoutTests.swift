@@ -7,22 +7,21 @@ final class MainViewLayoutTests: XCTestCase {
     func testHeaderLayoutAndViewportCalculations() {
         XCTAssertEqual(NookClip.searchTopInset, 0)
         XCTAssertEqual(NookClip.heightSearch, 42)
-        XCTAssertEqual(NookClip.heightCategoryBar, 24)
-        XCTAssertEqual(NookClip.searchBottomGap, 6)
-        XCTAssertEqual(NookClip.categoryBarBottomGap, 6)
-        // 列表视口顶坐标应从 0 开始精确推导：0 + 42 + 6 + 24 + 6 = 78
-        XCTAssertEqual(NookClip.listViewportTopY, 78, "列表视口顶 Y 应与顶栏及分类条高度精确对齐")
-        // 吸顶组头（24pt）不算作列表内容区域，列表内容有效可视区顶 Y = 78 + 24 = 102
-        XCTAssertEqual(NookClip.listContentTopY, 102, "列表内容有效可视区顶 Y 应扣除 24pt 吸顶时间分组头")
+        XCTAssertEqual(NookClip.searchBottomGap, 0)
+        // 分类/标签已收进搜索框展开面板，不再常驻分类条；搜索框下方 6pt 间距已撤销
+        // 从 0 开始精确推导：0 + 42 + 0 = 42
+        XCTAssertEqual(NookClip.listViewportTopY, 42, "列表视口顶 Y 应紧贴搜索框下沿（间距为 0）")
+        // 吸顶组头（24pt）不算作列表内容区域，列表内容有效可视区顶 Y = 42 + 24 = 66
+        XCTAssertEqual(NookClip.listContentTopY, 66, "列表内容有效可视区顶 Y 应扣除 24pt 吸顶时间分组头")
     }
     @MainActor
     func testTenRowsHeightCalculation() {
-        let headerHeight = NookClip.listViewportTopY // 78
+        let headerHeight = NookClip.listViewportTopY // 42
         let topScrollAnchor = CGFloat(1)
         let groupHeader = NookClip.heightGroupHeader // 24
-        let tenRows = CGFloat(10) * NookClip.heightRowList // 10 * 50 = 500
+        let tenRows = CGFloat(10) * NookClip.heightRowList // 10 * 54 = 540
         let footerHeight = NookClip.heightFooter // 22
-        let expectedTotal = headerHeight + topScrollAnchor + groupHeader + tenRows + footerHeight // 625
+        let expectedTotal = headerHeight + topScrollAnchor + groupHeader + tenRows + footerHeight // 629
         XCTAssertEqual(PanelGeometry.minHeight, expectedTotal, "默认窗口最小高度应正好完整展示1组头+10行数据")
     }
 

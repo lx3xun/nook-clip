@@ -753,7 +753,7 @@ final class NookClipTests: XCTestCase {
         XCTAssertFalse(store.items.contains(where: { $0.id == id }))
     }
 
-    func testHistoryStoreRetentionPurge() {
+    func testHistoryStoreMaxItemsCap() {
         let store = makeIsolatedStore()
         let oldDate = Date(timeIntervalSinceNow: -40 * 86400) // 40 days ago
         let oldItem = ClipboardItem(
@@ -773,15 +773,68 @@ final class NookClipTests: XCTestCase {
             lastUsedAt: oldDate,
             isFavorite: true
         )
+        let freshItem = ClipboardItem(
+            id: UUID(),
+            type: .text,
+            title: "Fresh Item",
+            summary: "Fresh summary \(UUID().uuidString)"
+        )
 
         store.save(oldItem)
         store.save(favoriteOldItem)
+        store.save(freshItem)
 
-        // Purge items older than 30 days
-        store.pruneExpiredItems(days: 30)
+        // 上限 1 条：非收藏 2 条超限 1 条，淘汰最久未使用的 oldItem
+        store.pruneToMaxItems(1)
 
-        XCTAssertFalse(store.items.contains(where: { $0.id == oldItem.id }))
-        XCTAssertTrue(store.items.contains(where: { $0.id == favoriteOldItem.id }), "收藏条目豁免保留期清理")
+        XCTAssertFalse(store.items.contains(where: { $0.id == oldItem.id }), "超限时淘汰最久未使用的非收藏条目")
+        XCTAssertTrue(store.items.contains(where: { $0.id == favoriteOldItem.id }), "收藏条目豁免条数上限裁剪")
+        XCTAssertTrue(store.items.contains(where: { $0.id == freshItem.id }), "未超限的最新条目保留")
+    }
+
+    /// 「无限制」已退役：0/负数不再跳过裁剪，而是收敛到硬上限 1000 条
+    func testHistoryStoreMaxItemsRetiredUnlimitedClampsToHardCap() {
+        XCTAssertEqual(HistoryMaxItemsPolicy.clamp(0), 1000, "0（旧版无限制）收敛到硬上限")
+        XCTAssertEqual(HistoryMaxItemsPolicy.clamp(-1), 1000, "负数同样收敛到硬上限")
+        XCTAssertEqual(HistoryMaxItemsPolicy.clamp(5000), 1000, "超过硬上限的遗留档位被收敛")
+
+        let store = makeIsolatedStore()
+        let oldDate = Date(timeIntervalSinceNow: -40 * 86400)
+        let items = (0..<5).map { i in
+            ClipboardItem(type: .text, title: "Item \(i)", summary: "Summary \(i)-\(UUID().uuidString)",
+                          createdAt: oldDate, lastUsedAt: oldDate)
+        }
+        items.forEach { store.save($0) }
+
+        // 条数远小于硬上限：即使传 0（旧版无限制）也一条都不会被裁
+        store.pruneToMaxItems(0)
+        XCTAssertEqual(store.items.count, items.count, "5 条远低于硬上限，传 0 也无需裁剪")
+
+        // 传入超过硬上限的档位时按硬上限处理，仍不需要裁剪
+        store.pruneToMaxItems(5000)
+        XCTAssertEqual(store.items.count, items.count, "超过硬上限的档位收敛后仍不裁剪")
+    }
+
+    func testHistoryStoreMaxItemsPruneResetsHasMoreSignal() {
+        let store = makeIsolatedStore()
+        // 先塞满一页多，让翻页信号为 true
+        let total = InMemoryHistoryStore.pageSize + 20
+        for i in 0..<total {
+            store.save(ClipboardItem(
+                id: UUID(),
+                type: .text,
+                title: "条目 \(i)",
+                summary: "has-more needle \(i)"
+            ))
+        }
+        XCTAssertTrue(store.hasMoreItems, "超过一页时应有翻页信号")
+
+        // 裁到远小于一页：库内只剩 10 条，翻页信号必须跟着熄灭
+        store.pruneToMaxItems(10)
+
+        XCTAssertEqual(store.items.count, 10, "裁剪后镜像只保留上限内条目")
+        XCTAssertFalse(store.hasMoreItems, "裁剪后必须重算翻页信号，否则会残留翻不动的「还有更多」")
+        XCTAssertNil(store.items.first(where: { $0.title == "条目 0" }), "淘汰最久未使用的条目")
     }
 
     func testHistoryStoreClearHistory() {

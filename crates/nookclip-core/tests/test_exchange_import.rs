@@ -31,6 +31,9 @@ fn test_import_json_deduplication_and_encryption() {
     };
     repo_src.save_item(&item1, Some("Important Text"))
         .unwrap();
+    repo_src
+        .set_tags("id-import-1", &["api".to_string(), "work".to_string()])
+        .unwrap();
 
     let json = export_json(&repo_src, SensitiveExportMode::Plaintext).unwrap();
 
@@ -42,6 +45,8 @@ fn test_import_json_deduplication_and_encryption() {
     let items = repo_dst.query_items(&QueryFilter::default()).unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].title, "Exported Note");
+    // 导入后标签迁移落地（升序）
+    assert_eq!(items[0].tags, vec!["api".to_string(), "work".to_string()]);
 
     // Second import of same JSON: must skip duplicate
     let report2 = import_json(&repo_dst, &json).unwrap();

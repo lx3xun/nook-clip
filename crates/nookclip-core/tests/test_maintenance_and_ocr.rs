@@ -34,6 +34,7 @@ fn test_commit_ocr_result_masks_sensitive_api_key() {
         ocr_text: None,
         metadata_json: None,
         kind: "image".to_string(),
+        tags: Vec::new(),
     };
     repo.save_item(&item, None).unwrap();
 
@@ -85,6 +86,7 @@ fn test_run_maintenance_prunes_expired_and_sweeps_orphans() {
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     };
     repo.save_item(&old_item, Some("Old text")).unwrap();
 

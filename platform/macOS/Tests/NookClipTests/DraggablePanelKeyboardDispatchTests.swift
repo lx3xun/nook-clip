@@ -41,18 +41,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var focusSearchCalled = false
         let actions = PanelKeyActions(
             arrow: { _, _ in },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { _, _ in },
             escape: {},
             cycleCategory: { _ in },
             copySelection: {},
             beginRename: {},
+            beginTagEdit: {},
             toggleFavorite: {},
             cycleTimeAnchor: {},
             undoDelete: {},
             deleteSelection: {},
             focusSearch: { focusSearchCalled = true },
-            typeToSearch: { _ in }
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
         )
 
         let event = makeKeyEvent(keyCode: kVK_ANSI_F, characters: "f", modifierFlags: [.command])
@@ -67,18 +69,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var arrowEvents: [(step: Int, extend: Bool)] = []
         let actions = PanelKeyActions(
             arrow: { step, extend in arrowEvents.append((step, extend)) },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { _, _ in },
             escape: {},
             cycleCategory: { _ in },
             copySelection: {},
             beginRename: {},
+            beginTagEdit: {},
             toggleFavorite: {},
             cycleTimeAnchor: {},
             undoDelete: {},
             deleteSelection: {},
             focusSearch: {},
-            typeToSearch: { _ in }
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
         )
 
         // 下键
@@ -99,18 +103,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var confirmArgs: (keepOpen: Bool, plainTextOnly: Bool)?
         let actions = PanelKeyActions(
             arrow: { _, _ in },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { keepOpen, plainTextOnly in confirmArgs = (keepOpen, plainTextOnly) },
             escape: {},
             cycleCategory: { _ in },
             copySelection: {},
             beginRename: {},
+            beginTagEdit: {},
             toggleFavorite: {},
             cycleTimeAnchor: {},
             undoDelete: {},
             deleteSelection: {},
             focusSearch: {},
-            typeToSearch: { _ in }
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
         )
 
         // 普通 Return
@@ -135,18 +141,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var escapeCalled = false
         let actions = PanelKeyActions(
             arrow: { _, _ in },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { _, _ in },
             escape: { escapeCalled = true },
             cycleCategory: { _ in },
             copySelection: {},
             beginRename: {},
+            beginTagEdit: {},
             toggleFavorite: {},
             cycleTimeAnchor: {},
             undoDelete: {},
             deleteSelection: {},
             focusSearch: {},
-            typeToSearch: { _ in }
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
         )
 
         let escEvent = makeKeyEvent(keyCode: kVK_Escape)
@@ -159,18 +167,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var cycleSteps: [Int] = []
         let actions = PanelKeyActions(
             arrow: { _, _ in },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { _, _ in },
             escape: {},
             cycleCategory: { cycleSteps.append($0) },
             copySelection: {},
             beginRename: {},
+            beginTagEdit: {},
             toggleFavorite: {},
             cycleTimeAnchor: {},
             undoDelete: {},
             deleteSelection: {},
             focusSearch: {},
-            typeToSearch: { _ in }
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
         )
 
         // ⌘[ -> -1
@@ -189,18 +199,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var actionsTriggered: [String] = []
         let actions = PanelKeyActions(
             arrow: { _, _ in },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { _, _ in },
             escape: {},
             cycleCategory: { _ in },
             copySelection: { actionsTriggered.append("copy") },
             beginRename: { actionsTriggered.append("rename") },
+            beginTagEdit: { actionsTriggered.append("tagEdit") },
             toggleFavorite: { actionsTriggered.append("favorite") },
             cycleTimeAnchor: { actionsTriggered.append("timeAnchor") },
             undoDelete: { actionsTriggered.append("undo") },
             deleteSelection: { actionsTriggered.append("delete") },
             focusSearch: {},
-            typeToSearch: { _ in }
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
         )
 
         // ⌘C
@@ -211,12 +223,14 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         XCTAssertTrue(panel.dispatchKeyboardEvent(makeKeyEvent(keyCode: kVK_ANSI_S, modifierFlags: [.command]), actions: actions))
         // ⌘T
         XCTAssertTrue(panel.dispatchKeyboardEvent(makeKeyEvent(keyCode: kVK_ANSI_T, modifierFlags: [.command]), actions: actions))
+        // ⌘L：打开标签编辑器
+        XCTAssertTrue(panel.dispatchKeyboardEvent(makeKeyEvent(keyCode: kVK_ANSI_L, modifierFlags: [.command]), actions: actions))
         // ⌘Z
         XCTAssertTrue(panel.dispatchKeyboardEvent(makeKeyEvent(keyCode: kVK_ANSI_Z, modifierFlags: [.command]), actions: actions))
         // ⌘⌫
         XCTAssertTrue(panel.dispatchKeyboardEvent(makeKeyEvent(keyCode: kVK_Delete, modifierFlags: [.command]), actions: actions))
 
-        XCTAssertEqual(actionsTriggered, ["copy", "rename", "favorite", "timeAnchor", "undo", "delete"])
+        XCTAssertEqual(actionsTriggered, ["copy", "rename", "favorite", "timeAnchor", "tagEdit", "undo", "delete"])
     }
 
     func testTypeToSearchTriggeredForPrintableCharacters() {
@@ -224,18 +238,20 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         var typeToSearchEvent: NSEvent?
         let actions = PanelKeyActions(
             arrow: { _, _ in },
-            toggleCategoryMenu: {},
+            toggleFilterPanel: {},
             confirm: { _, _ in },
             escape: {},
             cycleCategory: { _ in },
             copySelection: {},
             beginRename: {},
+            beginTagEdit: {},
             toggleFavorite: {},
             cycleTimeAnchor: {},
             undoDelete: {},
             deleteSelection: {},
             focusSearch: {},
-            typeToSearch: { typeToSearchEvent = $0 }
+            typeToSearch: { typeToSearchEvent = $0 },
+            removeLastFilterChip: { false }
         )
 
         // 无修饰符输入字符 'a'

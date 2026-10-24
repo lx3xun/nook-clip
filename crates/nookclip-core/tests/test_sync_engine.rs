@@ -34,6 +34,9 @@ fn test_sync_engine_push_and_pull_reconciliation() {
     };
     repo_a.save_item(&item_a, Some("Important notes on A"))
         .unwrap();
+    repo_a
+        .set_tags("id-sync-item-a", &["api".to_string(), "urgent".to_string()])
+        .unwrap();
 
     let sync_a = SyncEngine::new(sync_dir.path(), "device-a".to_string(), None).unwrap();
     let push_report = sync_a.push(&repo_a).unwrap();
@@ -50,6 +53,8 @@ fn test_sync_engine_push_and_pull_reconciliation() {
         .unwrap();
     assert_eq!(list_b[0].title, "From Machine A");
     assert_eq!(detail_b.raw_text, Some("Important notes on A".to_string()));
+    // 标签随 pack 传播（升序）
+    assert_eq!(list_b[0].tags, vec!["api".to_string(), "urgent".to_string()]);
 
     // LWW test: Device B updates last_used_at to 300.0 with new title
     let item_b_update = SyncItemRecord {
@@ -74,6 +79,8 @@ fn test_sync_engine_push_and_pull_reconciliation() {
         source_device_id: None,
         source_device_name: None,
         source_platform: None,
+        tags: Vec::new(),
+        tags_updated_at: 0.0,
     };
     repo_b.reconcile_sync_items(&[item_b_update], &Default::default()).unwrap();
     sync_b.push(&repo_b).unwrap();
@@ -167,6 +174,8 @@ fn test_sync_engine_pull_resilience_to_corrupt_pack() {
         source_device_id: None,
         source_device_name: None,
         source_platform: None,
+        tags: Vec::new(),
+        tags_updated_at: 0.0,
     };
     let valid_pack = nookclip_core::sync::DeviceSyncPack::new("healthy-device".to_string(), vec![valid_item]);
     let compressed = valid_pack.serialize_compressed().unwrap();
@@ -335,6 +344,7 @@ fn dummy_item(id: &str, title: &str, summary: &str, ts: f64) -> ClipItemSummary 
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     }
 }
 

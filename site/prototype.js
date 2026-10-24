@@ -153,37 +153,55 @@
   }
 
   // 分类定义表 (三语支持)
+  //
+  // 顺序即客户端「按类型」网格的固定槽序（CategoryBarCoordinator.gridCategoryIDs）：
+  // 收藏、图片、文本、链接 / 代码、文件、色值、回收站——4 列 × 2 行、读序从左到右、
+  // 从上到下，8 个槽位平权且位置固定（旧版「第 4 槽下拉 + 拖拽排序」已退役）。
+  // id 0「全部」不占网格：它是默认的无筛选态，由搜索框内嵌胶囊表达。
+  // 回收站槽当前模型无计数，恒按空态置灰渲染（与客户端一致）。
+  const CATEGORY_ICON_BY_ID = {
+    0: 'grid', 8: 'star', 2: 'image', 1: 'text', 4: 'link',
+    5: 'code', 3: 'file', 6: 'color', 7: 'trash'
+  };
+
   const CATEGORIES_DATA = {
     'zh-Hans': [
-      { id: 0, name: "全部", count: 72, icon: "grid" },
-      { id: 8, name: "收藏", count: 4, icon: "star" },
-      { id: 1, name: "文本", count: 38, icon: "text" },
-      { id: 4, name: "链接", count: 12, icon: "link" },
-      { id: 2, name: "图片", count: 6, icon: "image" },
-      { id: 5, name: "代码", count: 8, icon: "code" },
-      { id: 6, name: "色值", count: 3, icon: "color" },
-      { id: 7, name: "私密", count: 1, icon: "sensitive" }
+      { id: 8, name: "收藏", icon: "star", tint: "favorite" },
+      { id: 2, name: "图片", icon: "image", tint: "image" },
+      { id: 1, name: "文本", icon: "text", tint: "text" },
+      { id: 4, name: "链接", icon: "link", tint: "url" },
+      { id: 5, name: "代码", icon: "code", tint: "code" },
+      { id: 3, name: "文件", icon: "file", tint: "file" },
+      { id: 6, name: "色值", icon: "color", tint: "color" },
+      { id: 7, name: "回收站", icon: "trash", tint: "trash" }
     ],
     'zh-Hant': [
-      { id: 0, name: "全部", count: 72, icon: "grid" },
-      { id: 8, name: "收藏", count: 4, icon: "star" },
-      { id: 1, name: "文字", count: 38, icon: "text" },
-      { id: 4, name: "連結", count: 12, icon: "link" },
-      { id: 2, name: "圖片", count: 6, icon: "image" },
-      { id: 5, name: "程式碼", count: 8, icon: "code" },
-      { id: 6, name: "色值", count: 3, icon: "color" },
-      { id: 7, name: "私密", count: 1, icon: "sensitive" }
+      { id: 8, name: "收藏", icon: "star", tint: "favorite" },
+      { id: 2, name: "圖片", icon: "image", tint: "image" },
+      { id: 1, name: "文字", icon: "text", tint: "text" },
+      { id: 4, name: "連結", icon: "link", tint: "url" },
+      { id: 5, name: "程式碼", icon: "code", tint: "code" },
+      { id: 3, name: "檔案", icon: "file", tint: "file" },
+      { id: 6, name: "色值", icon: "color", tint: "color" },
+      { id: 7, name: "回收站", icon: "trash", tint: "trash" }
     ],
     'en': [
-      { id: 0, name: "All", count: 72, icon: "grid" },
-      { id: 8, name: "Favorites", count: 4, icon: "star" },
-      { id: 1, name: "Text", count: 38, icon: "text" },
-      { id: 4, name: "Links", count: 12, icon: "link" },
-      { id: 2, name: "Images", count: 6, icon: "image" },
-      { id: 5, name: "Code", count: 8, icon: "code" },
-      { id: 6, name: "Colors", count: 3, icon: "color" },
-      { id: 7, name: "Private", count: 1, icon: "sensitive" }
+      { id: 8, name: "Favorites", icon: "star", tint: "favorite" },
+      { id: 2, name: "Images", icon: "image", tint: "image" },
+      { id: 1, name: "Text", icon: "text", tint: "text" },
+      { id: 4, name: "Links", icon: "link", tint: "url" },
+      { id: 5, name: "Code", icon: "code", tint: "code" },
+      { id: 3, name: "Files", icon: "file", tint: "file" },
+      { id: 6, name: "Colors", icon: "color", tint: "color" },
+      { id: 7, name: "Trash", icon: "trash", tint: "trash" }
     ]
+  };
+
+  // 侧列底部常驻的「全部」筛选项（不占类型网格，仅用于清除筛选与键盘循环的起点）
+  const ALL_CATEGORY_DATA = {
+    'zh-Hans': { id: 0, name: "全部", icon: "grid" },
+    'zh-Hant': { id: 0, name: "全部", icon: "grid" },
+    'en': { id: 0, name: "All", icon: "grid" }
   };
 
   const CATEGORIES = CATEGORIES_DATA['zh-Hans'];
@@ -215,6 +233,22 @@
 
   const INSTALLED_APPS = INSTALLED_APPS_DATA['zh-Hans'];
 
+  // 标签定义表 (三语支持)
+  //
+  // 标签是用户自建的横切维度（一条记录可同时属于「类型 = 文本」与「标签 = 前端」），
+  // 所以在筛选面板里与「按类型」并列展示。名称不做翻译——标签是用户自己起的词。
+  // tagApplied 表示该条记录的标签（标签体系尚未在测试台接入编辑，此处按只读展示）。
+  // 演示数据里「当前用户」的 home 目录；不含该前缀的路径即视作文件已失效
+  const DEMO_USER_HOME = 'alex';
+  const TAGS_DATA = [
+    { id: "tag-frontend", name: "前端" },
+    { id: "tag-design", name: "设计" },
+    { id: "tag-backend", name: "后端" },
+    { id: "tag-database", name: "数据库" },
+    { id: "tag-security", name: "安全" },
+    { id: "tag-docs", name: "文档" }
+  ];
+
   // SVG 矢量符号库 (对齐 SF Symbols)
   const ICONS = {
     grid: '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5"/></svg>',
@@ -229,11 +263,14 @@
     search: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>',
     trash: '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 4.5h10M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M4.5 4.5v9a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-9M6.5 7.5v4M9.5 7.5v4"/></svg>',
     chevronDown: '<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M4 6l4 4 4-4H4z"/></svg>',
+    hash: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6.2 2.2L4.8 13.8M11.2 2.2L9.8 13.8M2.5 6h11.5M2 10h11.5"/></svg>',
+    close: '<svg viewBox="0 0 16 16" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>',
     chevronUpDown: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 6L8 2.5 11.5 6M4.5 10l3.5 3.5 3.5-3.5"/></svg>',
     check: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 8.5 6.5 12 13 4"/></svg>',
     file: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.5 1.5A1.5 1.5 0 0 0 2 3v10a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 14 13V5.5L10 1.5H3.5z"/><path d="M9.5 1.5V5H13"/></svg>',
     open: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M12 9v4.5A1.5 1.5 0 0 1 10.5 15h-8A1.5 1.5 0 0 1 1 13.5v-8A1.5 1.5 0 0 1 2.5 4H7M10 1h5v5M6.5 9.5L15 1"/></svg>',
     folder: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.5L8 3.5h5A1.5 1.5 0 0 1 14.5 5v8a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 1.5 13V3z"/></svg>',
+    qrcode: '<svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M2 2h5v5H2V2zm1.5 1.5v2h2v-2h-2zM9 2h5v5H9V2zm1.5 1.5v2h2v-2h-2zM2 9h5v5H2V9zm1.5 1.5v2h2v-2h-2zM9 9h2v2H9V9zm3 0h2v1.5h-2V9zm-3 3h1.5v2H9v-2zm2 2h1.5v-1.5h2V14h-3.5v-2H11v2h1z"/></svg>',
     ocr: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H5M11 2h1.5A1.5 1.5 0 0 1 14 3.5V5M14 11v1.5a1.5 1.5 0 0 1-1.5 1.5H11M5 14H3.5A1.5 1.5 0 0 1 2 12.5V11"/><path d="M4.5 6.5h7M4.5 9.5h7"/></svg>',
     info: '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.5"/><path d="M8 5v.01M8 7.5v4"/></svg>',
     copy: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5" y="5" width="8" height="9" rx="1.5"/><path d="M3 11H2.5A1.5 1.5 0 0 1 1 9.5v-7A1.5 1.5 0 0 1 2.5 1h7A1.5 1.5 0 0 1 11 2.5V3"/></svg>',
@@ -266,9 +303,19 @@
       today: "今天",
       yesterday: "昨天",
       this_week: "本周",
-      last_week: "上周",
-      earlier: "更早",
       noMatch: "未找到匹配的历史记录",
+      // 搜索框展开筛选面板（按类型 4×2 固定网格 + 按标签流式胶囊）
+      filterByType: "按类型",
+      filterByTag: "按标签",
+      filterEmptyType: "暂无此类型的记录",
+      filterEmptyTag: "还没有标签，在预览区点 # 即可给条目打标",
+      filterNoTagMatch: "没有匹配的标签",
+      filterConditionHint: "输入关键词搜索…",
+      filterRemoveCondition: "移除筛选条件",
+      filterOpenTitle: "展开类型与标签筛选 (⌘↓ / 点击搜索框)",
+      rowTimeToggleHint: "点击切换完整日期/周几",
+      timeMenuEmpty: "暂无其他时间分组",
+      spacerBetween: "至",
       undoToast: (count) => `已删除 ${count} 条记录`,
       undoBtn: "撤销 (⌘Z)",
       batchSelected: (count) => `已选择 ${count} 项`,
@@ -277,6 +324,8 @@
       batchDelete: "删除",
       hintSelect: "选择",
       hintPaste: "粘贴",
+      // ⌘[ / ⌘] 循环的是「内容类型」，但客户端底栏文案就叫「分类」（MainView.swift 底栏），
+      // 这里保留客户端的真实用词，避免落地页与 App 截图对不上
       hintCategory: "分类",
       helpTitle: "快捷键速查 (?)",
       helpRows: [
@@ -285,18 +334,26 @@
         { desc: "聚焦搜索框", keys: ["⌘F"] },
         { desc: "纯文本粘贴", keys: ["⌥↩"] },
         { desc: "粘贴并保持打开", keys: ["⌘↩"] },
-        { desc: "循环时间锚点", keys: ["⌘T"] },
+        { desc: "展开类型 / 标签筛选", keys: ["⌘↓"] },
+        { desc: "在全部与各类型间循环", keys: ["⌘[", "⌘]"] },
+        { desc: "循环时间分组", keys: ["⌘T"] },
         { desc: "设置条目别名", keys: ["⌘R"] },
         { desc: "收藏 / 取消收藏", keys: ["⌘S"] },
         { desc: "删除当前选中", keys: ["⌘⌫"] },
-        { desc: "撤销上次删除", keys: ["⌘Z"] }
+        { desc: "撤销上次删除", keys: ["⌘Z"] },
+        { desc: "分层返回 / 收起面板", keys: ["Esc"] }
       ],
       copyCount: (count) => `复制 ${count} 次`,
-      btnOpen: "打开 (⏎)",
-      btnOpenBrowser: "在浏览器打开链接",
+      btnOpen: "打开",
+      btnOpenBrowser: "在浏览器中打开",
       btnFinder: "在访达中显示",
-      starBtnTitle: "收藏 / 取消收藏 (⌘S)",
-      deleteBtnTitle: "删除选中项 (⌘⌫)",
+      starBtnTitle: "收藏 (⌘S)",
+      unstarBtnTitle: "取消收藏 (⌘S)",
+      deleteBtnTitle: "删除 (⌘⌫)",
+      copyCountShort: (count) => `复制 ${count} 次`,
+      btnQrTitle: "显示二维码",
+      fileMissingBadge: "已失效",
+      tagBtnTitle: "标签 (⌘L)",
       statFile: "文件",
       statUrl: "URL",
       shortcutCard: {
@@ -305,7 +362,7 @@
           { text: "· ⌥ ↩ ：纯文本粘贴（自动剔除网页/文档字体与背景样式）" },
           { text: "· ⌘ ↩ ：粘贴后保持面板打开（适合连续填表）" },
           { text: "· ⇧ ↓ / ⌘ 点选 ：扩展多选（按 ↩ 合并多条一起粘贴）" },
-          { pair: true, spans: ["· ⌘ [ / ⌘ ] ：快速切换分类", "· ⌘ T ：循环跳转时间分组"] },
+          { pair: true, spans: ["· ⌘ [ / ⌘ ] ：切换内容类型（跳过空类型）", "· ⌘ T ：循环跳转时间分组"] },
           { pair: true, spans: ["· ⌘ S ：收藏（豁免自动清理）", "· ⌘ R ：为条目设置别名"] },
           { pair: true, spans: ["· ⌘ ⌫ ：删除选中项", "· ⌘ Z ：10 秒内撤销删除"] }
         ]
@@ -360,7 +417,7 @@
       pasteHudDefault: "已模拟粘贴至前台应用光标处",
       toasts: {
         escReset: "已按下 Esc：分层复位完毕",
-        category: (name) => `切换至分类：${name}`,
+        category: (name) => `切换至类型：${name}`,
         favorited: (title) => `已收藏「${title}」★`,
         unfavorited: (title) => `已取消收藏「${title}」`,
         deletedOne: (title) => `已删除「${title}」`,
@@ -399,9 +456,18 @@
       today: "今天",
       yesterday: "昨天",
       this_week: "本週",
-      last_week: "上週",
-      earlier: "更早",
       noMatch: "找不到相符的歷史記錄",
+      filterByType: "依類型",
+      filterByTag: "依標籤",
+      filterEmptyType: "目前沒有此類型的記錄",
+      filterEmptyTag: "還沒有標籤，在預覽區點 # 即可為項目加上標籤",
+      filterNoTagMatch: "找不到相符的標籤",
+      filterConditionHint: "輸入關鍵字搜尋…",
+      filterRemoveCondition: "移除篩選條件",
+      filterOpenTitle: "展開類型與標籤篩選 (⌘↓ / 點擊搜尋框)",
+      rowTimeToggleHint: "點擊切換完整日期/星期",
+      timeMenuEmpty: "目前沒有其他時間分組",
+      spacerBetween: "至",
       undoToast: (count) => `已刪除 ${count} 項記錄`,
       undoBtn: "復原 (⌘Z)",
       batchSelected: (count) => `已選取 ${count} 項`,
@@ -422,14 +488,20 @@
         { desc: "設定項目別名", keys: ["⌘R"] },
         { desc: "收藏 / 取消收藏", keys: ["⌘S"] },
         { desc: "刪除目前選取", keys: ["⌘⌫"] },
-        { desc: "復原上次刪除", keys: ["⌘Z"] }
+        { desc: "復原上次刪除", keys: ["⌘Z"] },
+        { desc: "分層返回 / 收起面板", keys: ["Esc"] }
       ],
       copyCount: (count) => `複製 ${count} 次`,
-      btnOpen: "開啟 (⏎)",
-      btnOpenBrowser: "在瀏覽器開啟連結",
+      btnOpen: "開啟",
+      btnOpenBrowser: "在瀏覽器中開啟",
       btnFinder: "在 Finder 中顯示",
-      starBtnTitle: "收藏 / 取消收藏 (⌘S)",
-      deleteBtnTitle: "刪除選取項 (⌘⌫)",
+      starBtnTitle: "收藏 (⌘S)",
+      unstarBtnTitle: "取消收藏 (⌘S)",
+      deleteBtnTitle: "刪除 (⌘⌫)",
+      copyCountShort: (count) => `複製 ${count} 次`,
+      btnQrTitle: "顯示 QR Code",
+      fileMissingBadge: "已失效",
+      tagBtnTitle: "標籤 (⌘L)",
       statFile: "檔案",
       statUrl: "URL",
       shortcutCard: {
@@ -532,9 +604,18 @@
       today: "Today",
       yesterday: "Yesterday",
       this_week: "This Week",
-      last_week: "Last Week",
-      earlier: "Earlier",
       noMatch: "No matching clipboard history found",
+      filterByType: "By Type",
+      filterByTag: "By Tag",
+      filterEmptyType: "Nothing in this type yet",
+      filterEmptyTag: "No tags yet — click # in the preview to tag an item",
+      filterNoTagMatch: "No matching tags",
+      filterConditionHint: "Type to search…",
+      filterRemoveCondition: "Remove filter",
+      filterOpenTitle: "Open type & tag filters (⌘↓ / click the search field)",
+      rowTimeToggleHint: "Click to toggle full date & weekday",
+      timeMenuEmpty: "No other time groups",
+      spacerBetween: "to",
       undoToast: (count) => `${count} item${count > 1 ? 's' : ''} deleted`,
       undoBtn: "Undo (⌘Z)",
       batchSelected: (count) => `${count} item${count > 1 ? 's' : ''} selected`,
@@ -551,18 +632,26 @@
         { desc: "Focus search input", keys: ["⌘F"] },
         { desc: "Paste plain text", keys: ["⌥↩"] },
         { desc: "Paste & keep open", keys: ["⌘↩"] },
+        { desc: "Open type / tag filters", keys: ["⌘↓"] },
+        { desc: "Cycle All ↔ each type", keys: ["⌘[", "⌘]"] },
         { desc: "Cycle time group", keys: ["⌘T"] },
         { desc: "Set item alias", keys: ["⌘R"] },
         { desc: "Toggle favorite", keys: ["⌘S"] },
         { desc: "Delete selected", keys: ["⌘⌫"] },
-        { desc: "Undo last delete", keys: ["⌘Z"] }
+        { desc: "Undo last delete", keys: ["⌘Z"] },
+        { desc: "Layered dismiss / hide", keys: ["Esc"] }
       ],
       copyCount: (count) => `Copied ${count} time${count > 1 ? 's' : ''}`,
-      btnOpen: "Open (⏎)",
-      btnOpenBrowser: "Open link in browser",
+      btnOpen: "Open",
+      btnOpenBrowser: "Open in Browser",
       btnFinder: "Reveal in Finder",
-      starBtnTitle: "Toggle Favorite (⌘S)",
-      deleteBtnTitle: "Delete Selected (⌘⌫)",
+      starBtnTitle: "Favorite (⌘S)",
+      unstarBtnTitle: "Unfavorite (⌘S)",
+      deleteBtnTitle: "Delete (⌘⌫)",
+      copyCountShort: (count) => `Copied ${count}×`,
+      btnQrTitle: "Show QR code",
+      fileMissingBadge: "Missing",
+      tagBtnTitle: "Tags (⌘L)",
       statFile: "File",
       statUrl: "URL",
       shortcutCard: {
@@ -660,6 +749,12 @@
   };
 
   // 100% 对齐官方界面的基础数据结构
+  //
+  // 时间分组不再硬编码在每条记录上：`isoDate` 是唯一的权威时间戳，
+  // 分档与标题统一由 applyTimeline()/deriveGroupMeta() 按「自然日差」推导——
+  // 与客户端 Rust `bucket_of` / Swift `Timeline.group` 同一套规则
+  // （7 天内按天：今天 / 昨天 / 本周；7 天外直接进月份 / 年份归档，
+  // 已退役的「上周」档不再出现）。
   const BASE_DEMO_ITEMS = [
     {
       id: "demo-1",
@@ -667,6 +762,7 @@
       category: 1,
       sourceApp: "notes",
       isFavorite: true,
+      tags: ["tag-frontend", "tag-docs"],
       copyCount: 2,
       snippetIcon: '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="#38BDF8" stroke-width="1.6" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>'
     },
@@ -676,6 +772,7 @@
       category: 2,
       sourceApp: "screenshot",
       isFavorite: false,
+      tags: ["tag-docs"],
       copyCount: 1,
       ocrText: null
     },
@@ -687,6 +784,7 @@
       colorHex: "#007AFF",
       rgbValue: "0, 122, 255",
       isFavorite: false,
+      tags: ["tag-design", "tag-frontend"],
       copyCount: 5
     },
     {
@@ -695,6 +793,7 @@
       category: 1,
       sourceApp: "nook",
       isFavorite: true,
+      tags: ["tag-docs"],
       copyCount: 3,
       snippetIcon: '💡 '
     },
@@ -706,6 +805,7 @@
       plainText: "sk-proj-NookDemoKeyForLocalEncryption256GCM",
       isSensitive: true,
       isFavorite: false,
+      tags: ["tag-security", "tag-backend"],
       copyCount: 1,
       snippetIcon: '<span style="color:#4ADE80;font-family:monospace;font-size:10px;font-weight:bold;margin-right:2px;">&gt;_</span>'
     },
@@ -716,6 +816,7 @@
       sourceApp: "xcode",
       summary: '{\n  "app": "NookClip",\n  "engine": "Rust + SQLite FTS5",\n  "privacy": {\n    "localOnly": true,\n    "encryption": "AES-256-GCM"\n  },\n  "shortcuts": ["⌘⇧V", "⏎", "⌥⏎", "⌘S"]\n}',
       isFavorite: true,
+      tags: ["tag-frontend", "tag-backend"],
       copyCount: 6
     },
     {
@@ -724,6 +825,7 @@
       category: 1,
       sourceApp: "xcode",
       isFavorite: false,
+      tags: ["tag-frontend", "tag-docs"],
       copyCount: 1
     },
     {
@@ -733,6 +835,7 @@
       sourceApp: "safari",
       summary: "https://github.com/lx3xun/nook-clip/pull/75421",
       isFavorite: true,
+      tags: ["tag-docs", "tag-frontend"],
       copyCount: 2
     },
     {
@@ -742,6 +845,7 @@
       sourceApp: "finder",
       summary: "/Users/alex/Projects/nook/migrations/20261015_add_fts5.sql",
       isFavorite: false,
+      tags: ["tag-database", "tag-backend"],
       copyCount: 1
     },
     {
@@ -753,6 +857,7 @@
       colorHex: "#6366F1",
       rgbValue: "99, 102, 241",
       isFavorite: false,
+      tags: ["tag-design"],
       copyCount: 4
     },
     {
@@ -762,6 +867,7 @@
       sourceApp: "vscode",
       summary: "pub struct LockFreeQueue<T> {\n    head: AtomicPtr<Node<T>>,\n    tail: AtomicPtr<Node<T>>,\n}\n\nimpl<T> LockFreeQueue<T> {\n    pub fn new() -> Self {\n        let dummy = Box::into_raw(Box::new(Node::empty()));\n        Self {\n            head: AtomicPtr::new(dummy),\n            tail: AtomicPtr::new(dummy),\n        }\n    }\n}",
       isFavorite: false,
+      tags: ["tag-backend"],
       copyCount: 3
     },
     {
@@ -771,6 +877,7 @@
       sourceApp: "safari",
       summary: "https://meeting.feishu.cn/j/948271842?pwd=nook",
       isFavorite: false,
+      tags: ["tag-docs"],
       copyCount: 1
     },
     {
@@ -780,6 +887,7 @@
       sourceApp: "terminal",
       summary: "#!/usr/bin/env bash\nxcrun notarytool submit NookClip.dmg \\\n  --apple-id \"dev@lx3xun.com\" \\\n  --team-id \"A1B2C3D4E5\" \\\n  --keychain-profile \"AC_PASSWORD\" \\\n  --wait",
       isFavorite: true,
+      tags: ["tag-security", "tag-backend"],
       copyCount: 7
     },
     {
@@ -790,6 +898,7 @@
       plainText: "AKIAIOSFODNN7EXAMPLE3M7Q",
       isSensitive: true,
       isFavorite: false,
+      tags: ["tag-security", "tag-backend"],
       copyCount: 2
     },
     {
@@ -799,6 +908,7 @@
       sourceApp: "finder",
       summary: "/Users/alex/Documents/NookClip-Architecture.pdf\n/Users/alex/Documents/Database-Schema.sql",
       isFavorite: false,
+      tags: ["tag-docs", "tag-database"],
       copyCount: 3
     },
     {
@@ -808,6 +918,7 @@
       sourceApp: "vscode",
       summary: "module.exports = {\n  theme: {\n    extend: {\n      colors: {\n        nook: { 50: '#F0F9FF', 500: '#007AFF', 900: '#0C4A6E' }\n      }\n    }\n  }\n};",
       isFavorite: false,
+      tags: ["tag-design", "tag-frontend"],
       copyCount: 1
     },
     {
@@ -816,6 +927,7 @@
       category: 1,
       sourceApp: "notes",
       isFavorite: true,
+      tags: ["tag-database", "tag-backend", "tag-docs"],
       copyCount: 4
     },
     {
@@ -824,6 +936,7 @@
       category: 1,
       sourceApp: "notes",
       isFavorite: false,
+      tags: ["tag-docs"],
       copyCount: 2
     },
     {
@@ -833,6 +946,7 @@
       sourceApp: "xcode",
       summary: "let read_pool = Pool::builder()\n    .max_size(16)\n    .build(read_manager)?;\nlet write_pool = Pool::builder()\n    .max_size(4)\n    .build(write_manager)?;",
       isFavorite: false,
+      tags: ["tag-database", "tag-backend"],
       copyCount: 1
     },
     {
@@ -843,6 +957,7 @@
       plainText: "wx94f2847291a4b810e8a2",
       isSensitive: true,
       isFavorite: false,
+      tags: ["tag-security", "tag-backend"],
       copyCount: 1
     }
   ];
@@ -852,7 +967,7 @@
     'zh-Hans': {
       'demo-1': {
         title: "进阶效率快捷键速查卡（常驻备忘）",
-        summary: "⌨️ 效率进阶指南：\n• ⌥ ↩ ：纯文本粘贴（自动剔除网页/文档字体与背景样式）\n• ⌘ ↩ ：粘贴后保持面板打开（适合连续填表）\n• ⇧ ↓ / ⌘ 点选 ：扩展多选（按 ↩ 合并多条一起粘贴）\n• ⌘ [ / ⌘ ] ：快速切换分类  • ⌘ T ：循环跳转时间分组\n• ⌘ S ：收藏（豁免自动清理） • ⌘ R ：为条目设置别名\n• ⌘ ⌫ ：删除选中项          • ⌘ Z ：10 秒内撤销删除",
+        summary: "⌨️ 效率进阶指南：\n• ⌥ ↩ ：纯文本粘贴（自动剔除网页/文档字体与背景样式）\n• ⌘ ↩ ：粘贴后保持面板打开（适合连续填表）\n• ⇧ ↓ / ⌘ 点选 ：扩展多选（按 ↩ 合并多条一起粘贴）\n• ⌘ [ / ⌘ ] ：切换内容类型（跳过空类型）  • ⌘ T ：循环跳转时间分组\n• ⌘ S ：收藏（豁免自动清理） • ⌘ R ：为条目设置别名\n• ⌘ ⌫ ：删除选中项          • ⌘ Z ：10 秒内撤销删除",
         source: "备忘录",
         timeStr: "今天 11:29",
         snippet: "效率...内撤销删除",
@@ -989,8 +1104,9 @@
         timeStr: "10月8日 17:22",
         snippet: "AKIA...3M7Q",
         metaLine: "AWS 访问密钥 · 加密隔离",
-        timeGroup: "last_week",
-        groupTitle: "上周",
+        isoDate: "2026-10-08T17:22:00",
+        timeGroup: "month-10",
+        groupTitle: "10月",
         badge: "私密"
       },
       'demo-14': {
@@ -1003,8 +1119,9 @@
           { name: "NookClip-Architecture.pdf", size: "2.1 MB", path: "/Users/alex/Documents/NookClip-Architecture.pdf" },
           { name: "Database-Schema.sql", size: "320 KB", path: "/Users/alex/Documents/Database-Schema.sql" }
         ],
-        timeGroup: "last_week",
-        groupTitle: "上周"
+        isoDate: "2026-10-07T14:05:00",
+        timeGroup: "month-10",
+        groupTitle: "10月"
       },
       'demo-15': {
         title: "TailwindCSS 3.4 扩展调色盘配置",
@@ -1012,8 +1129,9 @@
         timeStr: "10月5日 11:30",
         snippet: "colors: { nook: ... }",
         metaLine: "JavaScript · 9 行 · 142 字符",
-        timeGroup: "last_week",
-        groupTitle: "上周",
+        isoDate: "2026-10-05T11:30:00",
+        timeGroup: "month-10",
+        groupTitle: "10月",
         badge: "JS"
       },
       'demo-16': {
@@ -1023,8 +1141,9 @@
         timeStr: "9月28日 20:10",
         snippet: "在 50,000 条剪贴板历史压测...",
         metaLine: "5 行 · 128 字符",
-        timeGroup: "earlier",
-        groupTitle: "更早"
+        isoDate: "2026-09-28T20:10:00",
+        timeGroup: "month-09",
+        groupTitle: "9月"
       },
       'demo-17': {
         title: "NookClip v0.1.0 发布规划会议备忘",
@@ -1033,8 +1152,9 @@
         timeStr: "9月22日 15:45",
         snippet: "1. 剪贴板主循环体验...",
         metaLine: "4 行 · 98 字符",
-        timeGroup: "earlier",
-        groupTitle: "更早"
+        isoDate: "2026-09-22T15:45:00",
+        timeGroup: "month-09",
+        groupTitle: "9月"
       },
       'demo-18': {
         title: "PostgreSQL 读写分离连接池配置",
@@ -1042,8 +1162,9 @@
         timeStr: "9月15日 18:20",
         snippet: "let read_pool = Pool...",
         metaLine: "Rust 代码 · 6 行 · 158 字符",
-        timeGroup: "earlier",
-        groupTitle: "更早",
+        isoDate: "2026-09-15T18:20:00",
+        timeGroup: "month-09",
+        groupTitle: "9月",
         badge: "Rust"
       },
       'demo-19': {
@@ -1053,8 +1174,9 @@
         timeStr: "9月08日 10:05",
         snippet: "wx94...e8a2",
         metaLine: "微信 AppSecret · 加密凭证",
-        timeGroup: "earlier",
-        groupTitle: "更早",
+        isoDate: "2026-09-08T10:05:00",
+        timeGroup: "month-09",
+        groupTitle: "9月",
         badge: "私密"
       }
     },
@@ -1198,8 +1320,9 @@
         timeStr: "10月8日 17:22",
         snippet: "AKIA...3M7Q",
         metaLine: "AWS 存取金鑰 · 加密隔離",
-        timeGroup: "last_week",
-        groupTitle: "上週",
+        isoDate: "2026-10-08T17:22:00",
+        timeGroup: "month-10",
+        groupTitle: "10月",
         badge: "私密"
       },
       'demo-14': {
@@ -1212,8 +1335,9 @@
           { name: "NookClip-Architecture.pdf", size: "2.1 MB", path: "/Users/alex/Documents/NookClip-Architecture.pdf" },
           { name: "Database-Schema.sql", size: "320 KB", path: "/Users/alex/Documents/Database-Schema.sql" }
         ],
-        timeGroup: "last_week",
-        groupTitle: "上週"
+        isoDate: "2026-10-07T14:05:00",
+        timeGroup: "month-10",
+        groupTitle: "10月"
       },
       'demo-15': {
         title: "TailwindCSS 3.4 擴展調色盤配置",
@@ -1221,8 +1345,9 @@
         timeStr: "10月5日 11:30",
         snippet: "colors: { nook: ... }",
         metaLine: "JavaScript · 9 行 · 142 字元",
-        timeGroup: "last_week",
-        groupTitle: "上週",
+        isoDate: "2026-10-05T11:30:00",
+        timeGroup: "month-10",
+        groupTitle: "10月",
         badge: "JS"
       },
       'demo-16': {
@@ -1232,8 +1357,9 @@
         timeStr: "9月28日 20:10",
         snippet: "在 50,000 條剪貼簿歷史壓力測試...",
         metaLine: "5 行 · 128 字元",
-        timeGroup: "earlier",
-        groupTitle: "更早"
+        isoDate: "2026-09-28T20:10:00",
+        timeGroup: "month-09",
+        groupTitle: "9月"
       },
       'demo-17': {
         title: "NookClip v0.1.0 發布規劃會議備忘",
@@ -1242,8 +1368,9 @@
         timeStr: "9月22日 15:45",
         snippet: "1. 剪貼簿主迴圈體驗...",
         metaLine: "4 行 · 98 字元",
-        timeGroup: "earlier",
-        groupTitle: "更早"
+        isoDate: "2026-09-22T15:45:00",
+        timeGroup: "month-09",
+        groupTitle: "9月"
       },
       'demo-18': {
         title: "PostgreSQL 讀寫分離連線池配置",
@@ -1251,8 +1378,9 @@
         timeStr: "9月15日 18:20",
         snippet: "let read_pool = Pool...",
         metaLine: "Rust 程式碼 · 6 行 · 158 字元",
-        timeGroup: "earlier",
-        groupTitle: "更早",
+        isoDate: "2026-09-15T18:20:00",
+        timeGroup: "month-09",
+        groupTitle: "9月",
         badge: "Rust"
       },
       'demo-19': {
@@ -1262,8 +1390,9 @@
         timeStr: "9月08日 10:05",
         snippet: "wx94...e8a2",
         metaLine: "微信 AppSecret · 加密憑證",
-        timeGroup: "earlier",
-        groupTitle: "更早",
+        isoDate: "2026-09-08T10:05:00",
+        timeGroup: "month-09",
+        groupTitle: "9月",
         badge: "私密"
       }
     },
@@ -1407,8 +1536,9 @@
         timeStr: "Oct 8 17:22",
         snippet: "AKIA...3M7Q",
         metaLine: "AWS Access Key · Encrypted Isolation",
-        timeGroup: "last_week",
-        groupTitle: "Last Week",
+        isoDate: "2026-10-08T17:22:00",
+        timeGroup: "month-10",
+        groupTitle: "Oct",
         badge: "Private"
       },
       'demo-14': {
@@ -1421,8 +1551,9 @@
           { name: "NookClip-Architecture.pdf", size: "2.1 MB", path: "/Users/alex/Documents/NookClip-Architecture.pdf" },
           { name: "Database-Schema.sql", size: "320 KB", path: "/Users/alex/Documents/Database-Schema.sql" }
         ],
-        timeGroup: "last_week",
-        groupTitle: "Last Week"
+        isoDate: "2026-10-07T14:05:00",
+        timeGroup: "month-10",
+        groupTitle: "Oct"
       },
       'demo-15': {
         title: "TailwindCSS 3.4 Palette Extension Config",
@@ -1430,8 +1561,9 @@
         timeStr: "Oct 5 11:30",
         snippet: "colors: { nook: ... }",
         metaLine: "JavaScript · 9 lines · 142 chars",
-        timeGroup: "last_week",
-        groupTitle: "Last Week",
+        isoDate: "2026-10-05T11:30:00",
+        timeGroup: "month-10",
+        groupTitle: "Oct",
         badge: "JS"
       },
       'demo-16': {
@@ -1441,8 +1573,9 @@
         timeStr: "Sep 28 20:10",
         snippet: "Under 50,000 history load test...",
         metaLine: "5 lines · 128 chars",
-        timeGroup: "earlier",
-        groupTitle: "Earlier"
+        isoDate: "2026-09-28T20:10:00",
+        timeGroup: "month-09",
+        groupTitle: "Sep"
       },
       'demo-17': {
         title: "NookClip v0.1.0 Release Roadmap Memo",
@@ -1451,8 +1584,9 @@
         timeStr: "Sep 22 15:45",
         snippet: "1. Align clipboard loop...",
         metaLine: "4 lines · 98 chars",
-        timeGroup: "earlier",
-        groupTitle: "Earlier"
+        isoDate: "2026-09-22T15:45:00",
+        timeGroup: "month-09",
+        groupTitle: "Sep"
       },
       'demo-18': {
         title: "PostgreSQL Read-Write Split Connection Pool",
@@ -1460,8 +1594,9 @@
         timeStr: "Sep 15 18:20",
         snippet: "let read_pool = Pool...",
         metaLine: "Rust · 6 lines · 158 chars",
-        timeGroup: "earlier",
-        groupTitle: "Earlier",
+        isoDate: "2026-09-15T18:20:00",
+        timeGroup: "month-09",
+        groupTitle: "Sep",
         badge: "Rust"
       },
       'demo-19': {
@@ -1471,8 +1606,9 @@
         timeStr: "Sep 8 10:05",
         snippet: "wx94...e8a2",
         metaLine: "WeChat AppSecret · Encrypted",
-        timeGroup: "earlier",
-        groupTitle: "Earlier",
+        isoDate: "2026-09-08T10:05:00",
+        timeGroup: "month-09",
+        groupTitle: "Sep",
         badge: "Private"
       }
     }
@@ -1489,6 +1625,123 @@
         if (loc.fileList) item.fileList = JSON.parse(JSON.stringify(loc.fileList));
       }
       return item;
+    });
+  }
+
+  // =========================================================================
+  // 2.5 时间分组（与客户端同规则的纯函数）
+  // =========================================================================
+  //
+  // 客户端分档规则（Rust `timeline::bucket_of` / Swift `Timeline.group`）：
+  //   · 自然日差 0       → 今天
+  //   · 自然日差 1       → 昨天
+  //   · 自然日差 2–7     → 本周（标签沿用「本周」，但判定不看周界，
+  //                        所以它的覆盖范围恒为 7 天，不再随星期几在 0–6 天间浮动）
+  //   · 更早且同年       → 月份归档桶（当月桶只装近档窗口之外的条目）
+  //   · 更早且跨年       → 年份归档桶
+  // 「上周」档已退役：它夹在按天与按月之间，且 `本月` 又包含 `上周`，语义嵌套。
+  // 去掉后只剩两种粒度：7 天内按天、7 天外按月/年。
+  const SPAN_JUSTIFIED_DAYS = 7;
+
+  /** 某月天数（用于判断月份桶是否覆盖整月） */
+  function daysInMonth(year, month) {
+    return new Date(Date.UTC(year, month, 0)).getUTCDate();
+  }
+
+  /**
+   * 时间戳（字符串或 Date）→ 分档描述。规则与客户端逐条对齐。
+   * @returns {{id: string, kind: 'near'|'month'|'year', month?: number, year?: number,
+   *            lastDay?: number, elapsed?: number}}
+   */
+  function bucketOf(date, now) {
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const elapsed = Math.round((target - today) / 86400000);
+
+    if (elapsed >= 0) return { id: 'today', kind: 'near', elapsed };
+    if (elapsed === -1) return { id: 'yesterday', kind: 'near', elapsed };
+    if (elapsed >= -SPAN_JUSTIFIED_DAYS) return { id: 'this-week', kind: 'near', elapsed };
+
+    const year = date.getFullYear();
+    if (year !== now.getFullYear()) return { id: `year-${year}`, kind: 'year', year };
+
+    const month = date.getMonth() + 1;
+    // 当月桶的实际覆盖末日（客户端 month_bucket_last_day 同算法）：
+    // 今天是 10/23、窗口 7 天 → 近档占掉 10/16–10/23，当月桶只装 10/1–10/15，
+    // 标题必须写成「10月 1–15日」，否则「10月 · 15」会被读成「10 月一共只有 15 条」。
+    // 历史月份是完整的，返回该月天数（标题不带范围）；月初时 cutoff 落到上月，返回 0（不产生桶）。
+    const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (SPAN_JUSTIFIED_DAYS + 1));
+    let lastDay = daysInMonth(year, month);
+    if (cutoff.getFullYear() === year && cutoff.getMonth() + 1 === month) {
+      lastDay = cutoff.getDate();
+    }
+    return { id: `month-${String(month).padStart(2, '0')}`, kind: 'month', month, year, lastDay };
+  }
+
+  /** 分组标题：近档用相对词，月档带覆盖范围，年档只写年份 */
+  function groupTitleOf(bucket, lang) {
+    const dict = UI_I18N[lang] || UI_I18N['zh-Hans'];
+    const range = (name, lastDay) => {
+      if (lastDay >= daysInMonth(bucket.year, bucket.month)) return name;
+      if (lang === 'en') return lastDay === 1 ? `${name} 1` : `${name} 1–${lastDay}`;
+      return lastDay === 1 ? `${name} 1日` : `${name} 1–${lastDay}日`;
+    };
+    if (bucket.kind === 'near') {
+      return bucket.id === 'today' ? dict.today : bucket.id === 'yesterday' ? dict.yesterday : dict.this_week;
+    }
+    if (bucket.kind === 'year') {
+      return lang === 'en' ? String(bucket.year) : `${bucket.year}年`;
+    }
+    const monthName = lang === 'en'
+      ? new Date(2000, bucket.month - 1, 1).toLocaleString('en-US', { month: 'short' })
+      : `${bucket.month}月`;
+    return range(monthName, bucket.lastDay);
+  }
+
+  /**
+   * 行尾时间：7 天窗口内用「周几 HH:MM」（今天/昨天则用相对词），
+   * 窗口外切到「10月12日 09:05」——与客户端同一 7 天窗口，两处不再各自判断。
+   */
+  function rowTimeOf(date, now, lang) {
+    const dict = UI_I18N[lang] || UI_I18N['zh-Hans'];
+    const pad = (n) => String(n).padStart(2, '0');
+    const hm = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    const elapsed = Math.round(
+      (new Date(date.getFullYear(), date.getMonth(), date.getDate())
+        - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000
+    );
+    if (elapsed === 0) return `${dict.today} ${hm}`;
+    if (elapsed === -1) return `${dict.yesterday} ${hm}`;
+    if (elapsed >= -SPAN_JUSTIFIED_DAYS) {
+      const weekday = date.toLocaleDateString(
+        lang === 'en' ? 'en-US' : lang === 'zh-Hant' ? 'zh-TW' : 'zh-CN',
+        { weekday: 'short' }
+      );
+      return `${weekday} ${hm}`;
+    }
+    if (lang === 'en') {
+      const mon = date.toLocaleString('en-US', { month: 'short' });
+      return `${mon} ${date.getDate()} ${hm}`;
+    }
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${hm}`;
+  }
+
+  /**
+   * 给一组记录挂上推导出的时间分组（id / 标题 / 行尾时间）。
+   * 记录自带 `isoDate` 时以它为权威时间戳，否则退回按 `timeGroup` 兜底。
+   */
+  function applyTimeline(items, now, lang) {
+    return items.map(item => {
+      if (!item.isoDate) return item;
+      const date = new Date(item.isoDate);
+      if (Number.isNaN(date.getTime())) return item;
+      const bucket = bucketOf(date, now);
+      return Object.assign({}, item, {
+        date,
+        timeGroup: bucket.id,
+        groupTitle: groupTitleOf(bucket, lang),
+        timeStr: rowTimeOf(date, now, lang)
+      });
     });
   }
 
@@ -1513,14 +1766,18 @@
       this.currentLang = normalizeLang(this.options.lang || (typeof document !== 'undefined' && document.documentElement.lang) || 'zh-Hans');
 
       // 初始化数据 (默认首项选中为快捷键速查卡，与截图 100% 对齐)
-      this.items = getDemoItems(this.currentLang);
+      // 演示数据的时间戳按「当前时刻」锚定，分档/标题/行尾时间统一推导，
+      // 保证任意一天打开测试台都能看到「今天 / 昨天 / 本周 / 本月 / 历史月份」完整档位
+      this.now = new Date();
+      this.items = applyTimeline(getDemoItems(this.currentLang), this.now, this.currentLang);
       this.selectedId = this.items[0].id;
       this.selectedIds = new Set();
       this.isBatchMode = false;
-      this.activeCategory = 0; // 全部
-      this.slot4Category = 4;  // 链接 ▾
+      this.activeCategory = 0; // 全部（默认无筛选态）
+      this.activeTag = null;   // 标签筛选项（与类型筛选可叠加）
       this.searchText = "";
-      this.isCategoryMenuOpen = false;
+      this.isFilterPanelOpen = false; // 搜索框展开的类型/标签筛选面板
+      this.filterKeyword = "";        // 面板内标签搜索词（与主搜索词分离）
       this.isTimeMenuOpen = false;
       this.isHelpOpen = false;
       this.renamingId = null;
@@ -1529,6 +1786,8 @@
       this.jsonSegments = {};
       this.isOcrScanning = false;
       this.showOcrRules = false;
+      // 预览顶栏二维码按钮的激活态 (PreviewToolbar.swift: showQRCode)
+      this.showQrCode = false;
       this.deletedStack = [];
       this.undoTimer = null;
       this.currentTheme = this.options.theme || 'auto';
@@ -1552,20 +1811,70 @@
     }
 
     getCategoryName(id) {
-      const cats = this.getCategories();
-      const found = cats.find(c => c.id === id);
+      if (id === 0) return (ALL_CATEGORY_DATA[this.currentLang] || ALL_CATEGORY_DATA['zh-Hans']).name;
+      const found = this.getCategories().find(c => c.id === id);
       return found ? found.name : '';
     }
 
-    getChips() {
-      const cats = this.getCategories();
-      const getCat = (id) => cats.find(c => c.id === id) || { name: '', count: null, icon: 'grid' };
-      return [
-        { id: 0, name: getCat(0).name, count: 72, icon: "grid" },
-        { id: 8, name: getCat(8).name, count: null, icon: "star" },
-        { id: 1, name: getCat(1).name, count: null, icon: "text" },
-        { id: 4, name: getCat(4).name, count: null, icon: "link", hasDropdown: true }
-      ];
+    /** 8 个固定类型槽（顺序＝客户端网格槽序；空槽 count 为 0，位置不塌缩） */
+    getTypeSlots() {
+      return this.getCategories().map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        icon: cat.icon,
+        tint: cat.tint,
+        count: this.countByCategory(cat.id)
+      }));
+    }
+
+    /** 某个类型槽的命中数（收藏看 isFavorite，其余看记录自身 category） */
+    countByCategory(id) {
+      if (id === 8) return this.items.filter(it => it.isFavorite).length;
+      return this.items.filter(it => it.category === id).length;
+    }
+
+    /**
+     * ⌘[ / ⌘] 的循环序：全部 + 有内容的类型槽。
+     * 空槽（如回收站）不进循环——否则会切到空列表（与客户端 orderedCategoryIDs 一致）。
+     */
+    getCycleCategoryIds() {
+      return [0].concat(this.getTypeSlots().filter(slot => slot.count > 0).map(slot => slot.id));
+    }
+
+    /** 标签筛选项及其命中数（只列出现过的标签，按记录数降序） */
+    getTagSlots() {
+      return TAGS_DATA
+        .map(tag => ({
+          id: tag.id,
+          name: tag.name,
+          count: this.items.filter(it => (it.tags || []).includes(tag.id)).length
+        }))
+        .filter(tag => tag.count > 0)
+        .sort((a, b) => b.count - a.count);
+    }
+
+    getTagName(id) {
+      const tag = TAGS_DATA.find(t => t.id === id);
+      return tag ? tag.name : '';
+    }
+
+    /** 搜索框内嵌的筛选胶囊：当前生效的类型 / 标签各一枚（无筛选时为空） */
+    getFilterChips() {
+      const chips = [];
+      if (this.activeCategory !== 0) {
+        const cat = this.getCategories().find(c => c.id === this.activeCategory);
+        if (cat) chips.push({ kind: 'category', id: cat.id, name: cat.name, icon: cat.icon });
+      }
+      if (this.activeTag) {
+        chips.push({ kind: 'tag', id: this.activeTag, name: this.getTagName(this.activeTag) });
+      }
+      return chips;
+    }
+
+    /** 清空全部筛选条件（类型 + 标签），不动搜索词 */
+    clearFilters() {
+      this.activeCategory = 0;
+      this.activeTag = null;
     }
 
     setLanguage(lang) {
@@ -1573,40 +1882,23 @@
       if (this.currentLang === newLang) return;
       this.currentLang = newLang;
 
-      const locMap = ITEM_I18N[newLang] || ITEM_I18N['zh-Hans'];
-      this.items.forEach(item => {
-        const loc = locMap[item.id];
-        if (loc) {
-          item.title = loc.title;
-          item.summary = loc.summary;
-          item.source = loc.source;
-          item.timeStr = loc.timeStr;
-          item.snippet = loc.snippet;
-          item.metaLine = loc.metaLine;
-          item.groupTitle = loc.groupTitle;
-          item.timeGroup = loc.timeGroup;
-          if (loc.badge !== undefined) item.badge = loc.badge;
-          if (loc.fileList) item.fileList = JSON.parse(JSON.stringify(loc.fileList));
-          if (loc.rawOcrText) item.rawOcrText = loc.rawOcrText;
-          if (item.ocrText) item.ocrText = loc.rawOcrText;
-        }
-      });
+      // 时间分组标题与行尾时间由 isoDate + 语言重新推导（不再从文案表里搬字符串），
+      // 这样分组规则永远只有一处实现，切语言不会出现「今天」与硬编码日期混排。
+      this.items = applyTimeline(getDemoItems(newLang), this.now, newLang);
 
       this.updateStaticTexts();
       this.render();
+      this.renderSearchChrome();
     }
 
     updateStaticTexts() {
       const win = this.container.querySelector('#nookWindow');
       if (win) win.setAttribute('aria-label', this.t('windowAria'));
 
-      const searchInput = this.container.querySelector('#nookSearchInput');
-      if (searchInput) searchInput.placeholder = this.t('searchPlaceholder');
-
       const searchClear = this.container.querySelector('#nookSearchClear');
       if (searchClear) searchClear.title = this.t('searchClear');
 
-      const cycleBtn = this.container.querySelector('#nookGroupCycleBtn');
+      const cycleBtn = this.container.querySelector('#nookGroupMenuTrigger');
       if (cycleBtn) cycleBtn.title = this.t('cycleTimeTitle');
 
       const undoBtn = this.container.querySelector('#nookUndoBtn');
@@ -1647,6 +1939,8 @@
 
       const delBtn = this.container.querySelector('#nookDeleteBtn');
       if (delBtn) delBtn.title = this.t('deleteBtnTitle');
+      // 预览顶栏（来源/类型动作/标签）随语言切换重绘
+      this.renderPreview();
     }
 
     initDOM() {
@@ -1656,31 +1950,34 @@
           <div class="nook-window nook-theme-${this.getEffectiveTheme()}" id="nookWindow" tabindex="0" role="region" aria-label="${this.t('windowAria')}">
             <!-- 左侧列表列 -->
             <div class="nook-list-col">
-              <!-- 顶部搜索框 (对齐截图: "搜索剪贴板或应用..." + ⌘F) -->
-              <div class="nook-search-bar" id="nookSearchBar">
-                <span class="nook-search-icon">${ICONS.search}</span>
-                <input type="text" class="nook-search-input" id="nookSearchInput" placeholder="${this.t('searchPlaceholder')}" autocomplete="off" spellcheck="false">
-                <button type="button" class="nook-search-clear" id="nookSearchClear" style="display:none;" title="${this.t('searchClear')}">✕</button>
-                <span class="nook-search-badge" id="nookSearchBadge">⌘F</span>
+              <!-- 顶部搜索框 + 展开筛选面板（Spotlight 式）：
+                   分类与标签已统一收进这里，旧版常驻分类条与「第 4 槽 ▾」下拉已移除。
+                   展开时搜索框与面板共用同一张不透明纸面，避免两块面互相投影割裂。 -->
+              <div class="nook-filter-shell" id="nookFilterShell">
+                <div class="nook-search-bar" id="nookSearchBar">
+                  <span class="nook-search-icon">${ICONS.search}</span>
+                  <span class="nook-search-chips" id="nookSearchChips"></span>
+                  <input type="text" class="nook-search-input" id="nookSearchInput" placeholder="${this.t('searchPlaceholder')}" autocomplete="off" spellcheck="false">
+                  <button type="button" class="nook-search-clear" id="nookSearchClear" style="display:none;" title="${this.t('searchClear')}">✕</button>
+                  <span class="nook-search-badge" id="nookSearchBadge">⌘F</span>
+                </div>
+                <div class="nook-filter-panel" id="nookFilterPanel" style="display:none;"></div>
               </div>
-
-              <!-- 分类筛选条 (对齐截图: 全部 72、收藏、文本、链接 ▾) -->
-              <div class="nook-category-bar" id="nookCategoryBar"></div>
-
-              <!-- 分类下拉菜单 -->
-              <div class="nook-category-dropdown" id="nookCategoryDropdown" style="display:none;"></div>
 
               <!-- 拼音应用搜索直达 -->
               <div class="nook-app-launcher-section" id="nookAppLauncher" style="display:none;"></div>
 
-              <!-- 时间分组头 (对齐截图: 今天 · 60 + ⇅) -->
+              <!-- 吸顶时间组头 (GroupHeaderView)：「今天 · 6」整块是分组跳转菜单入口，
+                   常态无图标，悬停才淡入 ⌄ 并提亮；底缘 0.5pt 分割线 -->
               <div class="nook-group-header" id="nookGroupHeader">
-                <div class="nook-group-header-title">
-                  <span id="nookGroupTitle">${this.t('today')}</span> · <span class="nook-group-header-count" id="nookGroupCount">60</span>
+                <div class="nook-group-header-title" id="nookGroupMenuTrigger" role="button" tabindex="0" title="${this.t('cycleTimeTitle')}">
+                  <span id="nookGroupTitle">${this.t('today')}</span>
+                  <span>·</span>
+                  <span class="nook-group-header-count" id="nookGroupCount">6</span>
+                  <button type="button" class="nook-group-header-btn" id="nookGroupCycleBtn" tabindex="-1" aria-hidden="true">
+                    ${ICONS.chevronUpDown}
+                  </button>
                 </div>
-                <button type="button" class="nook-group-header-btn" id="nookGroupCycleBtn" title="${this.t('cycleTimeTitle')}">
-                  ${ICONS.chevronUpDown}
-                </button>
               </div>
 
               <!-- 时间线分组下拉选择菜单 -->
@@ -1730,17 +2027,21 @@
 
             <!-- 右侧详细预览区 -->
             <div class="nook-preview-pane" id="nookPreviewPane">
-              <!-- 顶部工具栏 (对齐截图: 备忘录 · 今天 11:29 · 复制 2 次 | 7 行 · 208 字符 | ★ | 🗑) -->
+              <!-- 顶部工具栏 (对齐 PreviewToolbar.swift: [App 图标+名称][类型动作] → Spacer → [复制 N 次][标签][#][★ | 🗑]) -->
               <div class="nook-preview-toolbar">
                 <div class="nook-preview-meta-leading" id="nookPreviewMeta"></div>
+                <div class="nook-preview-lead-actions" id="nookPreviewLeadActions"></div>
                 <div class="nook-preview-actions">
-                  <span class="nook-preview-stat" id="nookPreviewStat"></span>
-                  <button type="button" class="nook-toolbar-btn btn-star" id="nookFavoriteBtn" title="${this.t('starBtnTitle')}">
-                    <span id="nookStarIcon">${ICONS.star}</span>
-                  </button>
-                  <button type="button" class="nook-toolbar-btn btn-delete" id="nookDeleteBtn" title="${this.t('deleteBtnTitle')}">
-                    <span>${ICONS.trash}</span>
-                  </button>
+                  <span class="nook-preview-copy-count" id="nookPreviewCopyCount"></span>
+                  <div class="nook-preview-tags" id="nookPreviewTags"></div>
+                  <div class="nook-preview-end-actions">
+                    <button type="button" class="nook-toolbar-btn btn-star" id="nookFavoriteBtn" title="${this.t('starBtnTitle')}" aria-label="${this.t('starBtnTitle')}">
+                      <span id="nookStarIcon">${ICONS.star}</span>
+                    </button>
+                    <button type="button" class="nook-toolbar-btn btn-delete" id="nookDeleteBtn" title="${this.t('deleteBtnTitle')}" aria-label="${this.t('deleteBtnTitle')}">
+                      <span>${ICONS.trash}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1766,10 +2067,14 @@
 
     getFilteredItems() {
       let result = this.items;
+      // 类型筛选与标签筛选是两套正交条件，可同时生效（与客户端搜索框内嵌的两枚胶囊一致）
       if (this.activeCategory === 8) {
         result = result.filter(item => item.isFavorite);
       } else if (this.activeCategory !== 0) {
         result = result.filter(item => item.category === this.activeCategory);
+      }
+      if (this.activeTag) {
+        result = result.filter(item => (item.tags || []).includes(this.activeTag));
       }
       const q = this.searchText.trim().toLowerCase();
       if (q) {
@@ -1807,44 +2112,133 @@
       }
     }
 
-    renderCategoryBar() {
-      const bar = this.container.querySelector('#nookCategoryBar');
-      if (!bar) return;
+    // ── 筛选面板（搜索框展开 · 按类型 4×2 固定网格 + 按标签流式胶囊）────────────
 
-      const chips = this.getChips();
+    /** 面板是否需要展示：显式展开，或「搜索框聚焦 / 已有关键词 / 已有筛选条件」。 */
+    shouldShowFilterPanel() {
+      return this.isFilterPanelOpen || this.hasFilterChips() || !!this.filterKeyword;
+    }
 
-      let html = '';
-      chips.forEach(chip => {
-        const isActive = this.activeCategory === chip.id;
-        html += `
-          <button type="button" class="nook-chip ${isActive ? 'is-active' : ''}" data-cat-id="${chip.id}">
-            <span class="nook-chip-icon">${ICONS[chip.icon]}</span>
-            <span>${chip.name}</span>
-            ${chip.count ? `<span class="nook-chip-count">${chip.count}</span>` : ''}
-            ${chip.hasDropdown ? `<span class="nook-chip-chevron" id="nookSlotArrowBtn">${ICONS.chevronDown}</span>` : ''}
+    hasFilterChips() {
+      return this.activeCategory !== 0 || !!this.activeTag;
+    }
+
+    /** 搜索框最多留 2 枚内嵌胶囊；多余的收进「+N」角标，点击展开面板查看 */
+    getVisibleChips() {
+      return this.getFilterChips().slice(0, 2);
+    }
+
+    renderSearchChrome() {
+      const chipsEl = this.container.querySelector('#nookSearchChips');
+      const clearEl = this.container.querySelector('#nookSearchClear');
+      const badgeEl = this.container.querySelector('#nookSearchBadge');
+      const input = this.container.querySelector('#nookSearchInput');
+      const bar = this.container.querySelector('#nookSearchBar');
+      if (!chipsEl) return;
+
+      const chips = this.getFilterChips();
+      const visible = this.getVisibleChips();
+      const tintOf = (kind) => kind === 'category'
+        ? 'var(--nook-filter-chip-symbol)'
+        : 'var(--nook-text-secondary)';
+
+      chipsEl.innerHTML = visible.map(chip => `
+        <span class="nook-embed-chip" data-chip-kind="${chip.kind}" data-chip-id="${chip.id}" title="${this.t('filterRemoveCondition')}">
+          ${chip.kind === 'category'
+            ? `<span class="nook-embed-chip-icon" style="color:${tintOf('category')};">${ICONS[chip.icon] || ICONS.text}</span>`
+            : `<span class="nook-embed-chip-hash">#</span>`}
+          <span class="nook-embed-chip-name">${chip.name}</span>
+          <span class="nook-embed-chip-x">${ICONS.close}</span>
+        </span>
+      `).join('') + (chips.length > visible.length
+        ? `<span class="nook-embed-chip is-overflow">+${chips.length - visible.length}</span>`
+        : '');
+
+      // 已有筛选条件时让出 ⌘F 角标；有关键词时改出清空按钮
+      if (clearEl) clearEl.style.display = this.searchText ? 'flex' : 'none';
+      if (badgeEl) badgeEl.style.display = (this.searchText || chips.length) ? 'none' : 'inline';
+      if (input) {
+        input.placeholder = chips.length ? this.t('filterConditionHint') : this.t('searchPlaceholder');
+        input.classList.toggle('has-chips', chips.length > 0);
+      }
+      if (bar) bar.classList.toggle('has-chips', chips.length > 0);
+
+      const panel = this.container.querySelector('#nookFilterPanel');
+      const shell = this.container.querySelector('#nookFilterShell');
+      const open = this.shouldShowFilterPanel();
+      if (panel) panel.style.display = open ? 'flex' : 'none';
+      if (shell) shell.classList.toggle('is-open', open);
+    }
+
+    renderFilterPanel() {
+      const panel = this.container.querySelector('#nookFilterPanel');
+      if (!panel) return;
+
+      const slots = this.getTypeSlots();
+      const tags = this.getTagSlots();
+      const kw = (this.filterKeyword || '').trim().toLowerCase();
+      const visibleTags = kw ? tags.filter(tag => tag.name.toLowerCase().includes(kw)) : tags;
+
+      const typesHtml = slots.map(slot => {
+        const isActive = this.activeCategory === slot.id;
+        const isEmpty = slot.count === 0;
+        const cls = ['nook-type-tile'];
+        if (isActive) cls.push('is-active');
+        if (isEmpty) cls.push('is-empty');
+        // 实心色块取色由 --nook-tile-tint 注入（NookClip.SidebarCategory.tintColor）
+        return `
+          <button type="button" class="${cls.join(' ')}" data-cat-id="${slot.id}"
+                  style="--nook-tile-tint: var(--nook-tint-${slot.tint})"
+                  aria-pressed="${isActive}" ${isEmpty ? 'aria-disabled="true"' : ''}
+                  title="${slot.name} (${slot.count})">
+            <span class="nook-type-tile-icon">${ICONS[slot.icon] || ICONS.text}</span>
+            <span class="nook-type-tile-name">${slot.name}</span>
           </button>
         `;
-      });
-      bar.innerHTML = html;
+      }).join('');
 
-      // 下拉菜单渲染
-      const dropdown = this.container.querySelector('#nookCategoryDropdown');
-      if (dropdown) {
-        let dropHtml = '';
-        this.getCategories().forEach(c => {
-          const isSel = this.activeCategory === c.id;
-          dropHtml += `
-            <button type="button" class="nook-dropdown-item ${isSel ? 'is-selected' : ''}" data-cat-id="${c.id}">
-              <span style="width:14px;display:flex;">${ICONS[c.icon]}</span>
-              <span>${c.name}</span>
-              <span class="nook-dropdown-count">${c.count}</span>
-              ${isSel ? `<span class="nook-dropdown-check">${ICONS.check}</span>` : ''}
-            </button>
-          `;
-        });
-        dropdown.innerHTML = dropHtml;
-        dropdown.style.display = this.isCategoryMenuOpen ? 'flex' : 'none';
-      }
+      const tagsHtml = visibleTags.length
+        ? visibleTags.map(tag => {
+            const isActive = this.activeTag === tag.id;
+            return `
+              <button type="button" class="nook-tag-pill ${isActive ? 'is-active' : ''}" data-tag-id="${tag.id}"
+                      aria-pressed="${isActive}">
+                <span class="nook-tag-pill-hash">#</span>
+                <span>${tag.name}</span>
+                <span class="nook-tag-pill-count">${tag.count}</span>
+              </button>
+            `;
+          }).join('')
+        : `<span class="nook-filter-empty">${kw ? this.t('filterNoTagMatch') : this.t('filterEmptyTag')}</span>`;
+
+      // 结构与 CategoryFilterPanel 一致：按类型 → （有标签时）0.5pt 分割线 + 按标签。
+      // 无标签时整个下半区隐藏、卡片自动变薄。
+      const hasTags = visibleTags.length > 0;
+      panel.innerHTML = `
+        <div class="nook-filter-section">
+          <div class="nook-filter-section-header">
+            <span>${this.t('filterByType')}</span>
+            ${this.activeCategory !== 0 || this.activeTag
+              ? `<button type="button" class="nook-filter-clear" id="nookFilterClearBtn">${this.t('filterRemoveCondition')}</button>`
+              : ''}
+          </div>
+          <div class="nook-type-grid">${typesHtml}</div>
+        </div>
+        ${hasTags ? `
+        <div class="nook-filter-divider"></div>
+        <div class="nook-filter-section">
+          <div class="nook-filter-section-header is-tagline">
+            <span>${this.t('filterByTag')}</span>
+          </div>
+          <div class="nook-tag-flow">${tagsHtml}</div>
+        </div>` : ''}
+      `;
+    }
+
+    /** 兼容旧调用点：分类条已并入筛选面板 */
+    renderCategoryBar() {
+      this.renderSearchChrome();
+      this.renderFilterPanel();
     }
 
     renderRows() {
@@ -1953,9 +2347,11 @@
                 ${item.isFavorite ? `<span class="nook-row-star ${isSelected ? 'star-white' : ''}">${ICONS.star}</span>` : ''}
               </div>
               <div class="nook-row-sub-line">
-                <span class="nook-row-app-badge">${appIcon}</span>
-                <span class="nook-row-summary">${this.escapeHTML(item.source)} · ${(item.snippetIcon || '')}${this.highlightText(item.snippet, q)}</span>
-                <span class="nook-row-meta">${item.timeStr}</span>
+                <!-- 副行结构对齐 RowAtoms：类型徽标 → 上下文细节 → 标签 → 右对齐时间戳。
+                     来源 App 不再以文字出现在副行，只作为瓦片右下角的 15pt 角标（已在 tile 内绘制）。 -->
+                <span class="nook-row-summary">${(item.snippetIcon || '')}${this.highlightText(item.snippet, q)}</span>
+                ${(item.tags || []).slice(0, 2).map(tagId => `<span class="nook-row-tag"><span class="nook-row-tag-hash">#</span>${this.escapeHTML(this.getTagName(tagId))}</span>`).join('')}
+                <span class="nook-row-meta"${item.date ? ` title="${this.t('rowTimeToggleHint')}"` : ''}>${item.timeStr}</span>
               </div>
             </div>
           </div>
@@ -1976,7 +2372,9 @@
     renderPreview() {
       const item = this.getSelectedItem();
       const meta = this.container.querySelector('#nookPreviewMeta');
-      const stat = this.container.querySelector('#nookPreviewStat');
+      const leadActions = this.container.querySelector('#nookPreviewLeadActions');
+      const copyCountEl = this.container.querySelector('#nookPreviewCopyCount');
+      const tagsEl = this.container.querySelector('#nookPreviewTags');
       const body = this.container.querySelector('#nookPreviewBody');
       const favBtn = this.container.querySelector('#nookFavoriteBtn');
       const starIcon = this.container.querySelector('#nookStarIcon');
@@ -1984,48 +2382,36 @@
       if (!item) return;
 
       const appIcon = APP_ICONS[item.sourceApp] || APP_ICONS.nook;
-      // 顶栏左侧元数据行 (确保对齐原生: 来源 App · 时间 · 复制次数)
+      // 顶栏左侧只保留 sourceLabel：16×16 App 徽标 + 应用名（时间/复制次数已并入顶栏右侧 pill）
       if (meta) {
         meta.innerHTML = `
           <span class="nook-preview-app-icon">${appIcon}</span>
-          <span class="nook-preview-meta-text">${item.source} · ${item.timeStr} · ${this.t('copyCount', item.copyCount || 1)}</span>
+          <span class="nook-preview-source-name">${this.escapeHTML(item.source)}</span>
         `;
       }
 
-      // 顶栏右侧上下文操作按钮与字符/格式统计 (对齐原生 PreviewToolbar.swift 规范)
-      if (stat) {
-        let actionsHtml = '';
-        if (item.kind === 'file') {
-          actionsHtml += `
-            <button type="button" class="nook-toolbar-btn" id="nookTbOpenBtn" title="${this.t('btnOpen')}">${ICONS.open}</button>
-            <button type="button" class="nook-toolbar-btn" id="nookTbFinderBtn" title="${this.t('btnFinder')}">${ICONS.folder}</button>
-            <span class="nook-preview-stat">${this.t('statFile')}</span>
-          `;
-        } else if (item.kind === 'url') {
-          actionsHtml += `
-            <button type="button" class="nook-toolbar-btn" id="nookTbOpenBtn" title="${this.t('btnOpenBrowser')}">${ICONS.open}</button>
-            <span class="nook-preview-stat">${this.t('statUrl')}</span>
-          `;
-        } else if (item.kind === 'color') {
-          actionsHtml += `<span class="nook-preview-stat">${item.colorHex || 'HEX'}</span>`;
-        } else if (item.kind === 'image') {
-          actionsHtml += `<span class="nook-preview-stat">640 × 320</span>`;
-        } else {
-          actionsHtml += `<span class="nook-preview-stat">${item.metaLine || ''}</span>`;
-        }
-        stat.innerHTML = actionsHtml;
+      if (leadActions) leadActions.innerHTML = this.renderToolbarLeadActions(item);
+
+      if (copyCountEl) {
+        const cc = item.copyCount || 1;
+        copyCountEl.textContent = cc > 1 ? this.t('copyCountShort', cc) : '';
+        copyCountEl.hidden = cc <= 1;
       }
 
-      // 收藏星标状态
+      if (tagsEl) tagsEl.innerHTML = this.renderToolbarTagChips(item);
+
       if (favBtn && starIcon) {
+        const favTitle = item.isFavorite ? this.t('unstarBtnTitle') : this.t('starBtnTitle');
         favBtn.classList.toggle('is-favorite', item.isFavorite);
-        favBtn.title = this.t('starBtnTitle');
+        favBtn.title = favTitle;
+        favBtn.setAttribute('aria-label', favTitle);
         starIcon.innerHTML = item.isFavorite ? ICONS.star : ICONS.starOutline;
       }
 
       const delBtn = this.container.querySelector('#nookDeleteBtn');
       if (delBtn) {
         delBtn.title = this.t('deleteBtnTitle');
+        delBtn.setAttribute('aria-label', this.t('deleteBtnTitle'));
       }
 
       if (!body) return;
@@ -2276,6 +2662,58 @@
       `;
     }
 
+    /**
+     * 顶栏左侧类型动作 (对齐 PreviewToolbar.swift:92-141 leadingActions)。
+     * 仅 url / file 两种类型有按钮，且落在 Spacer 左侧、紧跟来源标识。
+     */
+    renderToolbarLeadActions(item) {
+      const isHttpUrl = (s) => {
+        try {
+          const u = new URL(String(s || '').trim());
+          return u.protocol === 'http:' || u.protocol === 'https:';
+        } catch (e) {
+          return false;
+        }
+      };
+      if (item.kind === 'url') {
+        if (!isHttpUrl(item.summary)) return '';
+        return `
+          <button type="button" class="nook-toolbar-btn" id="nookTbOpenBtn" title="${this.t('btnOpenBrowser')}" aria-label="${this.t('btnOpenBrowser')}">${ICONS.open}</button>
+          <button type="button" class="nook-toolbar-btn${this.showQrCode ? ' is-active' : ''}" id="nookTbQrBtn" title="${this.t('btnQrTitle')}" aria-label="${this.t('btnQrTitle')}" aria-pressed="${this.showQrCode ? 'true' : 'false'}">${ICONS.qrcode}</button>
+        `;
+      }
+      if (item.kind === 'file') {
+        const paths = String(item.summary || '').split('\n').map(s => s.trim()).filter(Boolean);
+        if (!paths.length) return '';
+        // 站点无法触达用户磁盘，演示数据里出现「非当前用户 home」的路径即视作原文件已失效
+        const filesExist = paths.every(p => p.startsWith('/Users/' + DEMO_USER_HOME + '/'));
+        if (filesExist) {
+          return `
+            <button type="button" class="nook-toolbar-btn" id="nookTbOpenBtn" title="${this.t('btnOpen')}" aria-label="${this.t('btnOpen')}">${ICONS.open}</button>
+            <button type="button" class="nook-toolbar-btn" id="nookTbFinderBtn" title="${this.t('btnFinder')}" aria-label="${this.t('btnFinder')}">${ICONS.folder}</button>
+          `;
+        }
+        // 原文件已不存在：明示失效，且不再提供打开/访达按钮
+        return `<span class="nook-preview-meta-pill">${this.t('fileMissingBadge')}</span>`;
+      }
+      return '';
+    }
+
+    /**
+     * 顶栏标签 chip 区 (对齐 PreviewToolbar.swift:155-192 tagChips)：
+     * 最多 3 枚 compact chip + "+N" 溢出面 + 末尾 `#` 按钮（打开标签编辑器）。
+     */
+    renderToolbarTagChips(item) {
+      const tags = (item.tags || []).map(id => ({ id, name: this.getTagName(id) })).filter(t => t.name);
+      const visible = tags.slice(0, 3);
+      const hidden = tags.length - visible.length;
+      return visible.map(t => `
+        <button type="button" class="nook-preview-tag-chip" data-tag-id="${this.escapeHTML(t.id)}" title="${this.t('filterByTag')}">${this.escapeHTML(t.name)}</button>
+      `).join('') + (hidden > 0 ? `<span class="nook-preview-tag-more">+${hidden}</span>` : '') + `
+        <button type="button" class="nook-toolbar-btn" id="nookTbTagBtn" title="${this.t('tagBtnTitle')}" aria-label="${this.t('tagBtnTitle')}">${ICONS.hash}</button>
+      `;
+    }
+
     renderBatchState() {
       const batchBar = this.container.querySelector('#nookBatchBar');
       const hintsFooter = this.container.querySelector('#nookHintsFooter');
@@ -2297,22 +2735,44 @@
       const searchClear = this.container.querySelector('#nookSearchClear');
 
       if (searchInput) {
-        searchInput.addEventListener('focus', () => searchBar.classList.add('is-focused'));
+        // 聚焦搜索框 = 展开筛选面板（Spotlight/Raycast 式：点搜索框就能换类型/标签）
+        searchInput.addEventListener('focus', () => {
+          searchBar.classList.add('is-focused');
+          this.isFilterPanelOpen = true;
+          this.renderSearchChrome();
+          this.renderFilterPanel();
+        });
         searchInput.addEventListener('blur', () => searchBar.classList.remove('is-focused'));
         searchInput.addEventListener('input', (e) => {
           this.searchText = e.target.value;
           if (searchClear) searchClear.style.display = this.searchText ? 'flex' : 'none';
+          // 面板内的标签搜索词与主搜索词共用一次输入（有筛选条件时先过滤标签）
+          this.filterKeyword = this.searchText;
+          this.renderSearchChrome();
+          this.renderFilterPanel();
           this.renderRows();
           this.renderPreview();
           this.renderAppLauncher();
+          this.updateStaticTexts();
+        });
+        searchInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && this.isFilterPanelOpen) {
+            e.stopPropagation();
+            this.isFilterPanelOpen = false;
+            this.renderSearchChrome();
+            this.renderFilterPanel();
+          }
         });
       }
 
       if (searchClear) {
         searchClear.addEventListener('click', () => {
           this.searchText = "";
+          this.filterKeyword = "";
           if (searchInput) { searchInput.value = ""; searchInput.focus(); }
           searchClear.style.display = 'none';
+          this.renderSearchChrome();
+          this.renderFilterPanel();
           this.renderRows();
           this.renderPreview();
           this.renderAppLauncher();
@@ -2340,7 +2800,18 @@
 
         if (meta && e.key.toLowerCase() === 'f') {
           e.preventDefault();
+          this.isFilterPanelOpen = true;
           if (searchInput) searchInput.focus();
+          this.renderSearchChrome();
+          this.renderFilterPanel();
+          return;
+        }
+
+        if (meta && e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.isFilterPanelOpen = !this.isFilterPanelOpen;
+          this.renderSearchChrome();
+          this.renderFilterPanel();
           return;
         }
 
@@ -2427,9 +2898,10 @@
         }
 
         if (e.key === 'Escape') {
-          if (this.isCategoryMenuOpen) {
-            this.isCategoryMenuOpen = false;
-            this.renderCategoryBar();
+          if (this.isFilterPanelOpen) {
+            this.isFilterPanelOpen = false;
+            this.renderSearchChrome();
+            this.renderFilterPanel();
             return;
           }
           if (this.isTimeMenuOpen) {
@@ -2456,8 +2928,8 @@
             this.render();
             return;
           }
-          if (this.activeCategory !== 0) {
-            this.activeCategory = 0;
+          if (this.hasFilterChips()) {
+            this.clearFilters();
             this.render();
             return;
           }
@@ -2487,9 +2959,10 @@
 
       document.addEventListener('click', (e) => {
         if (!this.container.contains(e.target)) {
-          if (this.isCategoryMenuOpen) {
-            this.isCategoryMenuOpen = false;
-            this.renderCategoryBar();
+          if (this.isFilterPanelOpen) {
+            this.isFilterPanelOpen = false;
+            this.renderSearchChrome();
+            this.renderFilterPanel();
           }
           if (this.isTimeMenuOpen) {
             this.toggleTimeDropdown(false);
@@ -2505,12 +2978,49 @@
       });
 
       this.container.addEventListener('click', (e) => {
-        const chip = e.target.closest('[data-cat-id]');
-        if (chip) {
-          const catId = parseInt(chip.getAttribute('data-cat-id'), 10);
-          this.activeCategory = catId;
-          this.isCategoryMenuOpen = false;
-          this.render();
+        // 搜索框内嵌胶囊：点击 ×（或胶囊本体）移除该筛选条件
+        const embedChip = e.target.closest('.nook-embed-chip');
+        if (embedChip) {
+          e.stopPropagation();
+          const kind = embedChip.getAttribute('data-chip-kind');
+          const id = embedChip.getAttribute('data-chip-id');
+          if (!kind) { // 「+N」角标：展开面板看全部条件
+            this.isFilterPanelOpen = true;
+            this.renderSearchChrome();
+            this.renderFilterPanel();
+            return;
+          }
+          if (kind === 'category') this.activeCategory = 0;
+          else if (kind === 'tag') this.activeTag = null;
+          this.afterFilterChange();
+          return;
+        }
+
+        const clearBtn = e.target.closest('#nookFilterClearBtn');
+        if (clearBtn) {
+          e.stopPropagation();
+          this.clearFilters();
+          this.afterFilterChange();
+          return;
+        }
+
+        const tagPill = e.target.closest('[data-tag-id]');
+        if (tagPill) {
+          e.stopPropagation();
+          const tagId = tagPill.getAttribute('data-tag-id');
+          this.activeTag = this.activeTag === tagId ? null : tagId;
+          this.afterFilterChange();
+          return;
+        }
+
+        // 类型瓷砖：空槽置灰但仍可点击（不触发切换），活动槽再点一次取消
+        const typeTile = e.target.closest('.nook-type-tile[data-cat-id]');
+        if (typeTile) {
+          e.stopPropagation();
+          if (typeTile.classList.contains('is-empty')) return;
+          const catId = parseInt(typeTile.getAttribute('data-cat-id'), 10);
+          this.activeCategory = this.activeCategory === catId ? 0 : catId;
+          this.afterFilterChange();
           return;
         }
 
@@ -2522,7 +3032,8 @@
           return;
         }
 
-        const timeBtn = e.target.closest('#nookGroupCycleBtn');
+        // 整块「组名 · 计数」都是跳转菜单入口（客户端 GroupHeaderView 的行为）
+        const timeBtn = e.target.closest('#nookGroupMenuTrigger') || e.target.closest('#nookGroupCycleBtn');
         if (timeBtn) {
           e.stopPropagation();
           this.toggleCategoryDropdown(false);
@@ -2645,7 +3156,24 @@
         }
         const tbQrBtn = e.target.closest('#nookTbQrBtn');
         if (tbQrBtn) {
+          // 二维码按钮为开关态（PreviewToolbar.swift: isActive: showQRCode）
+          this.showQrCode = !this.showQrCode;
+          this.renderPreview();
           this.showToast(this.t('toasts').qrShown);
+          return;
+        }
+        const tbTagBtn = e.target.closest('#nookTbTagBtn');
+        if (tbTagBtn) {
+          this.showToast(this.t('tagBtnTitle'));
+          return;
+        }
+        const tbTagChip = e.target.closest('.nook-preview-tag-chip');
+        if (tbTagChip) {
+          // 点击 chip 按该标签过滤（与筛选面板的标签胶囊同一行为）
+          e.stopPropagation();
+          const tagId = tbTagChip.getAttribute('data-tag-id');
+          this.activeTag = this.activeTag === tagId ? null : tagId;
+          this.afterFilterChange();
           return;
         }
         const copyUrlBtn = e.target.closest('#nookCopyUrlBtn');
@@ -2753,13 +3281,22 @@
       }
     }
 
+    /** 兼容旧调用点：原「第 4 槽」分类下拉已退役，改开合搜索框筛选面板 */
     toggleCategoryDropdown(force) {
-      this.isCategoryMenuOpen = (typeof force === 'boolean') ? force : !this.isCategoryMenuOpen;
-      const dropdown = this.container.querySelector('#nookCategoryDropdown');
-      if (dropdown) dropdown.style.display = this.isCategoryMenuOpen ? 'flex' : 'none';
-      if (this.isCategoryMenuOpen) {
-        this.toggleTimeDropdown(false);
-      }
+      this.isFilterPanelOpen = (typeof force === 'boolean') ? force : !this.isFilterPanelOpen;
+      if (this.isFilterPanelOpen) this.toggleTimeDropdown(false);
+      this.renderSearchChrome();
+      this.renderFilterPanel();
+    }
+
+    /** 筛选条件变更后的统一收尾：重绘胶囊、面板与列表（面板保持展开便于连续勾选） */
+    afterFilterChange() {
+      this.isFilterPanelOpen = true;
+      this.renderSearchChrome();
+      this.renderFilterPanel();
+      this.renderRows();
+      this.renderAppLauncher();
+      this.renderPreview();
     }
 
     toggleTimeDropdown(force) {
@@ -2798,16 +3335,26 @@
           </button>
         `;
       });
+      if (!groups.length) {
+        html = `<div class="nook-filter-empty" style="padding:8px 10px;">${this.t('timeMenuEmpty')}</div>`;
+      }
       dropdown.innerHTML = html;
       dropdown.style.display = 'flex';
     }
 
+    /**
+     * ⌘[ / ⌘] 在「全部 + 有内容的类型」间循环。
+     * 空类型槽（如回收站）不进循环——否则会切到一个空列表。
+     */
     cycleCategory(step) {
-      const allIds = [0, 8, 1, 4, 2, 5, 6, 7];
-      const currIdx = allIds.indexOf(this.activeCategory);
-      let nextIdx = (currIdx + step + allIds.length) % allIds.length;
-      this.activeCategory = allIds[nextIdx];
+      const ids = this.getCycleCategoryIds();
+      const currIdx = ids.indexOf(this.activeCategory);
+      const nextIdx = currIdx === -1
+        ? (step > 0 ? 0 : ids.length - 1)
+        : (currIdx + step + ids.length) % ids.length;
+      this.activeCategory = ids[nextIdx];
       this.render();
+      this.renderSearchChrome();
       const catName = this.getCategoryName(this.activeCategory);
       this.showToast(this.t('toasts').category(catName || this.getCategoryName(0)));
     }
@@ -3086,7 +3633,9 @@
       this.selectedId = this.items[0].id;
       this.selectedIds.clear();
       this.isBatchMode = false;
-      this.activeCategory = 0;
+      this.clearFilters();
+      this.isFilterPanelOpen = false;
+      this.filterKeyword = "";
       this.searchText = "";
       this.deletedStack = [];
       const searchInput = this.container.querySelector('#nookSearchInput');

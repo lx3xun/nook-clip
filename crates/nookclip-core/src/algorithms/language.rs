@@ -720,7 +720,17 @@ pub fn classify_code(text: &str) -> LanguageClassification {
         }
     }
 
-    // 6. 词边界关键字（≥2 字符）+ 字面标记加权打分
+    // 6. Markdown：识别 Markdown 结构（标题 / 列表 / 引用 / 链接 / 强调 / 代码围栏 / 表格），
+    //    显式归为 "markdown" 而非泛化的 code。放在关键字评分之前，避免 Markdown 正文里
+    //    夹带的 def/class/return 等词把它误判成某种编程语言。
+    if looks_like_markdown(&lines, &sample) {
+        return LanguageClassification {
+            is_code: true,
+            language: Some("markdown".to_string()),
+        };
+    }
+
+    // 7. 词边界关键字（≥2 字符）+ 字面标记加权打分
     let words: HashSet<String> = sample
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .filter(|s| s.chars().count() >= 2)
@@ -778,7 +788,7 @@ pub fn classify_code(text: &str) -> LanguageClassification {
         }
     }
 
-    // 7. 行格式启发（YAML / TOML）
+    // 8. 行格式启发（YAML / TOML）
     if looks_like_yaml(&lines) {
         return LanguageClassification {
             is_code: true,
@@ -792,7 +802,7 @@ pub fn classify_code(text: &str) -> LanguageClassification {
         };
     }
 
-    // 8. 结构兜底：多行且符号种类丰富 → 归入代码分类（language 为 None，UI 展示 Code 并由 highlight.js 自动检测）
+    // 9. 结构兜底：多行且符号种类丰富 → 归入代码分类（language 为 None，UI 展示 Code 并由 highlight.js 自动检测）
     let code_tokens = ["{", "}", "(", ")", ";", "=", "->", "=>", "[", "]"];
     let kinds = code_tokens.iter().filter(|t| trimmed.contains(**t)).count();
     if lines.len() >= 3 && kinds >= 4 {
@@ -856,6 +866,97 @@ fn sample_has_cjk(lines: &[&str]) -> bool {
         line.chars()
             .any(|c| (0x4E00..=0x9FFF).contains(&(c as u32)))
     })
+}
+
+fn looks_like_markdown(lines: &[&str], sample: &str) -> bool {
+    let non_empty: Vec<&str> = lines
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+    if non_empty.len() < 2 {
+        return false;
+    }
+
+    let mut headings = 0usize; // ATX 标题：# / ## / ### ...
+    let mut fences = 0usize; // ``` 代码围栏
+    let mut blockquotes = 0usize; // > 引用
+    let mut unordered = 0usize; // - / * / + 列表
+    let mut ordered = 0usize; // 1. 2. 有序列表
+    let mut tables = 0usize; // |---| 表格分隔行
+
+    for line in &non_empty {
+        // ATX 标题：1~6 个 '#' 后跟空格（或行尾）
+        if line.starts_with('#') {
+            let hashes = line.chars().take_while(|c| *c == '#').count();
+            let rest = line[hashes..].trim_start();
+            if (1..=6).contains(&hashes) && (rest.is_empty() || line[hashes..].starts_with(' ')) {
+                headings += 1;
+                continue;
+            }
+        }
+        if line.starts_with("```") || line.starts_with("~~~") {
+            fences += 1;
+            continue;
+        }
+        if line.starts_with('>') {
+            blockquotes += 1;
+            continue;
+        }
+        // 表格分隔：仅含 | - : 空格
+        if line.contains('|')
+            && line.contains('-')
+            && line
+                .chars()
+                .all(|c| c == '|' || c == '-' || c == ':' || c == ' ')
+        {
+            tables += 1;
+            continue;
+        }
+        // 无序列表：- / * / + 后跟空格（排除 --- 分隔线与 YAML 顶层键）
+        if line.starts_with("- ") || line.starts_with("* ") || line.starts_with("+ ") {
+            unordered += 1;
+            continue;
+        }
+        // 有序列表：数字 + '.' + 空格
+        let mut chars = line.chars();
+        let digits: String = chars.by_ref().take_while(|c| c.is_ascii_digit()).collect();
+        if !digits.is_empty() {
+            if let Some('.') = chars.next() {
+                if chars.next() == Some(' ') {
+                    ordered += 1;
+                }
+            }
+        }
+    }
+
+    // 行内链接 [text](url) 与强调 **bold** / 行内代码 `code`
+    let inline_links = sample.matches("](").count();
+    let has_emphasis = sample.contains("**") || sample.contains("__");
+    let inline_code = sample.matches('`').count() >= 2;
+
+    let structural = headings + fences + blockquotes + unordered + ordered + tables;
+    let inline = (inline_links > 0) as usize + has_emphasis as usize + inline_code as usize;
+
+    // 代码围栏或表格分隔行几乎只出现在 Markdown 中，单次命中即可判定。
+    if fences >= 1 || tables >= 1 {
+        return true;
+    }
+    // ATX 标题（# 后跟空格）在源码中罕见：命中标题时再叠加任一结构性/行内信号即判定。
+    if headings >= 1 && (structural + inline) >= 2 {
+        return true;
+    }
+    // 多标题文档（存在 ≥2 个 ATX 标题且无代码块符号）视为 Markdown；
+    // 单标题 + 纯文字属罕见歧义情形（与 `# 注释` 难区分），交由后续通用判定。
+    if headings >= 2 && !sample.contains(';') && !sample.contains('{') && !sample.contains('}') {
+        return true;
+    }
+    // 列表/引用与行内标记组合。
+    if structural >= 2 && inline >= 1 {
+        return true;
+    }
+    // 多处结构信号（纯列表、纯引用等）。
+    structural >= 3
 }
 
 fn looks_like_yaml(lines: &[&str]) -> bool {
@@ -943,6 +1044,41 @@ mod tests {
             classify_language(code).as_deref(),
             Some(expected),
             "expected language '{expected}' for sample:\n{code}"
+        );
+    }
+
+    #[test]
+    fn test_markdown_detected_as_markdown() {
+        // Markdown 文档应识别为 markdown，而非泛化的 code
+        for sample in [
+            "# 标题\n\n这是 **粗体**，见 [链接](https://example.com)。\n\n- 列表一\n- 列表二\n",
+            "## Features\n\n- Fast\n- Native\n\nSee [docs](https://x.io).\n",
+            "| A | B |\n|---|---|\n| 1 | 2 |\n",
+            "Use `foo()` to call.\n\n```swift\nprint(\"hi\")\n```\n",
+            "# NookClip\n\nA native manager.\n\n## Install\n\n```bash\nbrew install x\n```\n",
+        ] {
+            assert_eq!(
+                classify_language(sample).as_deref(),
+                Some("markdown"),
+                "expected markdown for sample:\n{sample}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_markdown_does_not_swallow_code() {
+        // 源码（即便含 # 注释 / - 列表符号）不应被误判为 Markdown
+        assert_lang(
+            "import SwiftUI\nstruct A: View {\n  var body: some View {\n    Text(\"x\")\n  }\n}",
+            "swift",
+        );
+        assert_lang(
+            "# compute\nimport os\ndef foo():\n    return 42\n\nclass A:\n    pass\n",
+            "python",
+        );
+        assert_lang(
+            "#!/bin/bash\n# deploy script\nset -e\necho hi\n\nfor f in *.sh; do\n  echo $f\ndone\n",
+            "shell",
         );
     }
 

@@ -316,6 +316,26 @@ enum NookClip {
     static let textOnAccentTertiary = Color.white.opacity(0.92)
     /// 列表行选中反白胶囊底色（纯白 22%）
     static let bgPillOnAccent = Color.white.opacity(0.22)
+
+    // MARK: - 标签（Tag）设计令牌 ·「墨迹元信息」风格
+    //
+    // 标签是「按需找回」的横向属性，不是第二导航，也不是每行都该抢眼的按钮。
+    // 因此统一降为次级信息：无描边、极浅底或纯文字、# 前缀弱化；只有悬停/
+    // 选中时才给极淡底与强调色。全部标签 UI 都从这里取色，避免各处以不同方式
+    // 组合边框导致视觉噪音。
+
+    /// 标签文字（静止态）：与次级文本同灰
+    static let tagText = textSecondary
+    /// 标签文字（选中/悬停强调）
+    static let tagTextActive = accent
+    /// 标签极浅底（静止态静默胶囊）：几乎透明，仅用于给文字一点承托
+    static let tagBg = Color.primary.opacity(0.045)
+    /// 标签悬停底色
+    static let tagBgHover = Color.primary.opacity(0.08)
+    /// 标签选中底色（沿用轻强调底）
+    static var tagBgSelected: Color { bgChipSelected }
+    /// `#` 前缀弱化色（比正文再淡一档，暗示「这是标签」而非内容）
+    static let tagHash = Color.primary.opacity(0.30)
     /// 经典系统强调色实色行底下的搜索命中高亮色：
     /// 默认荧光亮黄（#FFE633，在蓝/灰/紫等实底上极高对比度）；
     /// 若系统强调色本身为黄/橙色系，自适应防撞色切换为深炭黑（#1A1A1A）。
@@ -470,7 +490,7 @@ enum NookClip {
     static let animSelection = Animation.spring(response: 0.22, dampingFraction: 0.84)
     static let animSpring = Animation.spring(response: 0.26, dampingFraction: 0.80)
     // MARK: 4.3 关键尺寸
-    static let heightRowList: CGFloat = 50
+    static let heightRowList: CGFloat = 54
     static let heightSearch: CGFloat = 42
     static let heightToolbar: CGFloat = 42
     static let heightFooter: CGFloat = 22
@@ -482,15 +502,31 @@ enum NookClip {
     static let searchTopInset: CGFloat = 0
     /// 搜索内容左侧安全缩进（与分类/列表统一 14pt 左对齐基准线）
     static let searchContentLeadingPadding: CGFloat = 14
-    /// 搜索框与分类筛选条间的间距
-    static let searchBottomGap: CGFloat = 6
-    /// 分类筛选条高（内部 chip 垂直居中）
-    static let heightCategoryBar: CGFloat = 24
-    /// 分类筛选条与列表间的间距
-    static let categoryBarBottomGap: CGFloat = 6
+    /// 搜索框与下方组头/列表之间的间距。
+    /// 置 0：搜索框与吸顶组头直接贴合，避免组头看起来被一条空白带顶高
+    static let searchBottomGap: CGFloat = 0
     /// 列表滚动视口顶在列表列坐标系内的 Y（吸顶判定基准；
-    /// ScrollView 自身 background 的偏好对其外层不可见，无法运行时测量，只能常量推导）
-    static let listViewportTopY: CGFloat = searchTopInset + heightSearch + searchBottomGap + heightCategoryBar + categoryBarBottomGap
+    /// ScrollView 自身 background 的偏好对其外层不可见，无法运行时测量，只能常量推导）。
+    /// 分类/标签已收进搜索框展开面板，不再常驻分类条：视口紧贴搜索框下方（0 + 42 + 0 = 42）。
+    static let listViewportTopY: CGFloat = searchTopInset + heightSearch + searchBottomGap
+
+    // MARK: 4.4c 搜索框展开过滤面板（Spotlight/Raycast 式 · 类型网格 + 标签流式胶囊）
+    /// 浮层卡片宽 = 搜索框整列宽（310pt），与搜索框一体等宽展开（左右贴齐、无横向留白）
+    static let widthFilterPanel: CGFloat = widthListCol
+    /// 卡片左右内边距（与搜索框内容左缩进对齐）
+    static let filterPanelPadding: CGFloat = 12
+    /// 类型网格：列数 / 行数（固定 4 列 × 2 行 = 8 槽）
+    static let filterGridColumns = 4
+    static let filterGridRows = 2
+    /// 类型单元格高
+    static let heightFilterCell: CGFloat = 46
+    /// 网格单元横向 / 纵向间距
+    static let filterGridSpacingH: CGFloat = 6
+    static let filterGridSpacingV: CGFloat = 6
+    /// 类型区与标签区之间的分组小标题行高
+    static let heightFilterSectionLabel: CGFloat = 20
+    /// 标签流式胶囊区最大高度（约 2 行胶囊 + 间距，超出在区内滚动）
+    static let maxHeightFilterTags: CGFloat = 62
     /// 列表组头高（非紧凑态；紧凑态 20 见 GroupHeaderView）
     static let heightGroupHeader: CGFloat = 24
     /// 列表内容有效可视区顶 Y（吸顶组头 24pt 不算作列表内容可视区，行顶安全边界 = listViewportTopY + heightGroupHeader）
@@ -514,26 +550,13 @@ enum NookClip {
     static let hotZoneSearchBarBottomInset: CGFloat = 0
     /// 搜索栏热区左缘（顶格贴左）
     static let hotZoneSearchBarLeading: CGFloat = 0
+    /// 搜索框下方浮层（`#` 标签候选下拉 / 展开过滤面板）的热区高度：
+    /// 自上而下 = 搜索框带 + 间距 + 浮层卡片最高占用（类型网格 + 标签区）。
+    /// 该带须计入交互区，否则点击浮层会被面板当成「搜索框外点击」而先取消焦点，导致点击落空。
+    static let hotZoneTagDropdownHeight: CGFloat =
+        searchTopInset + heightSearch + searchBottomGap + 260
     /// 预览工具栏热区高（= heightToolbar + 8：复制/收藏/删除按钮带 + 余量）
     static let hotZonePreviewToolbarHeight: CGFloat = heightToolbar + 8
-    /// 时间轨热区宽（列表列右缘命中带）
-    static let hotZoneTimeRailWidth: CGFloat = 28
-
-    // MARK: 4.5 时间锚点条（列表右缘 · 极简刻度点轨）
-    /// 锚点条常态宽（极致纤细 8pt，静止不遮挡行尾时间文字）
-    static let widthTimeRail: CGFloat = 8
-    /// 锚点条交互感应热区宽（24pt）
-    static let hitWidthTimeRail: CGFloat = 24
-    /// 列表行尾文字避让安全边距（16pt）
-    static let rowTrailingMargin: CGFloat = 16
-    /// 锚点条悬停加宽（12pt，向左展开，右侧紧贴安全边距）
-    static let widthTimeRailExpanded: CGFloat = 12
-    /// 刻度点间距上限（组少时舒适间距）
-    static let heightTimeRailRow: CGFloat = 22
-    /// 刻度点间距下限（组多时压缩保可点性）
-    static let heightTimeRailRowMin: CGFloat = 10
-    /// 静止淡显不透明度（悬停/拖动时 1.0，0.15s 平滑过渡）
-    static let timeRailIdleOpacity: CGFloat = 0.75
 
     // MARK: 6.6 胶囊色（文本灰 / 代码蓝 / 图片紫）
 }

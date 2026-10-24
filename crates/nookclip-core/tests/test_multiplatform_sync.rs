@@ -140,6 +140,7 @@ fn test_sliding_window_export_limits_to_500_plus_favorites() {
             ocr_text: None,
             metadata_json: None,
             kind: "text".to_string(),
+            tags: Vec::new(),
         };
         repo.save_item(&item, None).unwrap();
     }
@@ -170,6 +171,7 @@ fn test_sliding_window_export_limits_to_500_plus_favorites() {
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     };
     repo.save_item(&old_fav, None).unwrap();
 
@@ -214,6 +216,7 @@ fn test_sync_cursors_and_fingerprint_short_circuit() {
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     };
     repo_a.save_item(&item, None).unwrap();
     let push_rep = engine_a.push(&repo_a).unwrap();
@@ -278,6 +281,7 @@ fn test_e2ee_passphrase_sync_roundtrip_between_devices() {
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     };
     repo_a.save_item(&item, None).unwrap();
     engine_a.push(&repo_a).unwrap();
@@ -341,6 +345,7 @@ fn test_sensitive_item_sync_preserves_plaintext_and_respects_allow_sensitive_on_
         ocr_text: None,
         metadata_json: None,
         kind: "text".to_string(),
+        tags: Vec::new(),
     };
     repo_a
         .save_item(&secret_item, Some("sk-secret-full-plaintext-1234"))

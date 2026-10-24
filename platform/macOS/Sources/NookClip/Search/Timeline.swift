@@ -1,7 +1,14 @@
 import Foundation
 
 // MARK: - 渐进式动态多级时间线分组
-// 今天 / 昨天 / 本周 / 上周 / 按月归档 / 按年归档 · 空组自动隐藏
+// 今天 / 昨天 / 本周（7 天内）· 之后按月归档 / 按年归档 · 空组自动隐藏
+
+/// 时间分档阈值——与 Rust 端 `TimeGroupLevel::SPAN_JUSTIFIED_DAYS` 必须同值。
+/// 只在一处定义，分组与测试都引用它，避免两处数字漂移。
+enum TimeGroupSpan {
+    /// 仍然用「今天/昨天/本周」这套相对标签解释的最大自然日差（含）
+    static let justifiedDays = 7
+}
 
 /// 可分组条目（持久化模型 ClipboardItem 与展示模型 ClipboardRowModel 均符合）
 protocol TimelineItem: Identifiable {
@@ -28,16 +35,23 @@ enum Timeline {
         case .thisWeek:
             return L10n.tr("timeline.this_week")
         case .lastWeek:
+            // 已退役档位：分组逻辑不再产出它（距今 > 7 天直接进月档）。
+            // 仅防御性保留：若旧快照/历史数据仍带该键，退回该档曾用的文案。
             return L10n.tr("timeline.last_week")
-        case .month(_, let month):
-            return monthTitle(Int(month))
+        case .month(let year, let month, let lastDay):
+            return monthTitle(Int(month), year: Int(year), lastDay: Int(lastDay))
         case .year(let year):
             return L10n.tr("timeline.year", String(year))
         }
     }
 
-    /// 分组规则（周界跟随系统区域设置，可用 calendar 参数注入测试夹具）：
-    /// ① 今天 ② 昨天 ③ 本周（与 now 同周，排除今天/昨天）④ 上周（前一自然周）
+    /// 分组规则（分档按「自然日差」，与 Rust 端 `bucket_of` 完全一致）：
+    /// ① 今天 ② 昨天 ③ 近档（距今 2–7 天）④ 月档（同年更早）⑤ 年档（跨年）
+    ///
+    /// 「上周」档已退役：若保留，菜单会变成「今天 / 昨天 / 本周 / 上周 / 本月」——
+    /// `上周` 是唯一按周切的档位（夹在按天与按月之间），而 `本月` 又包含 `上周`，
+    /// 两个标签语义互相嵌套。去掉后只剩两种粒度：7 天内按天，7 天外按月。
+    /// 也正因为不按周界切，本实现不读 `firstWeekday`。请勿改回 `weekOfYear`。
     /// 组内排序：按 lastUsedAt 降序（收藏只豁免清理，不影响排序）
     /// 分组键 = lastUsedAt（重复复制会刷新 lastUsedAt 并置顶，
     /// 与列表排序/保留期清理/iCloud 合并的 recency 权威字段一致）
@@ -50,26 +64,31 @@ enum Timeline {
         var todayItems: [Item] = []
         var yesterdayItems: [Item] = []
         var thisWeekItems: [Item] = []
-        var lastWeekItems: [Item] = []
         var monthBuckets: [Int: [Item]] = [:]
         var yearBuckets: [Int: [Item]] = [:]
 
-        let lastWeekRef = calendar.date(byAdding: .weekOfYear, value: -1, to: now) ?? now
-        let yesterdayRef = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        // 自然日差基准：今天 00:00。分档只看「差几个自然日」，
+        // 不依赖 firstWeekday / 周界（与 Rust 端 bucket_of 同源）
+        let todayStart = calendar.startOfDay(for: now)
+        let spanWindowStart = calendar.date(
+            byAdding: .day, value: -TimeGroupSpan.justifiedDays, to: todayStart
+        ) ?? todayStart
+
+        let currentYear = calendar.component(.year, from: now)
 
         for item in items {
             let date = item.lastUsedAt
-            if calendar.isDate(date, equalTo: now, toGranularity: .day) {
+            if date >= todayStart || calendar.isDate(date, equalTo: now, toGranularity: .day) {
                 todayItems.append(item)
-            } else if calendar.isDate(date, equalTo: yesterdayRef, toGranularity: .day) {
+            } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: todayStart),
+                      calendar.isDate(date, inSameDayAs: yesterday) {
                 yesterdayItems.append(item)
-            } else if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
+            } else if date >= spanWindowStart {
+                // 距今 2–7 天：仍用「本周」标签（"7 天内"对用户即"本周"）
                 thisWeekItems.append(item)
-            } else if calendar.isDate(date, equalTo: lastWeekRef, toGranularity: .weekOfYear) {
-                lastWeekItems.append(item)
             } else {
                 let year = calendar.component(.year, from: date)
-                if year == calendar.component(.year, from: now) {
+                if year == currentYear {
                     let month = calendar.component(.month, from: date)
                     monthBuckets[month, default: []].append(item)
                 } else {
@@ -86,9 +105,14 @@ enum Timeline {
         make(L10n.tr("timeline.today"), "today", todayItems)
         make(L10n.tr("timeline.yesterday"), "yesterday", yesterdayItems)
         make(L10n.tr("timeline.this_week"), "this-week", thisWeekItems)
-        make(L10n.tr("timeline.last_week"), "last-week", lastWeekItems)
         for month in monthBuckets.keys.sorted(by: >) {
-            make(monthTitle(month), "month-\(month)", monthBuckets[month] ?? [])
+            // 当月桶只覆盖到「今天 - 近档窗口」，标题要带上这段范围
+            let lastDay = monthBucketLastDay(month: month, today: todayStart, calendar: calendar)
+            make(
+                monthTitle(month, year: currentYear, lastDay: lastDay, calendar: calendar),
+                "month-\(month)",
+                monthBuckets[month] ?? []
+            )
         }
         for year in yearBuckets.keys.sorted(by: >) {
             make(L10n.tr("timeline.year", String(year)), "year-\(year)", yearBuckets[year] ?? [])
@@ -106,7 +130,7 @@ enum Timeline {
 
     /// 全量时间戳分组：Rust 聚合的全部命中条目 last_used_at → 时间分组摘要。
     /// 与分页列表无关——分组规则、标题、排序和 `group` 完全一致（复用同一实现），
-    /// 解决 pageSize 截断导致锚点条缺失更早分组（上周/月份/年份）的问题。
+    /// 解决 pageSize 截断导致锚点条缺失更早分组（月份/年份）的问题。
     static func groupTimestamps(
         _ timestamps: [Date],
         now: Date = Date(),
@@ -126,8 +150,54 @@ enum Timeline {
         }
     }
 
-    /// 月归档标题：跟随当前生效语言（zh「8月」/ en「Aug」）
-    private static func monthTitle(_ month: Int) -> String {
+    /// 当月桶实际覆盖到的最后一天——与 Rust `month_bucket_last_day` 同算法：
+    /// 历史月份返回该月天数；当月返回「今天 - (窗口+1)」的日号，月初为 0（该桶不产生）。
+    static func monthBucketLastDay(month: Int, today: Date, calendar: Calendar) -> Int {
+        let currentYear = calendar.component(.year, from: today)
+        let currentMonth = calendar.component(.month, from: today)
+        guard month == currentMonth else {
+            return daysIn(month: month, year: currentYear, calendar: calendar)
+        }
+        guard let cutoff = calendar.date(
+            byAdding: .day, value: -(TimeGroupSpan.justifiedDays + 1), to: today
+        ), calendar.component(.month, from: cutoff) == month,
+           calendar.component(.year, from: cutoff) == currentYear else { return 0 }
+        return calendar.component(.day, from: cutoff)
+    }
+
+    /// 月归档标题：跟随当前生效语言（zh「8月」/ en「Aug」）。
+    ///
+    /// `lastDay` 是该桶实际覆盖到的最后一天。当月桶只装「近档窗口之外」的条目
+    /// （今天是 10/23、窗口 7 天 → 本月桶是 10/1–10/15），所以标签必须带上范围，
+    /// 否则「10月 · 15」会被读成「10 月一共只有 15 条」，而它只覆盖到 15 日。
+    /// 完整的月份（历史月份，`lastDay == 该月总天数`）不带范围，仍显示「9月」。
+    static func monthTitle(
+        _ month: Int,
+        year: Int? = nil,
+        lastDay: Int,
+        calendar: Calendar = .current
+    ) -> String {
+        let name = monthName(month)
+        let effectiveYear = year ?? calendar.component(.year, from: Date())
+        let totalDays = daysIn(month: month, year: effectiveYear, calendar: calendar)
+
+        // 历史月份（lastDay == 该月天数）或无效范围 → 覆盖整月，不带范围
+        guard lastDay > 0, lastDay < totalDays else { return name }
+
+        if lastDay == 1 {
+            return L10n.tr("timeline.month_range_same_day", name, lastDay)
+        }
+        return L10n.tr("timeline.month_range", name, 1, lastDay)
+    }
+
+    private static func daysIn(month: Int, year: Int, calendar: Calendar = .current) -> Int {
+        guard let date = calendar.date(from: DateComponents(year: year, month: month, day: 1)),
+              let range = calendar.range(of: .day, in: .month, for: date) else { return 31 }
+        return range.count
+    }
+
+    /// 月份名（zh「8月」/ en「Aug」），不含范围
+    private static func monthName(_ month: Int) -> String {
         let locale = LocalizationManager.shared.locale
         // Formatter 静态缓存（FR-010）：按 locale.identifier 作 key，语言切换自动失效
         let formatter: DateFormatter

@@ -39,14 +39,14 @@ fn main() {
     // 模拟每次搜索按键：count_categories（无关键词全表扫描）
     let t1 = std::time::Instant::now();
     for _ in 0..5 {
-        let _ = repo.count_categories(None).unwrap();
+        let _ = repo.count_categories(None, None).unwrap();
     }
     println!("count_categories(empty) avg: {:?}", t1.elapsed() / 5);
 
     // 模拟带 FTS 关键词的计数
     let t2 = std::time::Instant::now();
     for _ in 0..5 {
-        let _ = repo.count_categories(Some("title")).unwrap();
+        let _ = repo.count_categories(Some("title"), None).unwrap();
     }
     println!("count_categories(fts hit) avg: {:?}", t2.elapsed() / 5);
 

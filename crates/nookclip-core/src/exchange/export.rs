@@ -21,6 +21,8 @@ pub struct BackupExportItem {
     pub created_at: f64,
     pub last_used_at: f64,
     pub copy_count: i64,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +70,9 @@ pub fn export_markdown(
         }
         if item.is_sensitive {
             md.push_str("- **Sensitive**: protected\n");
+        }
+        if !item.tags.is_empty() {
+            md.push_str(&format!("  Tags: {}\n", item.tags.join(", ")));
         }
         md.push_str("\n```\n");
         match &item.raw_text {

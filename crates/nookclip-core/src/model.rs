@@ -19,6 +19,16 @@ pub struct ClipItemSummary {
     pub ocr_text: Option<String>,
     pub metadata_json: Option<String>,
     pub kind: String,
+    /// 标签列表（按 created_at 升序；无标签为空）。
+    pub tags: Vec<String>,
+}
+
+/// 单个标签的统计信息（用于筛选条）：`name` 为归一化后的展示名，
+/// `count` 为未删除条目中带该标签的条数（大小写不敏感归并）。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TagStat {
+    pub name: String,
+    pub count: u32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -38,6 +48,8 @@ pub struct QueryFilter {
     pub search_query: Option<String>,
     pub item_type: Option<String>,
     pub kind: Option<String>,
+    /// 单标签等值过滤（大小写不敏感）；None/空 = 不过滤。
+    pub tag: Option<String>,
     pub favorite_only: bool,
     pub include_deleted: bool,
     /// 只看回收站（`deleted_at IS NOT NULL`，按删除时间倒序）。
@@ -86,13 +98,48 @@ pub struct DetectionResult {
 }
 // === 1. Pipeline & Timeline ===
 
+/// 时间分组的用户认知「距离档位」——决定标签用词与分组粒度：
+/// - `Near`（近档：今天 / 昨天 / 本周）：用户按「几天前」回忆；
+/// - `Far`（远档：月份 / 年份）：用户按「哪一月/哪一年」回忆。
+///
+/// 分档阈值 `SPAN_JUSTIFIED_DAYS`：距今 ≤ 7 天时「今天/昨天/本周」三个词
+/// 承载全部信息；更早一律按月/年归档——中间不再有「上周」这一档。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeGroupLevel {
+    Near,
+    Far,
+}
+
+impl TimeGroupLevel {
+    /// 距今 `days_elapsed` 天（自然日差，今天 = 0）的条目用哪种粒度的分组标签
+    pub fn for_elapsed_days(days_elapsed: i64) -> Self {
+        if days_elapsed <= Self::SPAN_JUSTIFIED_DAYS {
+            TimeGroupLevel::Near
+        } else {
+            TimeGroupLevel::Far
+        }
+    }
+
+    /// 仍然用「今天/昨天/本周」这套相对标签解释的最大自然日差（含）：7 天
+    pub const SPAN_JUSTIFIED_DAYS: i64 = 7;
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TimeBucketKey {
     Today,
     Yesterday,
     ThisWeek,
+    /// 已弃用：「上周」档已退役，距今 > 7 天的条目直接进月/年档。
+    /// 枚举变体保留仅为跨端 FFI 契约兼容，分组逻辑不再产出它。
     LastWeek,
-    Month { year: i32, month: u32 },
+    /// 月归档。`last_day` 是本月桶实际覆盖到的最后一天（本地日）：
+    /// 月初到「今天 - 近档窗口」之间的那段。展示层据此渲染成
+    /// 「10月 1–15日」，避免和上面按天归档的「今天/昨天/本周」重叠歧义。
+    Month {
+        year: i32,
+        month: u32,
+        last_day: u32,
+    },
     Year { year: i32 },
 }
 

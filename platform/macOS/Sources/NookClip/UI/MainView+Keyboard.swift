@@ -6,8 +6,8 @@ import SwiftUI
 // 面板内快捷键的键位分发改在 AppKit 层单一入口（DraggablePanel.
 // dispatchKeyboardEvent，键位匹配的唯一事实来源），本文件提供动作表
 // 实现：闭包捕获的 @State 经包装器存储读取，始终为当前值（与
-// coordinator 钩子同一接线模式）。语义路由（分类下拉开合时 ↑↓ 移动
-// 高亮、批量/单条粘贴）依赖视图状态，留在动作内部，两层职责不重叠。
+// coordinator 钩子同一接线模式）。语义路由（过滤面板开合、批量/单条粘贴）
+// 依赖视图状态，留在动作内部，两层职责不重叠。
 
 extension MainView {
     var lifecycleHandlers: some View {
@@ -20,7 +20,15 @@ extension MainView {
             accessibilityTrusted = PasteService.isAccessibilityTrusted
         }
         .onChange(of: searchFieldFocused) { _, focused in
-            if !focused, renamingItemID == nil { keyAnchorFocused = true }
+            if focused {
+                // 聚焦搜索框即展开过滤面板（Spotlight 式：点搜索框 / ⌘F）；搜索框非空时不展开
+                if listState.searchText.isEmpty {
+                    filterState.filterPanelOpen = true
+                }
+            } else if renamingItemID == nil {
+                keyAnchorFocused = true
+                filterState.filterPanelOpen = false
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .quickPopoverDidOpen)) { _ in
             resetSessionState()
@@ -47,19 +55,15 @@ extension MainView {
     var panelKeyActions: PanelKeyActions {
         PanelKeyActions(
             arrow: { step, extend in
-                if filterState.categoryMenuOpen {
-                    moveCategoryMenuHighlight(step)
-                } else if extend {
+                if extend {
                     extendSelection(offset: step)
                 } else {
                     moveSelection(offset: step)
                 }
             },
-            toggleCategoryMenu: { toggleCategoryMenu() },
+            toggleFilterPanel: { toggleFilterPanel() },
             confirm: { keepOpen, plainTextOnly in
-                if let id = filterState.categoryMenuHighlight, filterState.categoryMenuOpen {
-                    filterState.selectCategory(id)
-                } else if let selectedApp = matchedApps.first(where: { $0.id == selectedAppID }) {
+                if let selectedApp = matchedApps.first(where: { $0.id == selectedAppID }) {
                     openApplication(selectedApp)
                 } else if isBatchMode {
                     pasteBatch(keepOpen: keepOpen, plainTextOnly: plainTextOnly)
@@ -74,25 +78,70 @@ extension MainView {
             },
             copySelection: { copyFromSelection() },
             beginRename: { beginRename() },
+            beginTagEdit: { beginTagEdit() },
             toggleFavorite: {
                 if let id = listState.selectedID { store.toggleFavorite(id) }
             },
             cycleTimeAnchor: { cycleTimeAnchor() },
             undoDelete: { undoDelete() },
             deleteSelection: { deleteSelection() },
-            focusSearch: { searchFieldFocused = true },
+            focusSearch: {
+                searchFieldFocused = true
+                filterState.filterPanelOpen = true
+            },
             typeToSearch: { event in
                 searchFieldFocused = true
+                filterState.filterPanelOpen = false
                 DispatchQueue.main.async { NSApp.sendEvent(event) }
-            }
+            },
+            removeLastFilterChip: { removeLastFilterChip() }
         )
     }
 
+    /// ⌫（搜索框为空时）：删除最近一枚过滤条件胶囊（标签优先，其次分类）。
+    /// 返回 true 表示消耗了本次按键。
+    @discardableResult
+    func removeLastFilterChip() -> Bool {
+        guard listState.searchText.isEmpty else { return false }
+        if listState.selectedTag != nil {
+            listState.setSelectedTag(nil, dataVersion: store.dataVersion)
+            return true
+        }
+        if effectiveCategory != 0 {
+            listState.setCategorySelection(0, dataVersion: store.dataVersion)
+            return true
+        }
+        return false
+    }
+
+    /// 开合过滤面板（点击搜索框 / ⌘↓）：聚焦搜索框并翻转展开态
+    func toggleFilterPanel() {
+        if filterState.filterPanelOpen {
+            filterState.filterPanelOpen = false
+        } else {
+            filterState.filterPanelOpen = true
+            searchFieldFocused = true
+        }
+    }
+
     func handleEscapeKey() {
-        if filterState.categoryMenuOpen { closeMenus(); return }
+        // 标签编辑器/重命名浮层优先关闭
+        if tagEditorAnchor != nil { closeTagEditor(); return }
+        if tagRenameTarget != nil { cancelTagRename(); return }
+        // 过滤面板展开态：Esc 先收起浮层（搜索框仍聚焦也不重新撑开——由 filterPanelOpen 驱动）
+        if showsFilterPanel {
+            filterState.filterPanelOpen = false
+            return
+        }
         if isBatchMode { listState.selectionIDs.removeAll(); return }
         if !listState.searchText.isEmpty {
             listState.setSearchText("", dataVersion: store.dataVersion)
+            searchFieldFocused = true
+            return
+        }
+        // 内嵌条件胶囊：标签 → 分类，按 ⌫/Esc 逐层清除
+        if listState.selectedTag != nil {
+            listState.setSelectedTag(nil, dataVersion: store.dataVersion)
             searchFieldFocused = true
             return
         }
@@ -105,4 +154,3 @@ extension MainView {
         onClose()
     }
 }
-

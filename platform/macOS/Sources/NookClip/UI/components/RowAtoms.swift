@@ -115,7 +115,7 @@ struct CategoryIconTile: View {
                     ? NookClip.bgPillOnAccent
                     : (isSemanticWarning ? NookClip.colorSensitive.opacity(0.12) : NookClip.bgRowOn)
             )
-            .frame(width: 28, height: 28)
+            .frame(width: 30, height: 30)
             .overlay {
                 Image(systemName: kind.categorySymbol)
                     .font(.system(size: NookClipIconSize.regular, weight: .semibold))
@@ -125,7 +125,7 @@ struct CategoryIconTile: View {
                             : (isSemanticWarning ? NookClip.colorSensitive : NookClip.textSecondary)
                     )
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 34, height: 34)
     }
 }
 
@@ -137,12 +137,12 @@ struct ColorSwatchTile: View {
     var body: some View {
         RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
             .fill(color)
-            .frame(width: 28, height: 28)
+            .frame(width: 30, height: 30)
             .overlay {
                 RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
                     .strokeBorder(isSolidSelected ? NookClip.textOnAccent.opacity(0.65) : NookClip.borderHairline, lineWidth: isSolidSelected ? 1.5 : 1.0)
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 34, height: 34)
     }
 }
 
@@ -193,7 +193,7 @@ struct RowThumbnailView: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 30, height: 30)
                     .clipShape(RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
@@ -203,7 +203,7 @@ struct RowThumbnailView: View {
                 ThumbnailPlaceholderView(isSolidSelected: isSolidSelected)
             }
         }
-        .frame(width: 32, height: 32)
+        .frame(width: 34, height: 34)
         .task(id: path) {
             guard image == nil else { return }
             let loaded = await Task.detached(priority: .utility) {
@@ -243,13 +243,8 @@ struct RowTitleView: View {
                 .searchHighlightRenderer()
                 .lineLimit(1)
                 .truncationMode(item.kind == .url || item.kind == .file ? .middle : .tail)
-                .font(item.titleMono ? .nookClipMono(monoSize) : .nookClipBody)
+                .font(item.titleMono ? .nookClipMono(monoSize, .medium) : .nookClipBodyMedium)
                 .foregroundStyle(isSolidSelected ? NookClip.textOnAccent : (item.isSensitive ? NookClip.colorSensitive : NookClip.textPrimary))
-            // 格式徽标（PNG/MD/JSON/语言）：敏感行 badge 恒为 nil，与橙色「敏感」胶囊不冲突
-            if let badge = item.badge {
-                PillView(text: badge.label, isAccent: badge.isAccent, isOnAccent: isSolidSelected)
-                    .fixedSize()
-            }
         }
     }
 }
@@ -258,11 +253,9 @@ struct RowTitleView: View {
 struct RowSubtitleView: View {
     let item: ClipboardRowModel
     var isSolidSelected: Bool = false
+    /// 行是否活跃（悬停或选中）：静止时行内标签不显示，保持列表干净
+    var isActive: Bool = false
     var highlightKeywords: [String]? = nil
-
-    private var sourceDisplayName: String {
-        item.sourceDisplayName
-    }
 
     /// 按记录类型补充有价值的副行上下文（不重复主标题，不展示复制次数）
     var contextualDetail: String? {
@@ -305,17 +298,16 @@ struct RowSubtitleView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            AppIconBadge(app: item.source, size: 12)
-            SearchHighlight.text(sourceDisplayName, keywords: highlightKeywords, isOnAccent: isSolidSelected)
-                .searchHighlightRenderer()
-                .font(.nookClipMeta)
-                .foregroundStyle(isSolidSelected ? NookClip.textOnAccentSecondary : NookClip.textSecondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+            // 副行不再重复「来源图标 + 来源应用名」：来源 App 仅以主图标右下角的小角标呈现，
+            // 完整应用名改到右侧预览区顶栏展示。副行整行统一为更浅的 textTertiary、
+            // Regular 字重，让高对比度 Medium 主标题一眼跳出来（Spotlight 式层级）。
+            // 文件/图片/代码等类型徽标（PNG/MD/JSON/语言）从主标题移到副行开头展示，
+            // 主标题只保留纯内容，类型信息归入次级元信息层。
+            if let badge = item.badge {
+                PillView(text: badge.label, isAccent: badge.isAccent, isOnAccent: isSolidSelected)
+                    .fixedSize()
+            }
             if let detail = contextualDetail {
-                Text("·")
-                    .font(.nookClipMeta)
-                    .foregroundStyle(isSolidSelected ? NookClip.textOnAccentTertiary : NookClip.textTertiary)
                 SearchHighlight.text(detail, keywords: highlightKeywords, isOnAccent: isSolidSelected)
                     .searchHighlightRenderer()
                     .font(.nookClipMeta)
@@ -323,6 +315,12 @@ struct RowSubtitleView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+            // 副行尾部迷你 #tag（最多 2 个，超出 +N）——始终展示，便于一眼看到条目标签
+            RowTagsInlineView(
+                tags: item.tags,
+                maxVisible: 2,
+                isSolidSelected: isSolidSelected
+            )
         }
     }
 }

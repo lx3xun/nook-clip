@@ -268,4 +268,149 @@ final class ClipboardRowModelTests: XCTestCase {
         let subtitleView = RowSubtitleView(item: rowModel)
         XCTAssertEqual(subtitleView.contextualDetail, "github.com", "URL 条目仍应提取域名作为副行上下文")
     }
+
+    // MARK: 相对时间展示（今天只显示时间 / 本周显示周几 / 昨天保留）
+
+    private func makeCalendar() -> Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = Locale(identifier: "zh_CN")
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        cal.firstWeekday = 2 // 周一为一周起点
+        return cal
+    }
+
+    func testRelativeTimeTodayShowsOnlyClock() {
+        let cal = makeCalendar()
+        // 2026-10-23（周五）15:20，条目在当天 09:05
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 9, minute: 5))!
+        let text = RelativeTime.string(from: date, now: now, calendar: cal)
+        XCTAssertEqual(text, "09:05", "今天应只显示时间，不带「今天」前缀")
+    }
+
+    func testRelativeTimeYesterdayKeepsYesterdayLabel() {
+        let cal = makeCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 22, hour: 9, minute: 5))!
+        let text = RelativeTime.string(from: date, now: now, calendar: cal)
+        XCTAssertTrue(text.hasPrefix("昨天"), "昨天应保留「昨天」文案，实际：\(text)")
+        XCTAssertTrue(text.contains("09:05"))
+    }
+
+    func testRelativeTimeEarlierThisWeekShowsWeekday() {
+        let cal = makeCalendar()
+        // now = 2026-10-23 周五；10-21 周三 属本周且早于昨天 → 显示周几
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.string(from: date, now: now, calendar: cal)
+        XCTAssertTrue(text.hasPrefix("周三"), "本周较早日期应显示具体周几，实际：\(text)")
+        XCTAssertTrue(text.contains("09:05"))
+    }
+
+    func testRelativeTimePreviousWeekFallsBackToMonthDay() {
+        let cal = makeCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 12, hour: 9, minute: 5))!
+        let text = RelativeTime.string(from: date, now: now, calendar: cal)
+        XCTAssertTrue(text.contains("10月12日"), "上周日期仍应按「月日 + 时间」展示，实际：\(text)")
+    }
+
+    // MARK: 点击时间戳切换的完整时间文本
+
+    func testDetailedStringSameYearOmitsYear() {
+        let cal = makeCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.detailedString(from: date, now: now, calendar: cal)
+        XCTAssertEqual(text, "10月21日 周三 09:05", "当年应展示「月日 周几 时间」，不带年份")
+    }
+
+    func testDetailedStringOtherYearIncludesYear() {
+        let cal = makeCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        // 2024-10-21 是周一
+        let date = cal.date(from: DateComponents(year: 2024, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.detailedString(from: date, now: now, calendar: cal)
+        XCTAssertEqual(text, "2024年10月21日 周一 09:05", "跨年时应在最前面补上年份")
+    }
+
+    // MARK: 英文用户的时间展示（本地化，不得输出中文「年月日」）
+
+    private func makeEnglishCalendar() -> Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = Locale(identifier: "en_US")
+        cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        cal.firstWeekday = 1 // 美国习惯：周日为一周起点
+        return cal
+    }
+
+    func testEnglishDetailedStringUsesEnglishFormat() {
+        let cal = makeEnglishCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.detailedString(from: date, now: now, calendar: cal)
+        XCTAssertEqual(text, "Wed, Oct 21 09:05", "英文当年应为「Wed, Oct 21 09:05」")
+    }
+
+    func testEnglishDetailedStringOtherYearIncludesYear() {
+        let cal = makeEnglishCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2024, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.detailedString(from: date, now: now, calendar: cal)
+        XCTAssertEqual(text, "Mon, Oct 21, 2024 09:05", "英文跨年应为「Mon, Oct 21, 2024 09:05」")
+    }
+
+    func testEnglishEarlierThisWeekShowsEnglishWeekday() {
+        let cal = makeEnglishCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.string(from: date, now: now, calendar: cal)
+        XCTAssertTrue(text.uppercased().hasPrefix("WED"), "英文本周日期应显示 Wed，实际：\(text)")
+        XCTAssertTrue(text.contains("09:05"))
+    }
+
+    /// 英文更早日期（非本周、同一年）应为缩写月份而非「月/日」数字格式
+    func testEnglishOlderDateUsesAbbreviatedMonth() {
+        let cal = makeEnglishCalendar()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 12, hour: 9, minute: 5))!
+        let text = RelativeTime.string(from: date, now: now, calendar: cal)
+        XCTAssertEqual(text, "Oct 12 09:05", "英文更早日期应为「Oct 12 09:05」而非「10/12」")
+
+        let crossYear = cal.date(from: DateComponents(year: 2024, month: 10, day: 21, hour: 9, minute: 5))!
+        let crossText = RelativeTime.string(from: crossYear, now: now, calendar: cal)
+        XCTAssertEqual(crossText, "Oct 21, 2024", "英文跨年日期应为「Oct 21, 2024」")
+    }
+
+    /// 繁体中文组合模板曾把周几粘在日期后（「10月21日週三」），应补空格
+    func testTraditionalChineseWeekdayHasSpaceBeforeIt() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = Locale(identifier: "zh_TW")
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let date = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 9, minute: 5))!
+        let text = RelativeTime.detailedString(from: date, now: now, calendar: cal)
+        XCTAssertTrue(text.contains("10月21日 週三"), "繁中应为「10月21日 週三」带空格，实际：\(text)")
+    }
+
+    /// 回归：App 内切换语言后，时间展示必须跟随 App 语言而非系统语言。
+    /// 曾出现「系统中文 + App 英文」时仍输出「周三 / 10月21日」的中英混排。
+    func testAppLanguageEnglishOverridesSystemLocaleForTimestamps() {
+        let original = LocalizationManager.shared.selectedLanguage
+        defer { LocalizationManager.shared.selectedLanguage = original }
+
+        LocalizationManager.shared.selectedLanguage = .en
+        let cal = RelativeTime.displayCalendar
+        XCTAssertEqual(cal.locale?.identifier, "en", "展示日历应跟随 App 语言（en）而非系统语言")
+
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 23, hour: 15, minute: 20))!
+        let thisWeek = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 9, minute: 5))!
+        let compact = RelativeTime.string(from: thisWeek, now: now, calendar: cal)
+        let detailed = RelativeTime.detailedString(from: thisWeek, now: now, calendar: cal)
+        for text in [compact, detailed] {
+            XCTAssertFalse(text.contains("周") || text.contains("月") || text.contains("日"),
+                           "App 英文下不得出现中文日期单位，实际：\(text)")
+        }
+        XCTAssertTrue(detailed.uppercased().contains("WED"), "App 英文下应出现英文周几，实际：\(detailed)")
+    }
 }

@@ -34,6 +34,13 @@ private struct CalendarPageFlipModifier: ViewModifier {
     }
 }
 
+/// 时间分组跳转条目（吸顶组头下拉菜单的数据源）
+struct TimelineRailItem: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let count: Int?
+}
+
 struct GroupHeaderView: View {
     var groupID: String = ""
     let title: String
@@ -59,47 +66,49 @@ struct GroupHeaderView: View {
         )
     }
 
+    /// 是否提供分组跳转入口（分组多于一个时由 MainView 注入）
+    private var hasJumpMenu: Bool {
+        guard let allGroups, let onSelectGroup else { return false }
+        return !allGroups.isEmpty
+    }
+
     var body: some View {
         HStack(spacing: 4) {
-            HStack(spacing: 4) {
-                Text(title)
-                    .font(.nookClipMetaMedium)
-                    .foregroundStyle(NookClip.textSecondary)
-                Text("·")
-                    .font(.nookClipMeta)
-                    .foregroundStyle(NookClip.textTertiary)
-                Text("\(count)")
-                    .font(.nookClipMeta)
-                    .monospacedDigit()
-                    .foregroundStyle(NookClip.textTertiary)
-                    .contentTransition(.numericText())
-            }
-            .id(pageIdentity)
-            .transition(calendarFlipTransition)
-
-            Spacer(minLength: 0)
-
-            if let allGroups, !allGroups.isEmpty, let onSelectGroup {
+            if hasJumpMenu, let allGroups, let onSelectGroup {
+                // 标题即入口：点击「今天 · 29」整块弹出分组菜单。
+                // 常态无任何图标，悬停时文字提亮并淡入小 ⌄ —— 可发现性来自悬停，观感不来自装饰。
                 Button {
                     showGroupMenu(allGroups: allGroups, onSelectGroup: onSelectGroup)
                 } label: {
-                    Image(systemName: NookClipIcon.Nav.chevronUpDown)
-                        .font(.system(size: NookClipIconSize.microSmall, weight: .semibold))
-                        .foregroundStyle(isHovered ? NookClip.textPrimary : NookClip.textSecondary)
-                        .frame(width: 20, height: 20)
-                        .background {
-                            if isHovered {
-                                RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
-                                    .fill(NookClip.bgRowOn)
-                            }
+                    HStack(spacing: 3) {
+                        titleCluster
+                        Image(systemName: NookClipIcon.Nav.chevronUpDown)
+                            .font(.system(size: NookClipIconSize.microSmall, weight: .semibold))
+                            .foregroundStyle(NookClip.textSecondary)
+                            .opacity(isHovered ? 1 : 0)
+                            .animation(.easeOut(duration: 0.12), value: isHovered)
+                    }
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background {
+                        if isHovered {
+                            RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
+                                .fill(NookClip.bgRowOn)
                         }
-                        .contentShape(Rectangle())
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
                 .onHover { isHovered = $0 }
                 .help(L10n.tr("hints.time_jump"))
+                // 负边距抵消内边距，标题文字仍与列表行左缘（12pt）对齐
+                .padding(.leading, -5)
+            } else {
+                titleCluster
             }
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .frame(height: NookClip.heightGroupHeader)
@@ -111,6 +120,25 @@ struct GroupHeaderView: View {
                 .fill(NookClip.separator.opacity(0.6))
                 .frame(height: 0.5)
         }
+    }
+
+    /// 「组名 · 计数」排印组：悬停时整体提到主文字色，表达可交互
+    private var titleCluster: some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.nookClipMetaMedium)
+                .foregroundStyle(isHovered && hasJumpMenu ? NookClip.textPrimary : NookClip.textSecondary)
+            Text("·")
+                .font(.nookClipMeta)
+                .foregroundStyle(NookClip.textTertiary)
+            Text("\(count)")
+                .font(.nookClipMeta)
+                .monospacedDigit()
+                .foregroundStyle(NookClip.textTertiary)
+                .contentTransition(.numericText())
+        }
+        .id(pageIdentity)
+        .transition(calendarFlipTransition)
     }
 
     private func showGroupMenu(allGroups: [TimelineRailItem], onSelectGroup: @escaping (String) -> Void) {

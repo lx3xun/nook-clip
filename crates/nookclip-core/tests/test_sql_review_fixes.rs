@@ -46,6 +46,8 @@ fn record(id: &str, summary: &str, updated_at: f64, deleted_at: Option<f64>) -> 
         source_device_id: None,
         source_device_name: None,
         source_platform: None,
+        tags: Vec::new(),
+        tags_updated_at: 0.0,
     }
 }
 
@@ -218,6 +220,8 @@ fn tombstone_only_record_does_not_create_ghost_row() {
         source_device_id: None,
         source_device_name: None,
         source_platform: None,
+        tags: Vec::new(),
+        tags_updated_at: 0.0,
     };
     repo.reconcile_sync_items(&[ghost], &HashMap::new()).unwrap();
 

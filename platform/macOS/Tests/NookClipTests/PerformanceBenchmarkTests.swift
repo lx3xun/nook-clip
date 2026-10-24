@@ -175,7 +175,9 @@ final class PerformanceBenchmarkTests: XCTestCase {
 
         // ---------- 2. 冷启动 ----------
         let defaults = makeIsolatedDefaults()
-        defaults.set(0, forKey: "historyRetentionDays") // 无限制：基准库不被启动清理改写
+        // 基准库规模（5k/10k/50k）远超产品硬上限 1000 条；「无限制」已退役，
+        // 改用只对性能基准生效的内部开关关闭条数裁剪（用户路径恒被收敛到硬上限）。
+        defaults.set(true, forKey: HistoryMaxItemsPolicy.benchmarkUnlimitedKey)
         defaults.set(true, forKey: InMemoryHistoryStore.demoSeededKey) // 跳过演示数据播种
         let cold = bench("冷启动 InMemoryHistoryStore（首页100+回收站+清理检查）",
                          note: "items=\(db.page(limit: InMemoryHistoryStore.pageSize).count)") {

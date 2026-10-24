@@ -12,11 +12,11 @@ struct PanelKeyActions {
     /// ↑/↓（含按住重复）：分类下拉打开时移动高亮，否则移动/扩展（⇧）列表选中。
     /// 参数：步进（-1 上移 / +1 下移）、是否 ⇧ 扩展选区
     var arrow: (_ step: Int, _ extend: Bool) -> Void
-    /// ⌘↓：开合分类下拉
-    var toggleCategoryMenu: () -> Void
-    /// ⏎（⌘ 保持面板打开 / ⌥ 纯文本）：下拉打开时选中高亮分类，否则粘贴选中
+    /// ⌘↓：开合搜索框展开过滤面板（类型网格 + 标签流）
+    var toggleFilterPanel: () -> Void
+    /// ⏎（⌘ 保持面板打开 / ⌥ 纯文本）：粘贴选中（批量合并），或打开匹配到的应用
     var confirm: (_ keepOpen: Bool, _ plainTextOnly: Bool) -> Void
-    /// Esc 分层清空：下拉 → 批量选区 → 关键词 → 分类 → 时间定位 → 收起面板
+    /// Esc 分层清空：过滤浮层 → 批量选区 → 关键词 → 标签 → 分类 → 时间定位 → 收起面板
     var escape: () -> Void
     /// ⌘[ / ⌘]：分类循环（⌘[ 上一个，⌘] 下一个）
     var cycleCategory: (_ step: Int) -> Void
@@ -24,6 +24,8 @@ struct PanelKeyActions {
     var copySelection: () -> Void
     /// ⌘R：重命名选中条目（仅列表态分发）
     var beginRename: () -> Void
+    /// ⌘L：打开标签编辑器（批量态 → 批量编辑器；否则当前选中单条）
+    var beginTagEdit: () -> Void
     /// ⌘S：收藏/取消收藏选中条目
     var toggleFavorite: () -> Void
     /// ⌘T：循环定位下一个时间分组
@@ -36,4 +38,6 @@ struct PanelKeyActions {
     var focusSearch: () -> Void
     /// 列表态打字即搜索（Spotlight 式）：聚焦搜索框并把该字符事件重投递进输入框
     var typeToSearch: (_ event: NSEvent) -> Void
+    /// ⌫（搜索框为空且有过滤条件胶囊时）：删除最近一枚条件胶囊（标签优先）
+    var removeLastFilterChip: () -> Bool
 }

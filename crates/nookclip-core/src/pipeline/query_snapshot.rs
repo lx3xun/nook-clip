@@ -37,10 +37,21 @@ pub fn query_view_snapshot(
     //    不再把全库 last_used_at Vec<f64> 搬进内存再逐条 chrono 换算。
     let boundaries = timeline_boundaries(calendar);
     let anchor_rows = repo.time_group_anchor_counts(filter, &boundaries)?;
-    let timeline_anchors = crate::pipeline::timeline::anchor_rows_to_summaries(&anchor_rows);
+    // 当月桶的可见范围（10月 1–15日）需要知道「今天」是哪天：
+    // 由与分组同一套时区换算得出，避免这里再算一遍本地日期
+    let today_local = {
+        let tz = chrono::FixedOffset::east_opt(calendar.tz_offset_secs)
+            .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).unwrap());
+        chrono::DateTime::<chrono::Utc>::from_timestamp(calendar.now_ts as i64, 0)
+            .unwrap_or_else(chrono::Utc::now)
+            .with_timezone(&tz)
+            .date_naive()
+    };
+    let timeline_anchors =
+        crate::pipeline::timeline::anchor_rows_to_summaries(&anchor_rows, today_local);
 
     // 5. 分类统计 (在当前搜索词下)
-    let category_counts = repo.count_categories(filter.search_query.as_deref())?;
+    let category_counts = repo.count_categories(filter.search_query.as_deref(), filter.tag.as_deref())?;
 
     Ok(QueryViewSnapshot {
         items,
@@ -63,13 +74,14 @@ fn timeline_boundaries(calendar: &CalendarContext) -> TimelineBoundaries {
     let now_local = calendar.now_ts as i64 + tz_secs;
     let today_start = now_local - now_local.rem_euclid(day);
 
-    // 本周起点：与 timeline.rs 的分组实现保持完全一致，固定按 ISO 8601
-    // （周一为一周起始）。calendar.first_weekday 在此未参与，因为明细分组
-    // 用的是 chrono 的 iso_week()；两边必须同源，否则锚点计数与列表项对不上。
-    let days_since_epoch = today_start / day;
-    let weekday_mon0 = (days_since_epoch + 3).rem_euclid(7); // 0 = 周一
-    let this_week_start = today_start - weekday_mon0 * day;
-    let last_week_start = this_week_start - 7 * day;
+    // 近档下界：与 timeline.rs 的 bucket_of 保持完全一致——分档依据是「自然日差」
+    // 而非周界（不再有「上周」桶）。`SPAN_JUSTIFIED_DAYS` 天前的 00:00 是
+    // 最后一天仍算「本周」的条目起点，更早一律进月/年桶。
+    // 两边不同源会让锚点计数与列表项对不上。
+    let this_week_start = today_start - crate::model::TimeGroupLevel::SPAN_JUSTIFIED_DAYS * day;
+    // 已退役：仅供 SQL 与「近端」互斥判断，取与 this_week_start 相同值即让
+    // last_week_count 恒为 0（该列保留以兼容既有查询形状）。
+    let last_week_start = this_week_start;
 
     // 本地月份起点：本年度逐月回溯，更早年份按每年 1 月 1 日回溯至 1970 年。
     // 只回传起点时间戳，分组在 SQL 内完成。

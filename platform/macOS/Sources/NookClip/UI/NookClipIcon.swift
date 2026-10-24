@@ -65,6 +65,8 @@ enum NookClipIcon {
         static let image = "photo.fill"
         static let color = "paintpalette.fill"
         static let sensitive = "lock.shield.fill"
+        /// 回收站分类槽（当前为占位：无回收站计数，恒按空态置灰渲染）
+        static let trash = "trash.fill"
     }
 
     enum SourceAppFallback {

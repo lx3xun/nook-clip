@@ -131,51 +131,50 @@ final class CategoryOrderingTests: XCTestCase {
         ))
     }
 
-    // MARK: - CategoryBarCoordinator 循环与槽位固定测试
+    // MARK: - CategoryBarCoordinator 固定网格与循环测试
+    //
+    // 分类/标签已收进搜索框展开面板：类型为固定 4×2 网格（8 槽平权、位置固定），
+    // 原「第 4 槽下拉 + 拖拽排序」已移除。
 
     @MainActor
-    func testCycleCategoryPreservesPinnedSlot5InsteadOfJumpingToHighCountCategory() {
-        let defaults = UserDefaults(suiteName: "test.category.coordinator.\(UUID().uuidString)")!
-        let coordinator = CategoryBarCoordinator(defaults: defaults)
-
-        // 全部(0), 收藏(8), 文本(1, 10条), 图片(2, 2条), 代码(5, 5条)
-        // 注意：代码条数 (5) 高于图片 (2)
+    func testFixedGridKeepsAllSlotsAndFillsEmptyWithZero() {
+        let coordinator = CategoryBarCoordinator()
+        // 仅提供部分计数：图片(2,2条)、文本(1,10条)、收藏(8,0条) + 全部(0)
         let categories = [
             category(0, count: 17),
             category(8, count: 0),
             category(1, count: 10),
             category(2, count: 2),
-            category(5, count: 5),
         ]
-
-        // 用户将第 4 槽固定为图片 (2)
-        coordinator.slot5PinnedID = 2
-        // 1. 固定 chip 为全部(0)、收藏(8)、文本(1)
-        XCTAssertEqual(coordinator.fixedCategories(in: categories).map(\.id), [0, 8, 1])
-
-        // 2. 槽位展示项为图片(2)
-        XCTAssertEqual(coordinator.slot5Category(in: categories, effective: 0)?.id, 2)
-        // 3. 可切换类目中，固定的图片(2)优先排在首位，高于数量更大的代码(5)
-        XCTAssertEqual(coordinator.switchableCategories(in: categories).map(\.id), [2, 5])
-
-        // 4. Tab 循环序保持和界面一致：[0, 8, 1, 2, 5]
-        XCTAssertEqual(coordinator.orderedCategoryIDs(in: categories), [0, 8, 1, 2, 5])
-
-        // 5. 从文本(1)按 Tab，下一个目标必须是图片(2)，绝不能跳到代码(5)！
-        let nextFromText = coordinator.cycledCategory(selection: 1, step: 1, in: categories)
-        XCTAssertEqual(nextFromText, 2, "从文本循环切换必须优先进入当前第 4 槽展示的图片分类")
-
-        // 6. 从图片(2)按下一个，目标为代码(5)
-        let nextFromImage = coordinator.cycledCategory(selection: 2, step: 1, in: categories)
-        XCTAssertEqual(nextFromImage, 5)
-
-        // 7. 从代码(5)按 Tab，循环回全部(0)
-        let nextFromCode = coordinator.cycledCategory(selection: 5, step: 1, in: categories)
-        XCTAssertEqual(nextFromCode, 0)
-
-        // 8. 从图片(2)按 ⇧Tab，回到文本(1)
-        let prevFromImage = coordinator.cycledCategory(selection: 2, step: -1, in: categories)
-        XCTAssertEqual(prevFromImage, 1)
+        let grid = coordinator.filterGridCategories(categories)
+        // 固定槽序：收藏(8)、图片(2)、文本(1)、链接(4)、代码(5)、文件(3)、颜色(6)、回收站(7)
+        XCTAssertEqual(grid.map(\.id), [8, 2, 1, 4, 5, 3, 6, 7])
+        // 缺失的分类以 count 0 空槽补齐（网格永不塌缩）
+        XCTAssertEqual(grid.first(where: { $0.id == 4 })?.count, 0)
+        XCTAssertEqual(grid.first(where: { $0.id == 7 })?.count, 0)
+        // 有计数的槽沿用真实计数
+        XCTAssertEqual(grid.first(where: { $0.id == 1 })?.count, 10)
     }
 
+    @MainActor
+    func testCycleCategorySkipsEmptySlots() {
+        let coordinator = CategoryBarCoordinator()
+        // 收藏(8,2条)、文本(1,5条)、链接(4,1条)；其余类型计数为 0（空槽不进循环）
+        let categories = [
+            category(0, count: 8),
+            category(8, count: 2),
+            category(1, count: 5),
+            category(4, count: 1),
+        ]
+        // 循环序 = 全部(0) + 有计数的类型（按固定网格序 8,1,4）
+        XCTAssertEqual(coordinator.orderedCategoryIDs(in: categories), [0, 8, 1, 4])
+        // 全部 → 收藏(8)
+        XCTAssertEqual(coordinator.cycledCategory(selection: 0, step: 1, in: categories), 8)
+        // 收藏 → 文本(1)
+        XCTAssertEqual(coordinator.cycledCategory(selection: 8, step: 1, in: categories), 1)
+        // 末位链接(4) → 回全部(0)
+        XCTAssertEqual(coordinator.cycledCategory(selection: 4, step: 1, in: categories), 0)
+        // 全部 → 后退到末位链接(4)
+        XCTAssertEqual(coordinator.cycledCategory(selection: 0, step: -1, in: categories), 4)
+    }
 }

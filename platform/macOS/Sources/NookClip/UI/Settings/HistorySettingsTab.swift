@@ -6,8 +6,8 @@ import SwiftUI
 @MainActor
 struct HistorySettingsTab: View {
     var historyStore: InMemoryHistoryStore?
-    @AppStorage("historyRetentionDays") private var historyRetentionDays = 180
-    @AppStorage("historyDiskLimitMB") private var historyDiskLimitMB = 5120
+    @AppStorage("historyMaxItemCount") private var historyMaxItemCount = HistoryMaxItemsPolicy.defaultMaxItems
+    @AppStorage("historyDiskLimitMB") private var historyDiskLimitMB = DiskLimitPolicy.defaultLimitMB
     @AppStorage("enableICloudSync") private var enableICloudSync = false
     @State private var showClearConfirmation = false
     @State private var isSyncingManual = false
@@ -31,6 +31,14 @@ struct HistorySettingsTab: View {
     @State private var showResetPassphraseAlert: Bool = false
     @State private var isResettingPassphrase: Bool = false
     @State private var syncSensitiveItems: Bool = false
+    /// 首次启用 E2EE 后的一次性询问：是否把敏感条目也纳入端到端加密同步
+    @State private var showSensitiveSyncPrompt = false
+    /// 与 `ICloudDriveSyncEngine.isE2EESensitiveSyncActive` 同源的「当前是否真正加密同步敏感条目」判定，
+    /// 供同步规则文案与引导使用（避免只勾了 E2EE 但无口令时仍显示「受加密保护」）
+    private var isSensitiveSyncActive: Bool {
+        let hasPass = !e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return isE2EEEnabled && hasPass && syncSensitiveItems
+    }
     var body: some View {
         VStack(spacing: 16) {
             // 历史记录保留与存储限制
@@ -55,37 +63,38 @@ struct HistorySettingsTab: View {
                         }
                     }
                 }
-                SettingsRowView(title: L10n.tr("settings.general.history_retention"), showDivider: true) {
+                SettingsRowView(title: L10n.tr("settings.general.history_max_items"), showDivider: true) {
 
-                    Picker("", selection: $historyRetentionDays) {
-                        Text(L10n.tr("settings.retention.day")).tag(1)
-                        Text(L10n.tr("settings.retention.week")).tag(7)
-                        Text(L10n.tr("settings.retention.month")).tag(30)
-                        Text(L10n.tr("settings.retention.quarter")).tag(90)
-                        Text(L10n.tr("settings.retention.half_year")).tag(180)
-                        Text(L10n.tr("settings.retention.year")).tag(365)
-                        Text(L10n.tr("settings.retention.unlimited")).tag(0)
+                    Picker("", selection: $historyMaxItemCount) {
+                        ForEach(HistoryMaxItemsPolicy.presets, id: \.self) { count in
+                            Text(L10n.tr("clipboard.items_count", count)).tag(count)
+                        }
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
                     .frame(width: 140)
-                    .onChange(of: historyRetentionDays) { _, days in
-                        historyStore?.pruneExpiredItems(days: days)
+                    .onChange(of: historyMaxItemCount) { _, count in
+                        // 「无限制」已退役：越界值（旧版 0/超上限）收敛后再写回并裁剪
+                        let limit = HistoryMaxItemsPolicy.clamp(count)
+                        if limit != count { historyMaxItemCount = limit }
+                        historyStore?.pruneToMaxItems(limit)
                     }
                 }
 
                 SettingsRowView(title: L10n.tr("settings.general.disk_limit"), showDivider: true) {
 
                     Picker("", selection: $historyDiskLimitMB) {
-                        Text(L10n.tr("settings.retention.unlimited")).tag(0)
-                        ForEach([512, 1024, 2048, 3072, 4096, 5120, 10240, 20480, 30720, 40960, 51200], id: \.self) { mb in
+                        ForEach(DiskLimitPolicy.presets, id: \.self) { mb in
                             Text(Self.diskLimitLabel(mb)).tag(mb)
                         }
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
                     .frame(width: 140)
-                    .onChange(of: historyDiskLimitMB) { _, _ in
+                    .onChange(of: historyDiskLimitMB) { _, mb in
+                        // 「无限制」已退役：越界值（旧版 0/超上限）收敛后再写回并触发淘汰
+                        let limit = DiskLimitPolicy.clamp(mb)
+                        if limit != mb { historyDiskLimitMB = limit }
                         historyStore?.enforceDiskLimit()
                     }
                 }
@@ -125,30 +134,45 @@ struct HistorySettingsTab: View {
                         }
                 }
                 if enableICloudSync {
-                    // 1. 同步通道选择
-                    SettingsRowView(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
-                        Picker("", selection: $syncMode) {
-                            Text(L10n.tr("settings.sync.mode_icloud")).tag(CloudSyncMode.iCloudDrive)
-                            Text(L10n.tr("settings.sync.mode_local_dir")).tag(CloudSyncMode.localDirectory)
-                            Text(L10n.tr("settings.sync.mode_webdav")).tag(CloudSyncMode.webdav)
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .frame(width: 320)
-                        .onChange(of: syncMode) { _, newMode in
-                            guard let engine = historyStore?.syncEngine else { return }
-                            engine.syncMode = newMode
-                            // 切换同步方式时，按需载入对应通道专属的配置（未开启加密或非 WebDAV 时不触碰 Keychain）
-                            isE2EEEnabled = engine.isE2EEEnabled
-                            e2eePassphrase = isE2EEEnabled ? engine.e2eePassphrase : ""
-                            syncSensitiveItems = engine.syncSensitiveItems
-                            if newMode == .webdav {
-                                webDavPassword = engine.webDavPassword
+                    // 1. 同步通道选择：当前只开放 iCloud（本地目录映射 / WebDAV 入口暂时关闭）。
+                    //    只剩一个可选通道时不再渲染下拉菜单（菜单里只有一项没有意义），
+                    //    改为只读展示当前通道；重新放开时把 case 加回
+                    //    CloudSyncMode.userSelectableModes，这里会自动恢复成 Picker。
+                    if CloudSyncMode.userSelectableModes.count > 1 {
+                        SettingsRowView(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
+                            Picker("", selection: $syncMode) {
+                                ForEach(CloudSyncMode.userSelectableModes) { mode in
+                                    Text(Self.syncModeLabel(mode)).tag(mode)
+                                }
                             }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 320)
+                            .onChange(of: syncMode) { _, newMode in
+                                guard let engine = historyStore?.syncEngine else { return }
+                                engine.syncMode = newMode
+                                // 切换同步方式时，按需载入对应通道专属的配置（未开启加密或非 WebDAV 时不触碰 Keychain）
+                                isE2EEEnabled = engine.isE2EEEnabled
+                                e2eePassphrase = isE2EEEnabled ? engine.e2eePassphrase : ""
+                                syncSensitiveItems = engine.syncSensitiveItems
+                                if newMode == .webdav {
+                                    webDavPassword = engine.webDavPassword
+                                }
+                            }
+                        }
+                    } else {
+                        SettingsRowView(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
+                            Text(Self.syncModeLabel(syncMode))
+                                .font(.nookClipBody)
+                                .foregroundStyle(NookClip.textSecondary)
+                                .frame(width: 320, alignment: .trailing)
                         }
                     }
 
-                    // 2. 本地目录映射模式配置（仅本地目录映射需要指定与修改本地路径）
+                    // 2. 本地目录映射模式配置（仅本地目录映射需要指定与修改本地路径）。
+                    //    当前版本该通道不在 userSelectableModes 内，syncMode 恒为 iCloud，
+                    //    这段 UI 因此不可达；保留它是为了重新放开时无需重写（引擎侧能力与
+                    //    配置读写都还在），并且仍然参与编译检查，不会悄悄腐坏。
                     if syncMode == .localDirectory {
                         SettingsRowView(showDivider: true) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -169,7 +193,9 @@ struct HistorySettingsTab: View {
                         }
                     }
 
-                    // 3. WebDAV 模式配置
+                    // 3. WebDAV 模式配置（地址 / 用户名 / 口令 / 连通性测试）。
+                    //    与上一段同理：该通道当前不在 userSelectableModes 内，这段不可达，
+                    //    保留是为了重新放开时配置项与测试按钮都还在。
                     if syncMode == .webdav {
                         SettingsRowView(title: L10n.tr("settings.sync.webdav_url"), showDivider: true) {
                             TextField("https://...", text: $webDavUrl)
@@ -233,8 +259,34 @@ struct HistorySettingsTab: View {
                                 historyStore?.syncEngine.isE2EEEnabled = enabled
                                 if enabled, let engine = historyStore?.syncEngine {
                                     e2eePassphrase = engine.e2eePassphrase
+                                    syncSensitiveItems = engine.syncSensitiveItems
+                                    // 仅在整个账号生命周期首次开启 E2EE 时询问一次；
+                                    // 已决策过的通道不再打扰，用户可随时在本页 Toggle 中修改。
+                                    if !engine.hasDecidedSensitiveSync(for: engine.syncMode) {
+                                        showSensitiveSyncPrompt = true
+                                    }
                                 }
                             }
+                        }
+                    .alert(
+                        L10n.tr("settings.sync.sensitive_prompt_title"),
+                        isPresented: $showSensitiveSyncPrompt
+                    ) {
+                        Button(L10n.tr("settings.sync.sensitive_prompt_enable")) {
+                            guard let engine = historyStore?.syncEngine else { return }
+                            syncSensitiveItems = true
+                            engine.syncSensitiveItems = true
+                            engine.markSensitiveSyncDecided(for: engine.syncMode)
+                        }
+                        Button(L10n.tr("settings.sync.sensitive_prompt_keep_local"), role: .cancel) {
+                            guard let engine = historyStore?.syncEngine else { return }
+                            // 显式选择「仅本机」也算完成决策：保持安全默认，记录后不再重复询问
+                            syncSensitiveItems = false
+                            engine.syncSensitiveItems = false
+                            engine.markSensitiveSyncDecided(for: engine.syncMode)
+                        }
+                    } message: {
+                        Text(L10n.tr("settings.sync.sensitive_prompt_message"))
                     }
 
                     if isE2EEEnabled {
@@ -315,16 +367,18 @@ struct HistorySettingsTab: View {
             if enableICloudSync {
                 SettingsSectionView(title: L10n.tr("settings.sync.rules_section")) {
                     VStack(alignment: .leading, spacing: 8) {
+                        // 未开启 E2EE 时走的是 iCloud 自带加密（传输与存储均已加密），
+                        // 属于正常的默认状态而非警告，因此两种状态都用中性色与锁图标。
                         Label(
                             L10n.tr(isE2EEEnabled ? "settings.sync.rule_e2ee_on" : "settings.sync.rule_e2ee_off"),
-                            systemImage: isE2EEEnabled ? NookClipIcon.Sensitive.shieldOk : NookClipIcon.Feedback.warning
+                            systemImage: isE2EEEnabled ? NookClipIcon.Sensitive.shieldOk : NookClipIcon.Sensitive.lock
                         )
-                        .foregroundStyle(isE2EEEnabled ? NookClip.textSecondary : NookClip.colorFavorite)
+                        .foregroundStyle(NookClip.textSecondary)
                         .font(.nookClipMeta)
 
                         Label(
-                            L10n.tr(isE2EEEnabled && syncSensitiveItems ? "settings.sync.rule_sensitive_on" : "settings.sync.rule_sensitive_off"),
-                            systemImage: isE2EEEnabled && syncSensitiveItems ? NookClipIcon.Sensitive.lock : NookClipIcon.Status.sensitiveSync
+                            L10n.tr(isSensitiveSyncActive ? "settings.sync.rule_sensitive_on" : "settings.sync.rule_sensitive_off"),
+                            systemImage: isSensitiveSyncActive ? NookClipIcon.Sensitive.lock : NookClipIcon.Status.sensitiveSync
                         )
                         .foregroundStyle(NookClip.textSecondary)
                         .font(.nookClipMeta)
@@ -443,6 +497,22 @@ struct HistorySettingsTab: View {
                 e2eePassphrase = engine.isE2EEEnabled ? engine.e2eePassphrase : ""
                 syncSensitiveItems = engine.syncSensitiveItems
             }
+            // 迁移与收敛：「无限制」已退役，Picker 只提供有限档位，因此旧版遗留的
+            // 字面量（0/负数 = 无限制、超过硬上限的历史档位）必须回写为收敛后的档位，
+            // 否则 Picker 选中项落在档位之外会显示空白。
+            if let stored = UserDefaults.standard.object(forKey: HistoryMaxItemsPolicy.defaultsKey) as? Int {
+                let clamped = HistoryMaxItemsPolicy.clamp(stored)
+                if clamped != stored { historyMaxItemCount = clamped }
+            } else if let legacyDays = UserDefaults.standard.object(forKey: HistoryMaxItemsPolicy.legacyRetentionDaysKey) as? Int,
+                      legacyDays <= 0 {
+                // 旧版保留期显式为 0 = 从不清理：条数维度已无无限制，迁移到硬上限
+                // （而非默认 500），使这批用户被裁剪的幅度最小。
+                historyMaxItemCount = HistoryMaxItemsPolicy.hardCap
+            }
+            if let storedDisk = UserDefaults.standard.object(forKey: DiskLimitPolicy.defaultsKey) as? Int {
+                let clampedDisk = DiskLimitPolicy.clamp(storedDisk)
+                if clampedDisk != storedDisk { historyDiskLimitMB = clampedDisk }
+            }
         }
     }
 
@@ -487,6 +557,17 @@ struct HistorySettingsTab: View {
 
     private static func diskLimitLabel(_ mb: Int) -> String {
         mb % 1024 == 0 ? "\(mb / 1024) GB" : "\(mb) MB"
+    }
+
+    private static func syncModeLabel(_ mode: CloudSyncMode) -> String {
+        switch mode {
+        case .iCloudDrive:
+            return L10n.tr("settings.sync.mode_icloud")
+        case .localDirectory:
+            return L10n.tr("settings.sync.mode_local_dir")
+        case .webdav:
+            return L10n.tr("settings.sync.mode_webdav")
+        }
     }
 
     private var syncStatusColor: Color {

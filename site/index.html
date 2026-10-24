@@ -22,8 +22,10 @@
   <meta name="theme-color" content="#1677FF" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0F172A" media="(prefers-color-scheme: dark)">
 
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="prototype.css">
+  <!-- 静态资源加版本戳：本地/预览站常开缓存，改完 CSS/JS 后若 URL 不变，
+       浏览器会一直用旧副本（本次就踩到旧 style.scss 缓存导致改动"看不见"） -->
+  <link rel="stylesheet" href="style.css?v=20261023">
+  <link rel="stylesheet" href="prototype.css?v=20261023">
 </head>
 <body>
   <!-- 页面顶部导航栏 -->
@@ -167,7 +169,7 @@
         <!-- 标签指示条 -->
         <div class="hero-badge">
           <span class="badge-dot" aria-hidden="true"></span>
-          <span data-i18n="hero_badge">原生架构 · Rust 存储内核 · 常驻仅约 20MB · 开源免费</span>
+          <span data-i18n="hero_badge">原生架构 · Rust 存储内核 · 常驻仅约 20MB · 开源免费 · 标签与类型筛选</span>
         </div>
 
         <h1 class="hero-title" data-i18n="hero_title">
@@ -230,7 +232,7 @@
           <div class="mockup-highlights" aria-label="核心界面特性速览">
             <div class="highlight-chip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <span data-i18n="chip_search">打字直接搜（支持拼音）</span>
+              <span data-i18n="chip_search">打字直接搜，即时命中</span>
             </div>
             <div class="highlight-chip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
@@ -238,15 +240,19 @@
             </div>
             <div class="highlight-chip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-              <span data-i18n="chip_code">代码高亮与 JSON 展开</span>
+              <span data-i18n="chip_code">代码高亮与 JSON 美化</span>
             </div>
             <div class="highlight-chip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              <span data-i18n="chip_ocr">系统离线 OCR 图文提取</span>
+              <span data-i18n="chip_ocr">系统离线 OCR 手动提取</span>
             </div>
             <div class="highlight-chip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"></path></svg>
               <span data-i18n="chip_shortcuts">全键盘快捷键驱动</span>
+            </div>
+            <div class="highlight-chip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+              <span data-i18n="chip_filter">按类型 / 按标签一屏筛选</span>
             </div>
           </div>
         </div>
@@ -344,7 +350,7 @@
             </div>
             <h3 class="card-title" data-i18n="card3_title">打字即搜与离线 OCR</h3>
             <p class="card-desc" data-i18n="card3_desc">
-              呼出面板后无需专门聚焦搜索框，直接敲击键盘即可实时搜索。基于系统原生 Vision 离线识别截图文字，不仅可以直接搜截图里的报错信息，还能一键提取图内文字。
+              呼出面板后无需专门聚焦搜索框，直接敲击键盘即可实时搜索。基于系统原生 Vision 离线识别截图文字：在图片卡片上主动点一下「识别文字」，全文索引随之建立，之后就能直接搜截图里的报错信息，也能一键提取图内文字。
             </p>
           </article>
 
@@ -358,7 +364,7 @@
             </div>
             <h3 class="card-title" data-i18n="card4_title">代码与 JSON 专属卡片</h3>
             <p class="card-desc" data-i18n="card4_desc">
-              复制的代码自动高亮着色；识别到 JSON 数据自动提供树形格式化，支持一键美化、压缩与字段复制，不用再专门打开在线格式化工具。
+              复制的代码自动高亮着色；识别到 JSON 数据直接给出专属卡片，在「原文 / 美化 / 压缩」之间一键切换，复制精美缩进或压成一行都不用再专门打开在线格式化工具。
             </p>
           </article>
 
@@ -484,8 +490,8 @@
               <kbd class="key-cap">]</kbd>
             </div>
             <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc7_action">切换内容分类</div>
-              <div class="shortcut-desc" data-i18n="sc7_desc">在文本、图片、文件、链接、代码等分类之间左右循环快速跳转</div>
+              <div class="shortcut-action" data-i18n="sc7_action">切换内容类型</div>
+              <div class="shortcut-desc" data-i18n="sc7_desc">在「全部」与收藏、图片、文本、链接、代码、文件、色值等类型之间左右循环，空类型自动跳过</div>
             </div>
           </div>
 
@@ -722,7 +728,7 @@
           <img src="assets/nookclip-appicon.svg" alt="" width="22" height="22" aria-hidden="true">
           <span class="footer-title"><span class="brand-name-nook">Nook</span><span class="brand-name-clip">Clip</span></span>
         </div>
-        <p class="footer-tagline" data-i18n="footer_tagline">macOS 原生极速剪切板效率工作台 · 释放你的心流</p>
+        <p class="footer-tagline" data-i18n="footer_tagline">macOS 原生极速剪贴板效率工作台 · 释放你的心流</p>
         <p class="footer-license" data-i18n="footer_license">
           源代码基于 <a href="https://github.com/lx3xun/nook-clip/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">GNU GPLv3 协议</a> 开源开放。
         </p>
@@ -807,8 +813,8 @@
     </div>
   </div>
 
-  <script src="i18n.js"></script>
-  <script src="prototype.js"></script>
-  <script src="main.js"></script>
+  <script src="i18n.js?v=20261023"></script>
+  <script src="prototype.js?v=20261023"></script>
+  <script src="main.js?v=20261023"></script>
 </body>
 </html>

@@ -115,7 +115,8 @@ public class RustHistoryStore: @unchecked Sendable {
             includeDeleted: false,
             limit: UInt32(limit),
             offset: UInt32(offset),
-            summaryMaxChars: truncatingSummary ? UInt32(Self.summaryPrefixLimit + 1) : nil
+            summaryMaxChars: truncatingSummary ? UInt32(Self.summaryPrefixLimit + 1) : nil,
+            tag: nil
         )
         do {
             let summaries = try engine.queryItems(filter: filter)
@@ -139,7 +140,8 @@ public class RustHistoryStore: @unchecked Sendable {
             onlyDeleted: true,
             limit: 1000,
             offset: 0,
-            summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1)
+            summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1),
+            tag: nil
         )
         do {
             let summaries = try engine.queryItems(filter: filter)
@@ -160,7 +162,8 @@ public class RustHistoryStore: @unchecked Sendable {
             favoriteOnly: false,
             includeDeleted: true,
             limit: 1,
-            offset: 0
+            offset: 0,
+            tag: nil
         )
         let summaries = (try? engine.queryItems(filter: filter)) ?? []
         guard let summary = summaries.first else {
@@ -171,7 +174,7 @@ public class RustHistoryStore: @unchecked Sendable {
 
     /// 分类映射（search 与时间戳聚合共用）：
     /// 1~7 全部分类均走 ci.kind 派生判定，与 count_categories 和 SidebarCategories 对齐；8 为收藏
-    func makeFilter(query: String, categoryID: Int, limit: Int, offset: Int) -> QueryFilter {
+    func makeFilter(query: String, categoryID: Int, limit: Int, offset: Int, tag: String? = nil) -> QueryFilter {
         let kind: String? = {
             switch categoryID {
             case 1: return "text"
@@ -184,6 +187,7 @@ public class RustHistoryStore: @unchecked Sendable {
             default: return nil
             }
         }()
+        let cleanTag = tag?.trimmingCharacters(in: .whitespacesAndNewlines)
         return QueryFilter(
             searchQuery: query.isEmpty ? nil : query,
             itemType: nil,
@@ -192,12 +196,13 @@ public class RustHistoryStore: @unchecked Sendable {
             includeDeleted: false,
             limit: UInt32(limit),
             offset: UInt32(offset),
-            summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1)
+            summaryMaxChars: UInt32(Self.summaryPrefixLimit + 1),
+            tag: (cleanTag?.isEmpty ?? true) ? nil : cleanTag
         )
     }
 
-    public func search(query: String, categoryID: Int = 0, limit: Int = 50, offset: Int = 0) -> [ClipboardItem] {
-        let filter = makeFilter(query: query, categoryID: categoryID, limit: limit, offset: offset)
+    public func search(query: String, categoryID: Int = 0, limit: Int = 50, offset: Int = 0, tag: String? = nil) -> [ClipboardItem] {
+        let filter = makeFilter(query: query, categoryID: categoryID, limit: limit, offset: offset, tag: tag)
         do {
             let summaries = try engine.queryItems(filter: filter)
             return summaries.compactMap { self.toClipboardItem($0) }
@@ -208,9 +213,9 @@ public class RustHistoryStore: @unchecked Sendable {
     }
     /// 全量时间戳聚合：当前筛选下全部命中条目的 last_used_at（降序，秒），
     /// 供时间导航锚点条做全历史时间分组（脱离分页限制）
-    public func timeGroupTimestamps(query: String = "", categoryID: Int = 0) -> [Date] {
+    public func timeGroupTimestamps(query: String = "", categoryID: Int = 0, tag: String? = nil) -> [Date] {
         let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let filter = makeFilter(query: cleanQuery, categoryID: categoryID, limit: 0, offset: 0)
+        let filter = makeFilter(query: cleanQuery, categoryID: categoryID, limit: 0, offset: 0, tag: tag)
         do {
             let seconds = try engine.timeGroupTimestamps(filter: filter)
             return seconds.map { Date(timeIntervalSince1970: $0) }
@@ -221,11 +226,11 @@ public class RustHistoryStore: @unchecked Sendable {
     }
 
     /// 异步时间戳聚合：串行队列执行，不阻塞主 actor
-    public func timeGroupTimestampsAsync(query: String = "", categoryID: Int = 0) async -> [Date] {
+    public func timeGroupTimestampsAsync(query: String = "", categoryID: Int = 0, tag: String? = nil) async -> [Date] {
         await withCheckedContinuation { continuation in
             queue.async {
                 continuation.resume(
-                    returning: self.timeGroupTimestamps(query: query, categoryID: categoryID)
+                    returning: self.timeGroupTimestamps(query: query, categoryID: categoryID, tag: tag)
                 )
             }
         }
@@ -237,13 +242,14 @@ public class RustHistoryStore: @unchecked Sendable {
         categoryID: Int = 0,
         limit: Int = 50,
         offset: Int = 0,
+        tag: String? = nil,
         calendar: Calendar = .current,
         now: Date = Date()
     ) async -> QueryViewSnapshot? {
         let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return await withCheckedContinuation { continuation in
             queue.async {
-                let filter = self.makeFilter(query: cleanQuery, categoryID: categoryID, limit: limit, offset: offset)
+                let filter = self.makeFilter(query: cleanQuery, categoryID: categoryID, limit: limit, offset: offset, tag: tag)
                 let calCtx = CalendarContext(
                     nowTs: now.timeIntervalSince1970,
                     tzOffsetSecs: Int32(calendar.timeZone.secondsFromGMT(for: now)),
@@ -260,8 +266,8 @@ public class RustHistoryStore: @unchecked Sendable {
     /// 引擎内部以互斥锁保护连接，串行队列只保证查询按提交顺序执行、废弃查询不并行堆积。
     /// 查询结果 + 失败标志：引擎错误不得伪装成空结果（界面需区分
     /// 「无匹配」与「索引不可用」）
-    public func searchWithStatus(query: String, categoryID: Int = 0, limit: Int = 50, offset: Int = 0) -> (items: [ClipboardItem], failed: Bool) {
-        let filter = makeFilter(query: query, categoryID: categoryID, limit: limit, offset: offset)
+    public func searchWithStatus(query: String, categoryID: Int = 0, limit: Int = 50, offset: Int = 0, tag: String? = nil) -> (items: [ClipboardItem], failed: Bool) {
+        let filter = makeFilter(query: query, categoryID: categoryID, limit: limit, offset: offset, tag: tag)
         do {
             let summaries = try engine.queryItems(filter: filter)
             return (summaries.compactMap { self.toClipboardItem($0) }, false)
@@ -271,21 +277,22 @@ public class RustHistoryStore: @unchecked Sendable {
         }
     }
 
-    public func searchAsync(query: String, categoryID: Int = 0, limit: Int = 50, offset: Int = 0) async -> (items: [ClipboardItem], failed: Bool) {
+    public func searchAsync(query: String, categoryID: Int = 0, limit: Int = 50, offset: Int = 0, tag: String? = nil) async -> (items: [ClipboardItem], failed: Bool) {
         await withCheckedContinuation { continuation in
             queue.async {
                 continuation.resume(
-                    returning: self.searchWithStatus(query: query, categoryID: categoryID, limit: limit, offset: offset)
+                    returning: self.searchWithStatus(query: query, categoryID: categoryID, limit: limit, offset: offset, tag: tag)
                 )
             }
         }
     }
 
     /// 全历史分类统计：按搜索词在 Rust 聚合出全量 9 大分类真实条数
-    public func countCategories(query: String = "") -> CategoryCounts {
+    public func countCategories(query: String = "", tag: String? = nil) -> CategoryCounts {
         let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanTag = tag?.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            return try engine.countCategories(searchQuery: cleanQuery.isEmpty ? nil : cleanQuery)
+            return try engine.countCategories(searchQuery: cleanQuery.isEmpty ? nil : cleanQuery, tag: (cleanTag?.isEmpty ?? true) ? nil : cleanTag)
         } catch {
             Self.logger.error("Failed to count categories in Rust engine: \(error.localizedDescription)")
             return CategoryCounts(total: 0, favorite: 0, text: 0, image: 0, file: 0, url: 0, code: 0, color: 0, sensitive: 0)
@@ -293,10 +300,10 @@ public class RustHistoryStore: @unchecked Sendable {
     }
 
     /// 异步分类统计：串行队列执行，不阻塞主 actor
-    public func countCategoriesAsync(query: String = "") async -> CategoryCounts {
+    public func countCategoriesAsync(query: String = "", tag: String? = nil) async -> CategoryCounts {
         await withCheckedContinuation { continuation in
             queue.async {
-                continuation.resume(returning: self.countCategories(query: query))
+                continuation.resume(returning: self.countCategories(query: query, tag: tag))
             }
         }
     }
@@ -393,7 +400,8 @@ public class RustHistoryStore: @unchecked Sendable {
             kind: item.persistedKind ?? "",
             sourceDeviceId: item.sourceDeviceId,
             sourceDeviceName: item.sourceDeviceName,
-            sourcePlatform: item.sourcePlatform
+            sourcePlatform: item.sourcePlatform,
+            tags: item.tags
         )
     }
 
@@ -483,6 +491,74 @@ public class RustHistoryStore: @unchecked Sendable {
         } catch {
             Self.logger.error("updateTitle failed for \(id.uuidString): \(error.localizedDescription)")
             return false
+        }
+    }
+
+    // MARK: - Tags
+
+    /// 全量替换条目标签（归一化在 Rust 侧完成）；返回持久化后的条目
+    @discardableResult
+    public func setTags(id: UUID, tags: [String]) -> ClipboardItem? {
+        do {
+            let summary = try engine.setTags(id: id.uuidString, tags: tags)
+            return toClipboardItem(summary, truncatingSummary: true)
+        } catch {
+            Self.logger.error("setTags failed for \(id.uuidString): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    @discardableResult
+    public func addTag(id: UUID, tag: String) -> ClipboardItem? {
+        do {
+            let summary = try engine.addTag(id: id.uuidString, tag: tag)
+            return toClipboardItem(summary, truncatingSummary: true)
+        } catch {
+            Self.logger.error("addTag failed for \(id.uuidString): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    @discardableResult
+    public func removeTag(id: UUID, tag: String) -> ClipboardItem? {
+        do {
+            let summary = try engine.removeTag(id: id.uuidString, tag: tag)
+            return toClipboardItem(summary, truncatingSummary: true)
+        } catch {
+            Self.logger.error("removeTag failed for \(id.uuidString): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// 全部标签统计（仅未删除条目，按 count DESC, name ASC）
+    public func listTags() -> [TagStat] {
+        do {
+            return try engine.listTags()
+        } catch {
+            Self.logger.error("listTags failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// 全库重命名标签，返回受影响条目数（合并到已有同名标签）
+    @discardableResult
+    public func renameTag(old: String, new: String) -> UInt32 {
+        do {
+            return try engine.renameTag(old: old, new: new)
+        } catch {
+            Self.logger.error("renameTag failed (\(old) -> \(new)): \(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    /// 删除标签关联（不删条目），返回受影响条目数
+    @discardableResult
+    public func deleteTag(name: String) -> UInt32 {
+        do {
+            return try engine.deleteTag(name: name)
+        } catch {
+            Self.logger.error("deleteTag failed (\(name)): \(error.localizedDescription)")
+            return 0
         }
     }
 
@@ -633,6 +709,7 @@ public class RustHistoryStore: @unchecked Sendable {
         item.decryptedPlainText = decryptedPlain
         item.summaryIsTruncated = isTruncated
         item.persistedKind = summary.kind.isEmpty ? nil : summary.kind
+        item.tags = summary.tags
         return item
     }
 }

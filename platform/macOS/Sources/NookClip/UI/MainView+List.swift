@@ -161,8 +161,9 @@ extension MainView {
                 groupID: currentGroup.id,
                 title: currentGroup.title,
                 count: railCount,
-                allGroups: timelineJumpMode == .groupHeaderMenu ? timelineRailItems : nil,
-                onSelectGroup: timelineJumpMode == .groupHeaderMenu ? { scrollToGroup($0) } : nil
+                // 时间跳转的唯一可视入口：分组多于一个时，组头右侧常驻下拉菜单
+                allGroups: timelineRailItems.count > 1 ? timelineRailItems : nil,
+                onSelectGroup: { scrollToGroup($0) }
             )
         }
     }
@@ -248,6 +249,12 @@ extension MainView {
             Label(L10n.tr("context.rename"), systemImage: NookClipIcon.Context.rename)
         }
         .disabled(renaming || !canRenameSelection)
+        Button {
+            beginTagEdit(for: item.id)
+        } label: {
+            Label(L10n.tr("tag.edit_menu"), systemImage: "number")
+        }
+        .disabled(renaming)
         Button {
             toggleFavoriteSelection()
         } label: {

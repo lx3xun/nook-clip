@@ -20,7 +20,7 @@ window.I18N_DATA = {
     theme_light: '浅色',
     theme_dark: '深色',
 
-    hero_badge: '原生架构 · Rust 存储内核 · 常驻仅约 20MB · 开源免费',
+    hero_badge: '原生架构 · Rust 存储内核 · 常驻仅约 20MB · 开源免费 · 标签与类型筛选',
     hero_title: '轻量、极速、守住隐私的<br><span class="text-gradient">macOS 剪贴板工作台</span>',
     hero_desc: '随手复制旧内容不再丢失。按键呼出零等待，打字直接搜索历史，自动加密脱敏 API 凭据。<br class="desktop-only">没有账号、没有联网打点与崩溃上报，全部历史数据 100% 保存在你的本地设备上。',
     hero_dl_title: '下载 NookClip.dmg',
@@ -34,11 +34,12 @@ window.I18N_DATA = {
     tab_screenshot: '原生截图对比',
     preview_dark: '深色模式',
     preview_light: '浅色模式',
-    chip_search: '打字直接搜（支持拼音）',
+    chip_search: '打字直接搜，即时命中',
     chip_sensitive: '敏感凭证掩码与 AES 加密',
-    chip_code: '代码高亮与 JSON 展开',
-    chip_ocr: '系统离线 OCR 图文提取',
+    chip_code: '代码高亮与 JSON 美化',
+    chip_ocr: '系统离线 OCR 手动提取',
     chip_shortcuts: '全键盘快捷键驱动',
+    chip_filter: '按类型 / 按标签一屏筛选',
 
     stat_mem_val: '~20 MB',
     stat_mem_lbl: '常驻内存占用，告别笨重',
@@ -64,10 +65,10 @@ window.I18N_DATA = {
     card2_check2: '支持 1Password 等密码管理器黑名单，切到前台静默暂停记录',
 
     card3_title: '打字即搜与离线 OCR',
-    card3_desc: '呼出面板后无需专门聚焦搜索框，直接敲击键盘即可实时搜索。基于系统原生 Vision 离线识别截图文字，不仅可以直接搜截图里的报错信息，还能一键提取图内文字。',
+    card3_desc: '呼出面板后无需专门聚焦搜索框，直接敲击键盘即可实时搜索。基于系统原生 Vision 离线识别截图文字：在图片卡片上主动点一下「识别文字」，全文索引随之建立，之后就能直接搜截图里的报错信息，也能一键提取图内文字。',
 
     card4_title: '代码与 JSON 专属卡片',
-    card4_desc: '复制的代码自动高亮着色；识别到 JSON 数据自动提供树形格式化，支持一键美化、压缩与字段复制，不用再专门打开在线格式化工具。',
+    card4_desc: '复制的代码自动高亮着色；识别到 JSON 数据直接给出专属卡片，在「原文 / 美化 / 压缩」之间一键切换，复制精美缩进或压成一行都不用再专门打开在线格式化工具。',
 
     card5_title: '设计师实用辅助',
     card5_desc: '识别到十六进制颜色值（如 <code class="code-tag">#1677FF</code>）在列表中直观呈现色标，一键复制 HEX / RGB；识别链接自动生成二维码，手机随扫随开。复制的文件若已被删除，粘贴前明确警示。',
@@ -91,8 +92,8 @@ window.I18N_DATA = {
     sc5_desc: '粘贴后浮层不收起，专为表单连续填报与多源信息录入优化',
     sc6_action: '批量多选合并',
     sc6_desc: '按住 Shift 多选连续历史条目，敲击回车一次性合并粘贴',
-    sc7_action: '切换内容分类',
-    sc7_desc: '在文本、图片、文件、链接、代码等分类之间左右循环快速跳转',
+    sc7_action: '切换内容类型',
+    sc7_desc: '在「全部」与收藏、图片、文本、链接、代码、文件、色值等类型之间左右循环，空类型自动跳过',
     sc8_action: '误删防呆撤销',
     sc8_desc: '误按删除后 10 秒内均可按 ⌘Z 立即挽回，避免重要记录遗失',
 
@@ -179,7 +180,7 @@ window.I18N_DATA = {
     faq_step2: '<strong>2. 提示「已损坏，移到废纸篓」</strong>：打开终端（Terminal）粘贴运行以下命令清除下载属性即可恢复正常：',
     faq_step3: '<strong>3. 辅助功能权限（自动粘贴必需）</strong>：前往「系统设置 → 隐私与安全性 → 辅助功能」勾选开启 NookClip。',
 
-    footer_tagline: 'macOS 原生极速剪切板效率工作台 · 释放你的心流',
+    footer_tagline: 'macOS 原生极速剪贴板效率工作台 · 释放你的心流',
     footer_license: '源代码基于 <a href="https://github.com/lx3xun/nook-clip/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">GNU GPLv3 协议</a> 开源开放。',
     footer_nav_head: '资源导航',
     footer_support_head: '开源与支持',
@@ -206,7 +207,7 @@ window.I18N_DATA = {
     theme_light: '淺色',
     theme_dark: '深色',
 
-    hero_badge: '原生架構 · Rust 儲存核心 · 常駐僅約 20MB · 開源免費',
+    hero_badge: '原生架構 · Rust 儲存核心 · 常駐僅約 20MB · 開源免費 · 標籤與類型篩選',
     hero_title: '輕量、極速、守護隱私的<br><span class="text-gradient">macOS 剪貼簿工作台</span>',
     hero_desc: '隨手複製舊內容不再丟失。按鍵叫出零等待，直接打字搜尋歷史，自動加密遮蔽 API 憑證。<br class="desktop-only">沒有帳號、沒有連網追蹤與當機回報，所有歷史資料 100% 保存在你的本機裝置上。',
     hero_dl_title: '下載 NookClip.dmg',
@@ -220,11 +221,12 @@ window.I18N_DATA = {
     tab_screenshot: '原生截圖對比',
     preview_dark: '深色模式',
     preview_light: '淺色模式',
-    chip_search: '打字直接搜（支援拼音）',
+    chip_search: '打字直接搜，即時命中',
     chip_sensitive: '敏感憑證遮蔽與 AES 加密',
-    chip_code: '程式碼高亮與 JSON 展開',
-    chip_ocr: '系統離線 OCR 圖文提取',
+    chip_code: '程式碼高亮與 JSON 美化',
+    chip_ocr: '系統離線 OCR 手動提取',
     chip_shortcuts: '全鍵盤快速鍵驅動',
+    chip_filter: '依類型 / 依標籤一屏篩選',
 
     stat_mem_val: '~20 MB',
     stat_mem_lbl: '常駐記憶體佔用，告別臃腫',
@@ -250,10 +252,10 @@ window.I18N_DATA = {
     card2_check2: '支援 1Password 等密碼管理器黑名單，切至前景自動暫停記錄',
 
     card3_title: '打字即搜與離線 OCR',
-    card3_desc: '叫出面板後無需專門點選搜尋方塊，直接敲擊鍵盤即可即時搜尋。基於系統原生 Vision 離線辨識截圖文字，不僅能直接搜截圖中的錯誤訊息，還能一鍵提取圖內文字。',
+    card3_desc: '叫出面板後無需專門點選搜尋方塊，直接敲擊鍵盤即可即時搜尋。基於系統原生 Vision 離線辨識截圖文字：在圖片卡片上主動點一下「辨識文字」，全文索引隨即建立，之後就能直接搜截圖中的錯誤訊息，也能一鍵提取圖內文字。',
 
     card4_title: '程式碼與 JSON 專屬卡片',
-    card4_desc: '複製的程式碼自動高亮著色；辨識到 JSON 資料自動提供樹狀格式化，支援一鍵美化、壓縮與欄位複製，無需額外開啟線上輔助工具。',
+    card4_desc: '複製的程式碼自動高亮著色；辨識到 JSON 資料直接給出專屬卡片，在「原文 / 美化 / 壓縮」之間一鍵切換，複製精美縮排或壓成一行都無需額外開啟線上輔助工具。',
 
     card5_title: '設計師實用輔助工具',
     card5_desc: '辨識到十六進位顏色值（如 <code class="code-tag">#1677FF</code>）在列表中直觀呈現色點，一鍵複製 HEX / RGB；辨識連結自動產生 QR Code，手機隨掃隨開。複製的檔案若已被移除，貼上前提供明確警示。',
@@ -277,8 +279,8 @@ window.I18N_DATA = {
     sc5_desc: '貼上後面板不收起，專為表單連續填寫與多欄位錄入優化',
     sc6_action: '批次多選合併',
     sc6_desc: '按住 Shift 多選連續歷史記錄，敲擊 Enter 一次性合併貼上',
-    sc7_action: '切換內容分類',
-    sc7_desc: '在文字、圖片、檔案、連結、程式碼等分類之間左右快速切換',
+    sc7_action: '切換內容類型',
+    sc7_desc: '在「全部」與收藏、圖片、文字、連結、程式碼、檔案、色值等類型之間左右循環，空類型自動跳過',
     sc8_action: '誤刪防呆復原',
     sc8_desc: '誤按刪除後 10 秒內均可按 ⌘Z 立即還原，避免重要記錄丟失',
 
@@ -392,7 +394,7 @@ window.I18N_DATA = {
     theme_light: 'Light',
     theme_dark: 'Dark',
 
-    hero_badge: 'Native Architecture · Rust Engine · ~20MB RAM · Open Source & Free',
+    hero_badge: 'Native Architecture · Rust Engine · ~20MB RAM · Open Source & Free · Tags & Type Filters',
     hero_title: 'Lightweight, Instant & Private<br><span class="text-gradient">macOS Clipboard Workspace</span>',
     hero_desc: 'Never lose copied context again. Zero summon delay, type-to-search history, and automatic credential masking.<br class="desktop-only">No accounts, no telemetry, no crash tracking — 100% stored on your local device.',
     hero_dl_title: 'Download NookClip.dmg',
@@ -408,9 +410,10 @@ window.I18N_DATA = {
     preview_light: 'Light Mode',
     chip_search: 'Instant Type-to-Search',
     chip_sensitive: 'AES-256 Credential Masking',
-    chip_code: 'Syntax & JSON Highlighting',
-    chip_ocr: 'Offline OCR Text Extraction',
+    chip_code: 'Syntax & JSON Beautify',
+    chip_ocr: 'On-demand Offline OCR',
     chip_shortcuts: 'Full Keyboard Shortcut Control',
+    chip_filter: 'Filter by type and tag in one place',
 
     stat_mem_val: '~20 MB',
     stat_mem_lbl: 'Resident memory, ultra lightweight',
@@ -436,10 +439,10 @@ window.I18N_DATA = {
     card2_check2: 'Blacklist support pauses recording when password managers are active',
 
     card3_title: 'Type-to-Search & Offline OCR',
-    card3_desc: 'Start typing as soon as the panel opens—no need to click the search box. Built-in Apple Vision extracts text from screenshots entirely offline, letting you search image text and copy snippets with one click.',
+    card3_desc: 'Start typing as soon as the panel opens—no need to click the search box. Tap Recognize Text on an image card and Apple Vision runs entirely offline to index it, so you can search the error messages inside screenshots and copy the extracted text in one click.',
 
     card4_title: 'Code & JSON Inspector Cards',
-    card4_desc: 'Automatic syntax highlighting for code snippets; JSON data is structured in a readable tree with one-click beautify, minify, and field copy options.',
+    card4_desc: 'Automatic syntax highlighting for code snippets; JSON data gets a dedicated card with one-click switching between Raw, Pretty, and Minified—copy nicely indented or collapsed to a single line without opening an online formatter.',
 
     card5_title: 'Designer Productivity Tools',
     card5_desc: 'Hex color codes (e.g. <code class="code-tag">#1677FF</code>) render inline color dots with instant HEX/RGB copy; URLs generate QR codes on the fly. Missing file paths warn you before pasting.',
@@ -463,8 +466,8 @@ window.I18N_DATA = {
     sc5_desc: 'Keeps panel active after pasting; optimized for multi-field forms',
     sc6_action: 'Batch Multi-Select',
     sc6_desc: 'Hold Shift to multi-select consecutive entries; press Return to merge',
-    sc7_action: 'Cycle Categories',
-    sc7_desc: 'Quickly jump between text, images, files, links, and code filters',
+    sc7_action: 'Cycle Content Type',
+    sc7_desc: 'Hop left or right between All and each content type; empty types are skipped',
     sc8_action: '10-Second Undo',
     sc8_desc: 'Accidental deletion can be undone within 10 seconds with ⌘Z',
 

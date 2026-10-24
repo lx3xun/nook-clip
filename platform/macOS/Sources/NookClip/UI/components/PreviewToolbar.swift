@@ -11,6 +11,17 @@ struct PreviewToolbar: View {
     var onToggleQRCode: (() -> Void)? = nil
     var onFavorite: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
+    /// 打开标签编辑器（⌘L / 末尾 +）
+    var onEditTags: (() -> Void)? = nil
+    /// 当前条目标签（顶部直接展示，替代原独立标签行）
+    var tags: [String] = []
+    /// 点击标签 → 按该标签过滤列表
+    var onSelectTag: ((String) -> Void)? = nil
+    /// 移除当前条目的某标签（悬停 ×）
+    var onRemoveTag: ((String) -> Void)? = nil
+    /// 右键标签：全局重命名 / 删除
+    var onRenameTag: ((String) -> Void)? = nil
+    var onDeleteTag: ((String) -> Void)? = nil
 
 
     /// 磁盘派生元信息（trailingInfo 异步加载，body 内不做同步磁盘 IO · 契约 C8/FR-019）
@@ -27,12 +38,23 @@ struct PreviewToolbar: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            // 左侧：来源应用标识（App 图标 + 应用名）。
+            // 列表行内只保留来源 App 的小角标、不再写应用文字名，故完整名称改在此处展示，
+            // 与左列互补。
             if let item {
-                leadingMeta(item)
+                sourceLabel(item)
+            }
+            // 类型相关的动作按钮（打开链接 / 二维码 / 打开文件 / 访达）。
+            if let item {
+                leadingActions(item)
             }
             Spacer(minLength: 8)
+            // 右侧：复制次数（列表无此信息，保留）→ 标签 chip → 收藏/删除
             if let item {
-                trailingInfo(item)
+                copyCountPill(item)
+            }
+            if item != nil {
+                tagChips
             }
             HStack(spacing: 4) {
                 ToolbarFavoriteButton(isFavorite: isFavorite) {
@@ -52,17 +74,125 @@ struct PreviewToolbar: View {
         }
     }
 
-    /// 顶栏左侧：来源图标 · 来源应用 · 相对时间 · 复制次数（合并原独立元信息行）
-    private func leadingMeta(_ item: ClipboardRowModel) -> some View {
-        HStack(spacing: 6) {
-            AppIconBadge(app: item.source, size: 15)
-            Text(L10n.tr("preview.meta_line", item.sourceDisplayName, RelativeTime.string(from: item.lastUsedAt), String(item.copyCount)))
-                .font(.nookClipMeta)
-                .monospacedDigit()
+    /// 顶栏左侧来源应用标识：App 图标 + 应用名（与列表行右下角小角标互补）。
+    @ViewBuilder
+    private func sourceLabel(_ item: ClipboardRowModel) -> some View {
+        HStack(spacing: 5) {
+            AppIconBadge(app: item.source, size: 16)
+            Text(item.sourceDisplayName)
+                .font(.nookClipMetaMedium)
                 .foregroundStyle(NookClip.textSecondary)
                 .lineLimit(1)
+                .fixedSize()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(item.sourceDisplayName)
+    }
+
+    /// 顶栏左侧：类型相关的动作按钮（打开链接/二维码/打开文件/访达）。
+    /// 来源应用、相对时间、字符数等不再在此重复展示。
+    @ViewBuilder
+    private func leadingActions(_ item: ClipboardRowModel) -> some View {
+        switch item.kind {
+        case .url:
+            if let urlString = contentText ?? (item.summary.isEmpty ? nil : item.summary),
+               let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
+               let scheme = url.scheme?.lowercased(),
+               scheme == "http" || scheme == "https" {
+                ToolbarActionButton(
+                    title: L10n.tr("preview.open_link"),
+                    icon: NookClipIcon.Action.openExternal
+                ) {
+                    NSWorkspace.shared.open(url)
+                }
+                ToolbarActionButton(
+                    title: L10n.tr("preview.qrcode.button"),
+                    icon: NookClipIcon.Action.qrcode,
+                    isActive: showQRCode
+                ) {
+                    onToggleQRCode?()
+                }
+            }
+        case .file:
+            let filePaths = (item.payloadPath ?? contentText)?
+                .components(separatedBy: "\n").filter { !$0.isEmpty } ?? []
+            if !filePaths.isEmpty, diskMeta.filesExist == true {
+                ToolbarActionButton(
+                    title: L10n.tr("preview.action.open"),
+                    icon: NookClipIcon.Action.openExternal
+                ) {
+                    filePaths.map { URL(fileURLWithPath: $0) }.forEach { NSWorkspace.shared.open($0) }
+                }
+                ToolbarActionButton(
+                    title: L10n.tr("preview.action.reveal_in_finder"),
+                    icon: NookClipIcon.Action.revealInFinder
+                ) {
+                    NSWorkspace.shared.activateFileViewerSelecting(filePaths.map { URL(fileURLWithPath: $0) })
+                }
+            } else if !filePaths.isEmpty, diskMeta.filesExist == false {
+                // 原文件已不存在：明示失效（不再提供打开/访达按钮）
+                metaPill(text: L10n.tr("file.missing.badge"), isWarning: true)
+            }
+        default:
+            EmptyView()
         }
     }
+
+    /// 复制次数小 pill（预览区独有信息，列表行不展示）
+    @ViewBuilder
+    private func copyCountPill(_ item: ClipboardRowModel) -> some View {
+        if item.copyCount > 1 {
+            Text(L10n.tr("preview.copy_count_short", String(item.copyCount)))
+                .font(.nookClipMeta)
+                .monospacedDigit()
+                .foregroundStyle(NookClip.textTertiary)
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+
+    /// 顶部标签 chip 区：单行展示前 N 个 + `+N`，末尾 `#` 按钮打开标签编辑器。
+    /// 无标签时仅显示 `#` 按钮。点击 chip 按标签过滤、悬停 × 移除、右键重命名/删除。
+    private var tagChips: some View {
+        HStack(spacing: 4) {
+            let visible = Array(tags.prefix(Self.maxVisibleChips))
+            ForEach(visible, id: \.self) { tag in
+                TagChipView(
+                    tag: tag,
+                    size: .compact,
+                    onRemove: onRemoveTag.map { remove in { remove(tag) } },
+                    onTap: onSelectTag.map { select in { select(tag) } }
+                )
+                .contextMenu {
+                    Button {
+                        onRenameTag?(tag)
+                    } label: {
+                        Label(L10n.tr("tag.rename"), systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        onDeleteTag?(tag)
+                    } label: {
+                        Label(L10n.tr("tag.delete"), systemImage: "trash")
+                    }
+                }
+            }
+            if tags.count > Self.maxVisibleChips {
+                Text("+\(tags.count - Self.maxVisibleChips)")
+                    .font(.nookClipMeta)
+                    .foregroundStyle(NookClip.textTertiary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            // 末尾 `#` 按钮：打开标签编辑器，交互与收藏/删除按钮完全一致
+            if let onEditTags {
+                ToolbarTagButton(action: onEditTags)
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// 顶栏最多直接展示的标签数（超出显示 +N）
+    private static let maxVisibleChips = 3
 
     private var metaTaskKey: String {
         // 文件条目的可打开性取决于 contentText 中的路径列表（体积小）；其余类型的
@@ -108,85 +238,7 @@ struct PreviewToolbar: View {
         diskMeta = meta
     }
 
-    @ViewBuilder
-    private func trailingInfo(_ item: ClipboardRowModel) -> some View {
-        HStack(spacing: 8) {
-            switch item.kind {
-            case .url:
-                if let urlString = contentText ?? (item.summary.isEmpty ? nil : item.summary),
-                   let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
-                   let scheme = url.scheme?.lowercased(),
-                   scheme == "http" || scheme == "https" {
-                    ToolbarActionButton(
-                        title: L10n.tr("preview.open_link"),
-                        icon: NookClipIcon.Action.openExternal
-                    ) {
-                        NSWorkspace.shared.open(url)
-                    }
-                    ToolbarActionButton(
-                        title: L10n.tr("preview.qrcode.button"),
-                        icon: NookClipIcon.Action.qrcode,
-                        isActive: showQRCode
-                    ) {
-                        onToggleQRCode?()
-                    }
-                }
-                metaPill(text: "URL")
-
-            case .file:
-                let filePaths = (item.payloadPath ?? contentText)?
-                    .components(separatedBy: "\n").filter { !$0.isEmpty } ?? []
-                if !filePaths.isEmpty, diskMeta.filesExist == true {
-                    ToolbarActionButton(
-                        title: L10n.tr("preview.action.open"),
-                        icon: NookClipIcon.Action.openExternal
-                    ) {
-                        filePaths.map { URL(fileURLWithPath: $0) }.forEach { NSWorkspace.shared.open($0) }
-                    }
-                    ToolbarActionButton(
-                        title: L10n.tr("preview.action.reveal_in_finder"),
-                        icon: NookClipIcon.Action.revealInFinder
-                    ) {
-                        NSWorkspace.shared.activateFileViewerSelecting(filePaths.map { URL(fileURLWithPath: $0) })
-                    }
-                } else if !filePaths.isEmpty, diskMeta.filesExist == false {
-                    // 原文件已不存在：明示失效，不再提供打开/访达按钮
-                    metaPill(text: L10n.tr("file.missing.badge"), isWarning: true)
-                }
-                metaPill(text: L10n.tr("category.file"))
-
-            case .image:
-                if let pixelSize = diskMeta.imagePixelSize {
-                    metaPill(text: pixelSize)
-                } else if let badge = item.badge {
-                    metaPill(text: badge.label)
-                } else {
-                    metaPill(text: L10n.tr("category.image"))
-                }
-
-            case .color:
-                if let hex = item.colorHex {
-                    metaPill(text: hex)
-                } else {
-                    metaPill(text: L10n.tr("category.color"))
-                }
-
-            case .sensitive:
-                metaPill(text: L10n.tr("category.sensitive"), isWarning: true)
-
-            case .code, .json, .text:
-                if let text = contentText ?? (item.summary.isEmpty ? nil : item.summary) {
-                    let chars = text.count
-                    let lines = text.components(separatedBy: "\n").count
-                    let label = lines > 1
-                        ? L10n.tr("preview.lines_and_chars", lines, chars)
-                        : L10n.tr("preview.characters", chars)
-                    metaPill(text: label)
-                }
-            }
-        }
-    }
-
+    /// 极轻量警示文字 pill（目前仅用于文件失效提示）。
     private func metaPill(text: String, isWarning: Bool = false) -> some View {
         Text(text)
             .font(.nookClipMeta)
@@ -279,12 +331,66 @@ private struct ToolbarActionButton: View {
                 }
             }
         }
-        .overlay(alignment: .bottomTrailing) {
+        // 左侧动作按钮：气泡向左下生长会溢出到左列（列表列 zIndex 更高会盖住它），
+        // 改为 `bottomLeading` 让它向右下生长，始终落在预览列内、浮于下方内容之上。
+        .overlay(alignment: .bottomLeading) {
             if showTooltip {
                 InstantTooltipBubble(text: title)
             }
         }
         .accessibilityLabel(title)
+    }
+}
+
+/// 预览区工具栏操作按钮：标签（Icon-Only · 24×24pt，`#` 图标，中性灰度，悬停微光，
+/// 带即时微气泡）——交互与收藏/删除按钮完全一致。
+private struct ToolbarTagButton: View {
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @State private var showTooltip = false
+    @State private var tooltipTask: Task<Void, Never>?
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "number")
+                .font(.system(size: NookClipIconSize.compactMedium, weight: .medium))
+                .foregroundStyle(isHovered ? NookClip.textPrimary : NookClip.textSecondary)
+                .frame(width: 24, height: 24)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isHovered ? NookClip.bgRowOn : Color.clear)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { hovering in
+            withAnimation(NookClip.animHover) {
+                isHovered = hovering
+            }
+            tooltipTask?.cancel()
+            if hovering {
+                tooltipTask = Task {
+                    try? await Task.sleep(nanoseconds: 80_000_000)
+                    if !Task.isCancelled {
+                        withAnimation(.easeOut(duration: 0.12)) {
+                            showTooltip = true
+                        }
+                    }
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.08)) {
+                    showTooltip = false
+                }
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if showTooltip {
+                InstantTooltipBubble(text: "\(L10n.tr("tag.title")) (⌘L)")
+            }
+        }
+        .accessibilityLabel(L10n.tr("tag.action"))
     }
 }
 

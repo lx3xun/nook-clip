@@ -191,26 +191,23 @@ final class MainViewStateTests: XCTestCase {
 
     // MARK: - 菜单状态机（Esc 优先级的状态侧）
 
-    /// Esc 语义的状态侧：菜单开合优先于筛选清空——菜单关闭不清筛选，
+    /// Esc 语义的状态侧：过滤面板开合优先于筛选清空——面板关闭不清筛选，
     /// 筛选清空（resetTimeAnchor）才复位时间锚点并触发滚动钩子
     func testMenuClosePrecedesFilterReset() {
         let filterState = MainViewFilterState()
         var resetHookFired = 0
         filterState.onTimeAnchorReset = { resetHookFired += 1 }
 
-        // 打开分类菜单并锚定时间组
-        filterState.toggleCategoryMenu(initialHighlight: 3)
+        // 打开过滤面板并锚定时间组
+        filterState.toggleFilterPanel()
         filterState.timeSelection = "今天"
-        XCTAssertTrue(filterState.isAnyMenuOpen, "菜单打开")
-        XCTAssertTrue(filterState.categoryMenuOpen)
-        XCTAssertEqual(filterState.categoryMenuHighlight, 3)
+        XCTAssertTrue(filterState.filterPanelOpen, "过滤面板打开")
 
-        // 第一次 Esc（等价）：仅关菜单，筛选保留
+        // 第一次 Esc（等价）：仅关面板，筛选保留
         filterState.closeMenus()
-        XCTAssertFalse(filterState.isAnyMenuOpen)
-        XCTAssertNil(filterState.categoryMenuHighlight)
-        XCTAssertEqual(filterState.timeSelection, "今天", "关菜单不清时间定位")
-        XCTAssertEqual(resetHookFired, 0, "关菜单不触发滚动复位")
+        XCTAssertFalse(filterState.filterPanelOpen)
+        XCTAssertEqual(filterState.timeSelection, "今天", "关面板不清时间定位")
+        XCTAssertEqual(resetHookFired, 0, "关面板不触发滚动复位")
 
         // 第二次 Esc（等价）：清筛选 → 时间锚点复位 + 滚动钩子
         filterState.resetTimeAnchor()
@@ -333,11 +330,10 @@ final class MainViewStateTests: XCTestCase {
     /// 分页列表只加载前 100 条时，时间导航锚点条仍须展示全部时间分组，
     /// 且能算出把未加载组拉进前缀所需的行数（扩页定位）
     func testTimeGroupsCoverOlderGroupsBeyondPageWindow() async {
-        // 本用例故意写入 2025-01 的「去年」数据；默认保留期 180 天，
-        // 启动时异步磁盘限额维护会把它当过期条目清掉，导致锚点断言偶发失败。
-        // 这里关闭保留期限制（0 = 无限制），只验证分页与时间锚点行为。
+        // 本用例故意写入 2025-01 的「去年」数据；如今清理只剩条数上限（默认 500），
+        // 103 条虽未超限，但显式设到硬上限可避免默认档位日后下调或启动维护改写基准库。
         let defaults = makeIsolatedDefaults()
-        defaults.set(0, forKey: RetentionPolicy.defaultsKey)
+        defaults.set(HistoryMaxItemsPolicy.hardCap, forKey: HistoryMaxItemsPolicy.defaultsKey)
         let store = makeIsolatedStore(defaults: defaults)
         store.clearHistory(keepFavorites: false)
         // 100 条今天 + 3 条去年：分页只装下今天

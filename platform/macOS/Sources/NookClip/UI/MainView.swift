@@ -69,13 +69,8 @@ struct MainView: View {
     /// 背景透明度 0~0.5：越大背景越透明（默认 0.15）
     @AppStorage("backgroundTransparency") var backgroundTransparency: Double = 0.15
     /// 时间快速跳转模式（偏好设置驱动）
-    @AppStorage(UserDefaultsKey.timelineJumpMode.rawValue) var timelineJumpModeRaw = TimelineJumpMode.indexRail.rawValue
     /// 全局呼出快捷键展示文本（默认 ⌘ ⇧ V）
     @AppStorage(UserDefaultsKey.hotkeyDisplay.rawValue) var hotkeyDisplay = "⌘ ⇧ V"
-
-    var timelineJumpMode: TimelineJumpMode {
-        TimelineJumpMode(rawValue: timelineJumpModeRaw) ?? .indexRail
-    }
     /// 分类/时间菜单与时间定位状态机（滚动/聚焦/槽固定等宿主副作用经钩子接线）
     @State var filterState = MainViewFilterState()
     /// 列表滚动代理（⌘T / 时间定位滚动用；itemList onAppear 注入）
@@ -87,6 +82,8 @@ struct MainView: View {
     @State var rowFramesBox = RowFramesBox()
     /// 列表滚动容器（ScrollView）在列表列坐标系中的实时 frame（不含上方固定应用区、时间组头栏及下方底栏）
     @State var listScrollAreaFrame: CGRect = .zero
+    /// 展开过滤面板的实测高度（用于绘制「搜索框 + 面板」单张整体背景与其外围阴影）
+    @State var filterPanelHeight: CGFloat = 0
     /// 导航滚动下一帧复核任务（连发 ↑/↓ 时取消前一次复核，防止过期目标把滚动位置拉乱）
     @State var scrollReconcileTask: Task<Void, Never>?
     /// 吸顶组节流任务：行坐标帧率变化合并为 ~60ms 一次状态更新
@@ -101,6 +98,11 @@ struct MainView: View {
     /// 行内重命名目标（nil = 非编辑态）：⌘R / 右键「设置别名」进入。
     /// ⏎/失焦提交、Esc 放弃，提交走 store.updateTitle（空串 = title 置空）
     @State var renamingItemID: UUID?
+    /// 标签编辑器浮层锚定视图（弹 popover 用）
+    @State var tagEditorAnchor: TagEditorAnchor?
+    /// 标签重命名草稿（弹输入框）
+    @State var tagRenameTarget: String?
+    @State var tagRenameDraft: String = ""
     /// 搜索框焦点（⌘F 聚焦 / 列表态打字即搜索）
     @State var searchFieldFocused = false
     /// 默认键盘焦点锚点：接管默认焦点防止面板打开时自动聚焦搜索框
@@ -171,9 +173,6 @@ struct MainView: View {
     /// 根内容（双栏）
     var rootContent: some View {
         mainColumns
-        // 把内容整体上提 28pt 标题栏区：nookClipSurface 铺满整窗（标题栏落在材质上），
-        // 侧栏搜索框自带 28pt+ 顶部让位。无此修饰时材质从标题栏下才
-        // 开始，标题栏悬在面板外的透明条上
         .ignoresSafeArea()
         .overlay {
             Color.clear
@@ -181,6 +180,96 @@ struct MainView: View {
                 .focusable()
                 .focusEffectDisabled()
                 .focused($keyAnchorFocused)
+        }
+        // 标签编辑器浮层（中央轻量浮层；点击外部/Esc 关闭）
+        .overlay {
+            if let anchor = tagEditorAnchor {
+                tagEditorOverlay(anchor)
+            }
+        }
+        // 标签重命名输入浮层
+        .overlay {
+            if tagRenameTarget != nil {
+                tagRenameOverlay
+            }
+        }
+    }
+
+    /// 标签编辑器浮层（半透明遮罩 + 居中卡片）
+    @ViewBuilder
+    private func tagEditorOverlay(_ anchor: TagEditorAnchor) -> some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .onTapGesture { closeTagEditor() }
+            TagEditorPopover(
+                target: anchor.target,
+                knownTags: tagStats,
+                stateForTag: { tag in tagState(tag, for: anchor.target) },
+                appliedTags: commonTags(for: anchor.target),
+                onSelectTag: { tag in applyTagToggle(tag, target: anchor.target, on: true) },
+                onRemoveTag: { tag in applyTagToggle(tag, target: anchor.target, on: false) },
+                onAddNewTag: { tag in addNewTag(tag, target: anchor.target) },
+                onClose: { closeTagEditor() }
+            )
+            .padding(.top, 40)
+        }
+    }
+
+    /// 标签重命名浮层（居中输入卡）
+    private var tagRenameOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .onTapGesture { cancelTagRename() }
+            VStack(alignment: .leading, spacing: 10) {
+                Text(L10n.tr("tag.rename"))
+                    .font(.nookClipSubheadMedium)
+                    .foregroundStyle(NookClip.textPrimary)
+                HStack(spacing: 6) {
+                    Text("#")
+                        .font(.nookClipBody)
+                        .foregroundStyle(NookClip.textTertiary)
+                    TextField(L10n.tr("tag.rename_placeholder"), text: $tagRenameDraft)
+                        .textFieldStyle(.plain)
+                        .font(.nookClipBody)
+                        .onSubmit { commitTagRename() }
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+                .background {
+                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                        .fill(NookClip.bgRowOn)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                                .strokeBorder(NookClip.separator, lineWidth: 0.5)
+                        }
+                }
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    Button(L10n.tr("common.cancel")) { cancelTagRename() }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                        .font(.nookClipMeta)
+                        .foregroundStyle(NookClip.textSecondary)
+                    Button(L10n.tr("common.confirm")) { commitTagRename() }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                        .font(.nookClipMetaMedium)
+                        .foregroundStyle(NookClip.accent)
+                }
+            }
+            .padding(14)
+            .frame(width: 240)
+            .background {
+                RoundedRectangle(cornerRadius: NookClip.radiusCard, style: .continuous)
+                    .fill(NookClip.bgPopover)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: NookClip.radiusCard, style: .continuous)
+                            .strokeBorder(NookClip.separator, lineWidth: 0.5)
+                    }
+                    .shadow(color: .black.opacity(0.16), radius: 12, y: 4)
+            }
         }
     }
 
@@ -204,10 +293,6 @@ struct MainView: View {
         }
         filterState.onCategorySelected = { id in
             listState.setCategorySelection(id, dataVersion: store.dataVersion)
-            if categoryBar.customCategoryOrder == nil,
-               categoryBar.switchableCategories(in: pipelineOutput.categories).contains(where: { $0.id == id }) {
-                categoryBar.slot5PinnedID = id
-            }
             searchFieldFocused = true
         }
         filterState.onTimeAnchorReset = {
@@ -222,7 +307,7 @@ struct MainView: View {
         queryCoordinator.timeGroups.contains { $0.id == filterState.timeSelection } ? filterState.timeSelection : nil
     }
 
-    /// 锚点条条目：全量时间分组（今天 / 昨天 / 本周 / 上周 / 月份等；空桶不出现）。
+    /// 锚点条条目：全量时间分组（今天 / 昨天 / 本周 / 月份 / 年份；空桶不出现）。
     /// 来自 Rust 全量时间戳聚合，分页前缀没加载的更早分组也在导航中展示
     var timelineRailItems: [TimelineRailItem] {
         queryCoordinator.timeGroups.map { group in
@@ -265,46 +350,105 @@ struct MainView: View {
         HStack(spacing: 0) {
             // 左列：搜索 + 剪贴列表 + 列表级提示栏（顶部让位标题栏）
             VStack(spacing: 0) {
-                NookClipSearchField(
-                    text: Binding(
-                        get: { listState.searchText },
-                        set: { listState.setSearchText($0, dataVersion: store.dataVersion) }
-                    ),
-                    isFocused: $searchFieldFocused
-                )
-                .padding(EdgeInsets(top: NookClip.searchTopInset, leading: 0, bottom: NookClip.searchBottomGap, trailing: 0))
+                // 搜索框 + 展开过滤面板合成同一张卡：两块内容均透明背景，由下方**同一张**
+                // 背景形状（贯穿搜索框+面板的整体轮廓）统一绘制底色并施加**一层**整体阴影。
+                // 这样不会出现两个不透明面互相投影、接缝处被邻居阴影压暗/割裂的问题。
+                ZStack(alignment: .top) {
+                    NookClipSearchField(
+                        text: Binding(
+                            get: { listState.searchText },
+                            set: { listState.setSearchText($0, dataVersion: store.dataVersion) }
+                        ),
+                        isFocused: $searchFieldFocused,
+                        chips: embeddedFilterChips,
+                        showsShortcutHint: true,
+                        isIntegratedWithPanel: showsFilterPanel
+                    )
+                    .padding(EdgeInsets(top: NookClip.searchTopInset, leading: 0, bottom: NookClip.searchBottomGap, trailing: 0))
+                    // 点击搜索框（面板未展开时）即聚焦并展开过滤面板：
+                    // 命中层在面板收起时常驻，保证 Esc 收起后再次点击仍能重新展开
+                    .overlay {
+                        if !showsFilterPanel {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    searchFieldFocused = true
+                                    filterState.filterPanelOpen = true
+                                }
+                        }
+                    }
 
-                // 分类筛选条：紧贴搜索栏下方
-                CategoryFilterBar(
-                    chips: fixedCategories,
-                    slotCategory: slot5Category,
-                    hasSlotMenu: !categoryMenuCategories.isEmpty,
-                    selectedID: effectiveCategory,
-                    isSlotMenuOpen: filterState.categoryMenuOpen,
-                    onSelect: { filterState.selectCategory($0) },
-                    onToggleSlotMenu: { toggleCategoryMenu() }
-                )
-                .padding(EdgeInsets(top: 0, leading: 12, bottom: NookClip.categoryBarBottomGap, trailing: 12))
-                // 搜索时分类条保持清晰可用（FR-007 · 消除假禁用态感知）
+                    if showsFilterPanel {
+                        CategoryFilterPanel(
+                            categories: filterGridCategories,
+                            selectedCategoryID: effectiveCategory,
+                            tags: tagStats,
+                            selectedTag: listState.selectedTag,
+                            drawsBackground: false,
+                            onSelectCategory: { id in
+                                filterState.selectCategory(id)
+                                searchFieldFocused = true
+                            },
+                            onSelectTag: { tag in
+                                selectFilterTag(tag)
+                            }
+                        )
+                        // 与搜索框一体：等宽铺满左列（x=0），上沿严丝合缝贴在搜索框下沿
+                        .offset(x: 0, y: NookClip.searchTopInset + NookClip.heightSearch)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+                // 单张整体背景（搜索框 + 面板轮廓），并只在此背景上施加一层整体阴影
+                .background(alignment: .top) {
+                    if showsFilterPanel {
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: NookClip.radiusCard,
+                            bottomLeadingRadius: NookClip.radiusCard,
+                            bottomTrailingRadius: NookClip.radiusCard,
+                            topTrailingRadius: NookClip.radiusCard,
+                            style: .continuous
+                        )
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .overlay {
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: NookClip.radiusCard,
+                                bottomLeadingRadius: NookClip.radiusCard,
+                                bottomTrailingRadius: NookClip.radiusCard,
+                                topTrailingRadius: NookClip.radiusCard,
+                                style: .continuous
+                            )
+                            .fill(NookClip.bgPopover)
+                        }
+                        .overlay {
+                            UnevenRoundedRectangle(
+                                topLeadingRadius: NookClip.radiusCard,
+                                bottomLeadingRadius: NookClip.radiusCard,
+                                bottomTrailingRadius: NookClip.radiusCard,
+                                topTrailingRadius: NookClip.radiusCard,
+                                style: .continuous
+                            )
+                            .strokeBorder(NookClip.separator, lineWidth: 0.5)
+                        }
+                        .frame(height: NookClip.searchTopInset + NookClip.heightSearch + filterPanelHeight)
+                        .shadow(color: .black.opacity(0.14), radius: 12, y: 5)
+                    }
+                }
+                .zIndex(100)
+                .onPreferenceChange(FilterPanelHeightKey.self) { h in
+                    filterPanelHeight = h
+                }
+
+                // 分类/标签不再常驻：统一由搜索框展开面板承载（见下方 overlay）
                 if !matchedApps.isEmpty {
                     matchedAppsFixedSection
                 }
                 if !groups.isEmpty {
+                    // 时间定位只依赖这条吸顶组头：组名 + 计数随滚动实时表达「现在在哪」，
+                    // 右侧下拉菜单表达「跳到哪」（纯排印，无额外色块/刻度轨带来的视觉噪音）。
                     activeListHeaderBar
                 }
                 ZStack(alignment: .bottom) {
                     itemList
-                        // 时间锚点条：极简刻度点轨 + 浮动气泡 HUD（受 timelineJumpMode 控制）
-                        .overlay(alignment: .trailing) {
-                            if timelineJumpMode == .indexRail && !groups.isEmpty {
-                                TimelineIndexRail(
-                                    items: timelineRailItems,
-                                    currentID: filterState.stickyGroupID ?? groups.first?.id,
-                                    onScrub: { filterState.railScrub(to: $0) }
-                                )
-                                .padding(.vertical, 4)
-                            }
-                        }
                     if !deletionWorkflow.pendingUndoIDs.isEmpty {
                         // T038：撤销 toast 抽为 UndoToast 组件（纯移动）
                         UndoToast(
@@ -329,7 +473,8 @@ struct MainView: View {
                     BatchBar(
                         selectedCount: selectionCoordinator.selectionIDs.count,
                         onMergePaste: { pasteBatch(keepOpen: false, plainTextOnly: false) },
-                        onDelete: { deleteSelection() }
+                        onDelete: { deleteSelection() },
+                        onEditTags: { beginTagEditForBatch() }
                     )
                 } else {
                     // 底栏主循环高频三键：选择 → 粘贴 → 分类切换；
@@ -347,12 +492,28 @@ struct MainView: View {
                             .init(kbds: ["⌥\u{200A}⏎"], label: L10n.tr("hints.paste_plain")),
                             .init(kbds: ["⌘\u{200A}⏎"], label: L10n.tr("hints.paste_keep")),
                             .init(kbds: ["⌘\u{200A}T"], label: L10n.tr("hints.time_jump")),
-                            .init(kbds: ["⌘\u{200A}R"], label: L10n.tr("hints.rename"))
+                            .init(kbds: ["⌘\u{200A}R"], label: L10n.tr("hints.rename")),
+                            .init(kbds: ["Esc"], label: L10n.tr("hints.dismiss"))
                         ]
                     )
                 }
             }
             .frame(width: NookClip.widthListCol)
+            // 搜索框下方浮层（整列顶层 overlay，确保盖在列表之上）：
+            // `#` 标签候选下拉：只要搜索词里存在未完成的 `#片段` 就展示（补全/清空后自然消失）。
+            // （展开过滤面板已上移至搜索框同层 ZStack，与搜索框共用一层整体阴影）
+            .overlay(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) {
+                    if let suggestions = searchTagSuggestions, !suggestions.isEmpty {
+                        tagSuggestionDropdown(suggestions)
+                            .offset(
+                                x: 12,
+                                y: NookClip.searchTopInset + NookClip.heightSearch + NookClip.searchBottomGap - 2
+                            )
+                    }
+                }
+                .zIndex(100)
+            }
             // 列底色 + 顶部薄雾（同一层叠：先底色后环境光，见 nookClipAuroraBackground）
             .nookClipAuroraBackground(base: {
                 if enableTranslucency {
@@ -363,34 +524,6 @@ struct MainView: View {
             }, previewGlow: false)
             .overlay(alignment: .trailing) {
                 Rectangle().fill(NookClip.separator).frame(width: 0.5)
-            }
-            // 分类下拉卡片 + 点击外部关闭捕获层（列表列抬层，盖过后续兄弟列）
-            .overlay(alignment: .topLeading) {
-                if filterState.categoryMenuOpen {
-                    ZStack(alignment: .topLeading) {
-                        OutsideTapCatcher { closeMenus() }
-                        NookClipDropdownMenu(
-                            options: categoryMenuOptions,
-                            highlightedID: filterState.categoryMenuHighlight,
-                            onSelect: { filterState.selectCategory($0) },
-                            onHover: { filterState.categoryMenuHighlight = $0 },
-                            onReorder: { dragging, target in
-                                reorderCategory(dragging, before: target)
-                            },
-                            onNudge: { id, offset in
-                                nudgeCategory(id, offset: offset)
-                            },
-                            resetOrderLabel: customCategoryOrder == nil
-                                ? nil
-                                : L10n.tr("category.reset_order"),
-                            onResetOrder: { resetCategoryOrder() }
-                        )
-                        .offset(
-                            x: NookClip.widthListCol - 12 - NookClipDropdownLayout.menuWidth,
-                            y: NookClip.searchTopInset + NookClip.heightSearch + NookClip.searchBottomGap + NookClip.heightCategoryBar + 4
-                        )
-                    }
-                }
             }
             .coordinateSpace(name: "nookListColumn")
             .zIndex(10)
@@ -419,7 +552,17 @@ struct MainView: View {
                         entityProvider: { row in
                             store.item(withID: row.id)
                         },
-                        previewData: previewData
+                        previewData: previewData,
+                        tagsProvider: { id in store.item(withID: id)?.tags ?? [] },
+                        onSelectTag: { tag in
+                            if listState.selectedTag == tag { listState.setSelectedTag(nil, dataVersion: store.dataVersion) }
+                            else { listState.setSelectedTag(tag, dataVersion: store.dataVersion) }
+                        },
+                        onRemoveTag: { id, tag in store.removeTag(tag, from: id) },
+                        onEditTags: { id in beginTagEdit(for: id) },
+                        onRenameTag: { tag in beginTagRename(tag) },
+                        onDeleteTag: { tag in store.deleteTag(name: tag) },
+                        isSensitiveSyncActive: store.syncEngine.isE2EESensitiveSyncActive
                     )
                 }
             }
@@ -641,6 +784,235 @@ struct MainView: View {
         keyAnchorFocused = true
     }
 
+    // MARK: - 标签（⌘L / 右键「标签…」/ 预览区 + 胶囊）
+
+    /// 全部标签统计（按 count DESC, name ASC；随 store.dataVersion 刷新）
+    var tagStats: [TagStat] { store.tagStats }
+
+    /// 搜索框中正在输入的 `#` 片段对应的标签候选（nil = 未在输入标签）。
+    /// 取最后一个 `#` 到行尾作为前缀；`#` 后含空格则视为已完成，不再提示。
+    var searchTagSuggestions: [String]? {
+        let text = listState.searchText
+        guard let hashIdx = text.lastIndex(of: "#") else { return nil }
+        let fragment = text[text.index(after: hashIdx)...]
+        // 片段中若已含空白，说明标签词已结束，收起候选
+        if fragment.contains(where: { $0.isWhitespace }) { return nil }
+        let prefix = fragment.lowercased()
+        let all = tagStats.map(\.name)
+        if prefix.isEmpty {
+            return Array(all.prefix(8))
+        }
+        return Array(all.filter { $0.lowercased().hasPrefix(prefix) }.prefix(8))
+    }
+
+    /// 把搜索框中末尾的 `#前缀` 补全为完整标签（保留其它搜索词，追加尾随空格）
+    func completeSearchTag(_ tag: String) {
+        var text = listState.searchText
+        if let hashIdx = text.lastIndex(of: "#") {
+            text = String(text[..<hashIdx])
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let rebuilt = trimmed.isEmpty ? "#\(tag) " : "\(trimmed) #\(tag) "
+        listState.setSearchText(rebuilt, dataVersion: store.dataVersion)
+        searchFieldFocused = true
+    }
+
+    /// 搜索框下方的标签候选下拉（紧凑、单行滚动，点选补全）。
+    /// 背景必须**不透明**：面板本身是半透明材质，若下拉也用半透明色会与下方分类栏叠色看不清。
+    /// 这里用「原生不透明底 + 主题 tint + 描边 + 阴影」组合，确保浮层清晰独立。
+    @ViewBuilder
+    private func tagSuggestionDropdown(_ suggestions: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(suggestions, id: \.self) { tag in
+                    TagChipView(tag: tag, size: .compact, onTap: { completeSearchTag(tag) })
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+        .frame(maxWidth: 320, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                // 不透明底：windowBackgroundColor 为实色，保证浮层不透出下层分类栏
+                .fill(Color(nsColor: .windowBackgroundColor))
+                .overlay {
+                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                        .fill(NookClip.bgPopover)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                        .strokeBorder(NookClip.separator, lineWidth: 0.5)
+                }
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        }
+    }
+
+    // MARK: 搜索框展开过滤面板 / 内嵌条件胶囊
+
+    /// 展开过滤面板是否可见：显式展开 且 搜索框为空且未在输入 `#`。
+    /// 由焦点事件置位（聚焦即展开），Esc/打字/选中条件后收起——因此「聚焦但已按 Esc
+    /// 收起」不会被焦点本身重新撑开，避免出现「无法关闭」。
+    var showsFilterPanel: Bool {
+        guard filterState.filterPanelOpen else { return false }
+        guard listState.searchText.isEmpty else { return false }
+        guard searchTagSuggestions == nil || searchTagSuggestions?.isEmpty == true else { return false }
+        return true
+    }
+
+    /// 嵌在搜索框左侧的过滤条件胶囊：分类（非「全部」）+ 标签，二者可并存（AND）。
+    var embeddedFilterChips: [EmbeddedFilterChip] {
+        var chips: [EmbeddedFilterChip] = []
+        if let cat = activeCategoryObject {
+            chips.append(EmbeddedFilterChip(
+                kind: .category,
+                symbol: cat.symbol,
+                title: cat.name,
+                tint: cat.tintColor,
+                onRemove: {
+                    listState.setCategorySelection(0, dataVersion: store.dataVersion)
+                    searchFieldFocused = true
+                }
+            ))
+        }
+        if let tag = listState.selectedTag {
+            chips.append(EmbeddedFilterChip(
+                kind: .tag,
+                symbol: nil,
+                title: tag,
+                tint: NookClip.accent,
+                onRemove: {
+                    listState.setSelectedTag(nil, dataVersion: store.dataVersion)
+                    searchFieldFocused = true
+                }
+            ))
+        }
+        return chips
+    }
+
+    /// 点选标签胶囊：设为过滤条件（与当前相同则取消），收起浮层并聚焦搜索框
+    func selectFilterTag(_ tag: String) {
+        if listState.selectedTag?.caseInsensitiveCompare(tag) == .orderedSame {
+            listState.setSelectedTag(nil, dataVersion: store.dataVersion)
+        } else {
+            listState.setSelectedTag(tag, dataVersion: store.dataVersion)
+        }
+        filterState.filterPanelOpen = false
+        searchFieldFocused = true
+    }
+
+    /// 打开单选标签编辑器（作用于单条）
+    func beginTagEdit(for id: UUID) {
+        guard tagEditorAnchor == nil else { return }
+        tagEditorAnchor = TagEditorAnchor(target: .single(id), anchorID: id)
+    }
+
+    /// 打开批量标签编辑器（作用于当前勾选集；无勾选时回退到当前选中单条）
+    func beginTagEditForBatch() {
+        guard tagEditorAnchor == nil else { return }
+        let ids = Array(selectionCoordinator.selectionIDs)
+        if ids.count >= 2 {
+            tagEditorAnchor = TagEditorAnchor(target: .batch(ids), anchorID: ids.first)
+        } else if let id = selectionCoordinator.selectedID {
+            tagEditorAnchor = TagEditorAnchor(target: .single(id), anchorID: id)
+        }
+    }
+
+    /// ⌘L 动作：批量态 → 批量编辑器；否则单条编辑器（当前选中）
+    func beginTagEdit() {
+        if isBatchMode {
+            beginTagEditForBatch()
+        } else if let id = selectionCoordinator.selectedID {
+            beginTagEdit(for: id)
+        }
+    }
+
+    func closeTagEditor() {
+        tagEditorAnchor = nil
+    }
+
+    /// 单条编辑目标当前标签
+    func tags(of id: UUID) -> [String] {
+        store.item(withID: id)?.tags ?? []
+    }
+
+    /// 目标条目的「共有标签」：单条 = 该条全部标签；批量 = 所有条目都有的交集（升序稳定）
+    func commonTags(for target: TagEditTarget) -> [String] {
+        let idList = target.ids
+        guard let first = idList.first else { return [] }
+        var common = tags(of: first)
+        for id in idList.dropFirst() {
+            let set = Set(tags(of: id).map { $0.lowercased() })
+            common = common.filter { set.contains($0.lowercased()) }
+        }
+        // 保留一次展示顺序（沿用 first 的顺序）
+        return common
+    }
+
+    /// 目标条目的标签状态（all/partial/none）
+    func tagState(_ tag: String, for target: TagEditTarget) -> TagCandidateState {
+        let idList = target.ids
+        var matched = 0
+        for id in idList where tags(of: id).contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+            matched += 1
+        }
+        if matched == 0 { return .none }
+        if matched == idList.count { return .all }
+        return .partial
+    }
+
+    /// 应用标签切换（浮层回调）：单条走 setTags 全量；批量按条目逐个 add/remove
+    func applyTagToggle(_ tag: String, target: TagEditTarget, on: Bool) {
+        for id in target.ids {
+            let current = tags(of: id)
+            let has = current.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+            if on, !has {
+                var next = current
+                next.append(tag)
+                store.setTags(next, for: id)
+            } else if !on, has {
+                store.removeTag(tag, from: id)
+            }
+        }
+    }
+
+    /// 创建并应用新标签给全部目标
+    func addNewTag(_ tag: String, target: TagEditTarget) {
+        let normalized = tag.leadingHashesStripped
+        guard !normalized.isEmpty else { return }
+        for id in target.ids {
+            var next = tags(of: id)
+            if !next.contains(where: { $0.caseInsensitiveCompare(normalized) == .orderedSame }) {
+                next.append(normalized)
+                store.setTags(next, for: id)
+            }
+        }
+    }
+
+    // MARK: 标签重命名 / 删除（筛选条右键）
+
+    func beginTagRename(_ tag: String) {
+        tagRenameTarget = tag
+        tagRenameDraft = tag
+    }
+
+    func commitTagRename() {
+        guard let old = tagRenameTarget else { return }
+        let new = tagRenameDraft.leadingHashesStripped
+        tagRenameTarget = nil
+        guard !new.isEmpty, new.caseInsensitiveCompare(old) != .orderedSame else { return }
+        store.renameTag(old: old, new: new)
+        // 若正在按旧标签过滤，跟随重命名为新名
+        if listState.selectedTag?.caseInsensitiveCompare(old) == .orderedSame {
+            listState.setSelectedTag(new, dataVersion: store.dataVersion)
+        }
+    }
+
+    func cancelTagRename() {
+        tagRenameTarget = nil
+        tagRenameDraft = ""
+    }
+
     /// 右键「粘贴」= 双击同源：单选粘贴选中项，批量合并粘贴勾选集
     func pasteFromSelection() {
         if isBatchMode {
@@ -756,3 +1128,9 @@ struct AccessibilityPermissionBanner: View {
     }
 }
 
+
+/// 标签编辑器浮层的展示状态（target + 锚定条目 id，用于内容刷新判定）
+struct TagEditorAnchor: Equatable {
+    let target: TagEditTarget
+    let anchorID: UUID?
+}

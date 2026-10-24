@@ -41,11 +41,11 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 - **Global Hotkey**: Press `⌘ ⇧ V` to summon the panel anywhere; it closes automatically on focus loss or `Esc`.
 - **Type-to-Search**: Start typing immediately when the panel opens—no need to click into the search field first.
 - **Quick App Launch**: Type app names or initials (e.g. `wx`, `terminal`) directly in the search bar and press Enter to launch.
-- **Full-Text & OCR Search**: Built on SQLite FTS5 to search through text, URLs, and recognized text in screenshots (OCR), with matches highlighted.
-- **Category Filtering**: Quickly filter by text, images, files, links, code, colors, or credentials.
+- **Full-Text & OCR Search**: Built on SQLite FTS5 to search through text and URLs; screenshots become searchable once you tap Recognize Text on their card, with matches highlighted.
+- **Type & Tag Filtering**: Focus the search field to expand the filter panel—eight fixed type slots (Favorites / Images / Text / Links / Code / Files / Colors / Trash) keep stable positions, with a tag flow below for combining tag filters on top of a type.
 
 ### Content Recognition & Preview
-- **Offline Image OCR**: Recognizes text in copied images and screenshots using built-in system vision, allowing you to search image content or copy recognized text with one click.
+- **Offline Image OCR**: Tap Recognize Text on an image card to run built-in on-device vision over the screenshot—no memory held until you ask—then search the indexed text or copy it with one click.
 - **Syntax Highlighting & JSON Formatting**: Automatic code highlighting; JSON content can be formatted, minified, or copied with a single click.
 - **QR Code for Links**: Generates QR codes directly from recognized URLs for quick mobile scanning.
 - **Color Previews**: Recognizes hex color codes (e.g. `#FF5722`), showing color dots inline and providing one-click copy for HEX and RGB values.
@@ -75,15 +75,17 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 | **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting) |
 | **`⌘ ⏎`** | Paste and keep panel open (great for filling multi-field forms) |
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
-| **`⌘ [` / `⌘ ]`** | Cycle categories (`⌘ ]` next, `⌘ [` previous) |
-| **`⌘ ↓`** | Open / close the overflow category dropdown menu |
-| **`⌘ F`** | Focus search field (or simply start typing while in list mode) |
-| **`⌘ T`** | Cycle through time groups (Today → Yesterday → This Week → … → Top) |
-| **`⌘ S`** | Favorite / unfavorite item (favorites are exempt from retention & quota cleanup) |
+| **`⌘ [` / `⌘ ]`** | Cycle content types (`⌘ ]` next, `⌘ [` previous, empty types skipped) |
+| **`⌘ ↓`** | Expand / collapse the filter panel under the search field (type grid + tag flow) |
+| **`⌘ F`** | Focus the search field and expand the filter panel (or simply start typing while in list mode) |
+| **`⌘ T`** | Cycle through time groups (or click the group title to jump via its menu) |
+| **`⌘ S`** | Favorite / unfavorite item (favorites are exempt from item-count & disk-quota cleanup) |
 | **`⌘ R`** | Set or clear a custom alias for the selected item |
 | **`⌘ ⌫`** | Delete selected item(s) (undoable within 10 seconds) |
 | **`⌘ Z`** | Undo last delete |
-| **`Esc`** | Layered dismiss: close dropdown → exit multi-select → clear search → reset filters → hide panel |
+| **`⌘ L`** | Edit tags of the selected item |
+| **`⌫`** | With the search field focused, remove embedded filter conditions one layer at a time (tag first, then type; deletes text normally when there is a query) |
+| **`Esc`** | Layered dismiss: close tag/rename overlay → collapse filter panel → exit multi-select → clear search → clear tag → reset type filter → reset time group → hide panel |
 
 ---
 
@@ -163,7 +165,7 @@ nook-clip/
 │   │   ├── Localization/          # Instant runtime localization (en / zh-Hans / zh-Hant)
 │   │   ├── Resources/             # Localized strings (Localizable.strings) & app icons
 │   │   ├── Search/                # Installed app search (with Pinyin index), Vision offline OCR & query parser
-│   │   ├── Storage/               # Rust store wrapper, iCloud Drive sync coordinator & retention lifecycle
+│   │   ├── Storage/               # Rust store wrapper, iCloud Drive sync coordinator & item/disk cap cleanup
 │   │   └── UI/                    # SwiftUI main panel, rich preview cards (Code/JSON/OCR/QR/Color) & Settings
 │   ├── Tests/NookClipTests/       # Unit & integration test suite (isolated named pasteboards)
 │   └── Packaging/                 # Info.plist and entitlements

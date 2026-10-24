@@ -147,19 +147,20 @@ final class InMemoryHistoryStore {
         return rustStore.item(id: id)
     }
 
-    /// 统一后台维护任务入口：整合保留期清理、磁盘限额淘汰与孤儿文件清扫
+    /// 统一后台维护任务入口：整合条数上限裁剪、磁盘限额淘汰与孤儿文件清扫
     @discardableResult
-    func runMaintenance(days: Int? = nil, limitMB: Int? = nil) async -> MaintenanceReport? {
-        let retentionDays = days ?? RetentionPolicy(defaults: defaults).days
+    func runMaintenance(maxItems: Int? = nil, limitMB: Int? = nil) async -> MaintenanceReport? {
+        let itemLimit = maxItems ?? HistoryMaxItemsPolicy(defaults: defaults).maxItems
         let limit = limitMB ?? DiskLimitPolicy(defaults: defaults).limitMB
-        let maxDiskBytes = limit.flatMap { $0 > 0 ? UInt64($0) * 1024 * 1024 : nil }
+        // 「无限制」已退役：显式传入的 0/负数一律收敛到硬上限；
+        // nil 仅出现在性能基准专用开关下（此时不做条数裁剪）
         let retention = RetentionConfig(
-            maxAgeDays: retentionDays.map { UInt32($0) },
-            maxItemCount: nil
+            maxAgeDays: nil,
+            maxItemCount: itemLimit.map { UInt32(HistoryMaxItemsPolicy.clamp($0)) }
         )
         let config = MaintenanceConfig(
             retention: retention,
-            maxDiskBytes: maxDiskBytes,
+            maxDiskBytes: DiskLimitPolicy(limitMB: limit).maxDiskBytes,
             orphanMinAgeSecs: 24.0 * 3600.0,
             localAssetsDir: payloadStore.directory.path
         )
@@ -187,11 +188,11 @@ final class InMemoryHistoryStore {
 
     func performStartupMaintenance() async {
         let rustStore = self.rustStore
-        let retentionDays = RetentionPolicy(defaults: defaults).days
+        let maxItems = HistoryMaxItemsPolicy(defaults: defaults).maxItems
         let purgedPaths = await Task.detached(priority: .utility) { () -> [String] in
             var paths: [String] = []
-            if let retentionDays {
-                let pruned = rustStore.pruneExpired(days: retentionDays, maxCount: nil)
+            if let maxItems {
+                let pruned = rustStore.pruneExpired(days: nil, maxCount: maxItems)
                 paths.append(contentsOf: pruned.compactMap(\.payloadPath))
             }
             for item in rustStore.page(limit: 1000, offset: 0) where item.isBlankText {
@@ -405,6 +406,72 @@ final class InMemoryHistoryStore {
         publishMutation()
     }
 
+    // MARK: - 轻量标签（Tag）
+
+    /// 全部标签统计（按 count DESC, name ASC）；UI 依据 dataVersion 刷新
+    var tagStats: [TagStat] {
+        _ = dataVersion
+        return rustStore.listTags()
+    }
+
+    /// 全量替换单条标签（写成功后刷新镜像并发布变更）
+    @discardableResult
+    func setTags(_ tags: [String], for id: UUID) -> Bool {
+        guard let updated = rustStore.setTags(id: id, tags: tags) else { return false }
+        applyTagUpdate(updated)
+        publishMutation()
+        return true
+    }
+
+    @discardableResult
+    func addTag(_ tag: String, to id: UUID) -> Bool {
+        guard let updated = rustStore.addTag(id: id, tag: tag) else { return false }
+        applyTagUpdate(updated)
+        publishMutation()
+        return true
+    }
+
+    @discardableResult
+    func removeTag(_ tag: String, from id: UUID) -> Bool {
+        guard let updated = rustStore.removeTag(id: id, tag: tag) else { return false }
+        applyTagUpdate(updated)
+        publishMutation()
+        return true
+    }
+
+    /// 全库重命名标签（合并到同名标签）；返回受影响条目数
+    @discardableResult
+    func renameTag(old: String, new: String) -> UInt32 {
+        let affected = rustStore.renameTag(old: old, new: new)
+        guard affected > 0 else { return 0 }
+        // 标签重命名影响任意条目：刷新镜像页与回收站，保证行内胶囊即时同步
+        items = rustStore.page(limit: max(Self.pageSize, items.count), offset: 0)
+        trashItems = rustStore.trashItems()
+        publishMutation()
+        return affected
+    }
+
+    /// 删除标签（解除所有关联，不删条目）；返回受影响条目数
+    @discardableResult
+    func deleteTag(name: String) -> UInt32 {
+        let affected = rustStore.deleteTag(name: name)
+        guard affected > 0 else { return 0 }
+        items = rustStore.page(limit: max(Self.pageSize, items.count), offset: 0)
+        trashItems = rustStore.trashItems()
+        publishMutation()
+        return affected
+    }
+
+    /// 用持久化结果替换镜像中的对应条目（活跃页与回收站都尝试）
+    private func applyTagUpdate(_ updated: ClipboardItem) {
+        if let index = items.firstIndex(where: { $0.id == updated.id }) {
+            items[index].tags = updated.tags
+        }
+        if let index = trashItems.firstIndex(where: { $0.id == updated.id }) {
+            trashItems[index].tags = updated.tags
+        }
+    }
+
     // MARK: - 离线 OCR 文本识别（T030：转发 HistoryOCRService）
 
     /// 用户手动触发 OCR 识别（前台交互路径）：
@@ -483,8 +550,8 @@ final class InMemoryHistoryStore {
     // MARK: 磁盘空间限制
 
     func enforceDiskLimit() {
+        // 磁盘上限恒为有限值（「无限制」已退役），无需再判空
         let limitMB = DiskLimitPolicy(defaults: defaults).limitMB
-        guard let limitMB, limitMB > 0 else { return }
         Task { @MainActor in
             await runMaintenance(limitMB: limitMB)
         }

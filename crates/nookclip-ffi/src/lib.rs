@@ -72,6 +72,8 @@ pub struct ClipItemSummary {
     pub source_device_name: Option<String>,
     #[uniffi(default = None)]
     pub source_platform: Option<String>,
+    #[uniffi(default = [])]
+    pub tags: Vec<String>,
 }
 
 impl From<core_model::ClipItemSummary> for ClipItemSummary {
@@ -96,6 +98,7 @@ impl From<core_model::ClipItemSummary> for ClipItemSummary {
             source_device_id: m.source_device_id,
             source_device_name: m.source_device_name,
             source_platform: m.source_platform,
+            tags: m.tags,
         }
     }
 }
@@ -131,6 +134,23 @@ impl From<ClipItemSummary> for core_model::ClipItemSummary {
             source_device_id: m.source_device_id,
             source_device_name: m.source_device_name,
             source_platform: m.source_platform,
+            tags: m.tags,
+        }
+    }
+}
+
+/// 单个标签的统计信息（用于筛选条）。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct TagStat {
+    pub name: String,
+    pub count: u32,
+}
+
+impl From<core_model::TagStat> for TagStat {
+    fn from(t: core_model::TagStat) -> Self {
+        Self {
+            name: t.name,
+            count: t.count,
         }
     }
 }
@@ -286,6 +306,9 @@ pub struct QueryFilter {
     pub offset: u32,
     #[uniffi(default = None)]
     pub summary_max_chars: Option<u32>,
+    /// 单标签等值过滤（大小写不敏感）；None/空 = 不过滤。
+    #[uniffi(default = None)]
+    pub tag: Option<String>,
 }
 
 impl From<QueryFilter> for core_model::QueryFilter {
@@ -301,6 +324,7 @@ impl From<QueryFilter> for core_model::QueryFilter {
             limit: f.limit,
             offset: f.offset,
             summary_max_chars: f.summary_max_chars,
+            tag: f.tag,
         }
     }
 }
@@ -675,8 +699,11 @@ pub enum TimeBucketKey {
     Today,
     Yesterday,
     ThisWeek,
+    /// 已弃用：「上周」档不再出现在任何分组结果中，保留仅为跨端枚举兼容
     LastWeek,
-    Month { year: i32, month: u32 },
+    /// 月归档。`last_day` = 本月桶实际覆盖到的最后一天（本地日），
+    /// 展示层渲染成「10月 1–15日」，避免与按天归档的近档重叠歧义。
+    Month { year: i32, month: u32, last_day: u32 },
     Year { year: i32 },
 }
 
@@ -687,7 +714,9 @@ impl From<core_model::TimeBucketKey> for TimeBucketKey {
             core_model::TimeBucketKey::Yesterday => TimeBucketKey::Yesterday,
             core_model::TimeBucketKey::ThisWeek => TimeBucketKey::ThisWeek,
             core_model::TimeBucketKey::LastWeek => TimeBucketKey::LastWeek,
-            core_model::TimeBucketKey::Month { year, month } => TimeBucketKey::Month { year, month },
+            core_model::TimeBucketKey::Month { year, month, last_day } => {
+                TimeBucketKey::Month { year, month, last_day }
+            }
             core_model::TimeBucketKey::Year { year } => TimeBucketKey::Year { year },
         }
     }
@@ -894,14 +923,58 @@ impl NookClipHistoryEngine {
         let count = self.repo.count_favorites()?;
         Ok(count)
     }
-    pub fn count_categories(&self, search_query: Option<String>) -> Result<CategoryCounts, NookClipError> {
-        let counts = self.repo.count_categories(search_query.as_deref())?;
+    pub fn count_categories(
+        &self,
+        search_query: Option<String>,
+        tag: Option<String>,
+    ) -> Result<CategoryCounts, NookClipError> {
+        let counts = self
+            .repo
+            .count_categories(search_query.as_deref(), tag.as_deref())?;
         Ok(counts.into())
     }
     pub fn time_group_timestamps(&self, filter: QueryFilter) -> Result<Vec<f64>, NookClipError> {
         let core_filter = filter.into();
         let timestamps = self.repo.time_group_timestamps(&core_filter)?;
         Ok(timestamps)
+    }
+
+    // ---- 标签（Tag）能力：全部委托 StorageRepository ----
+
+    /// 全量替换某条目的标签，返回带 tags 的最新摘要。
+    pub fn set_tags(&self, id: String, tags: Vec<String>) -> Result<ClipItemSummary, NookClipError> {
+        let summary = self.repo.set_tags(&id, &tags)?;
+        Ok(summary.into())
+    }
+
+    /// 追加单个标签（已存在则无变化），返回带 tags 的最新摘要。
+    pub fn add_tag(&self, id: String, tag: String) -> Result<ClipItemSummary, NookClipError> {
+        let summary = self.repo.add_tag(&id, &tag)?;
+        Ok(summary.into())
+    }
+
+    /// 移除单个标签（大小写不敏感），返回带 tags 的最新摘要。
+    pub fn remove_tag(&self, id: String, tag: String) -> Result<ClipItemSummary, NookClipError> {
+        let summary = self.repo.remove_tag(&id, &tag)?;
+        Ok(summary.into())
+    }
+
+    /// 统计全部未删除条目使用的标签（count DESC, name ASC）。
+    pub fn list_tags(&self) -> Result<Vec<TagStat>, NookClipError> {
+        let stats = self.repo.list_tags()?;
+        Ok(stats.into_iter().map(Into::into).collect())
+    }
+
+    /// 全库重命名标签（大小写不敏感，合并到已有同名标签），返回受影响条目数。
+    pub fn rename_tag(&self, old: String, new: String) -> Result<u32, NookClipError> {
+        let n = self.repo.rename_tag(&old, &new)?;
+        Ok(n)
+    }
+
+    /// 删除某标签（解除所有关联），返回受影响条目数。
+    pub fn delete_tag(&self, name: String) -> Result<u32, NookClipError> {
+        let n = self.repo.delete_tag(&name)?;
+        Ok(n)
     }
 
     pub fn update_ocr_text(&self, id: String, ocr_text: String) -> Result<(), NookClipError> {

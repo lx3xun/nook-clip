@@ -214,6 +214,8 @@ final class MainViewListState {
 
     private(set) var searchText = ""
     private(set) var categorySelection = 0
+    /// 当前标签过滤（None = 不过滤）；与分类、搜索关键词 AND 组合
+    private(set) var selectedTag: String?
 
     private(set) var results: [ClipboardItem] = []
     private(set) var categoryCounts = CategoryCounts(total: 0, favorite: 0, text: 0, image: 0, file: 0, url: 0, code: 0, color: 0, sensitive: 0)
@@ -223,8 +225,8 @@ final class MainViewListState {
     private var task: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
     private var dataVersion = 0
-    private var lastRowsKey: (text: String, category: Int, limit: Int, dataVersion: Int)?
-    private var lastPipelineInput: (text: String, category: Int, dataVersion: Int)?
+    private var lastRowsKey: (text: String, category: Int, tag: String?, limit: Int, dataVersion: Int)?
+    private var lastPipelineInput: (text: String, category: Int, tag: String?, dataVersion: Int)?
     private var lastSnapshot: QueryViewSnapshot?
     /// 分类切换待落地：查询期间保留旧选中（预览不闪空态），
     /// 新结果应用后把选中重置到新分类首行（与切换前选中的条目无关）。
@@ -372,10 +374,22 @@ final class MainViewListState {
         return true
     }
 
+    /// 设置/取消标签过滤（tag == nil 取消）。与分类、关键词 AND 组合。
+    func setSelectedTag(_ tag: String?, dataVersion: Int) {
+        let clean = tag?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next: String? = (clean?.isEmpty ?? true) ? nil : clean
+        guard next != selectedTag else { return }
+        selectedTag = next
+        pendingCategorySelectionReset = true
+        selection.selectionIDs.removeAll()
+        scheduleQuery(dataVersion: dataVersion, debounce: false)
+    }
+
     func clearFilters(dataVersion: Int) {
         debounceTask?.cancel()
         searchText = ""
         categorySelection = 0
+        selectedTag = nil
         clearApps()
         selection.selectionIDs.removeAll()
         scheduleQuery(dataVersion: dataVersion, debounce: false)
@@ -404,15 +418,16 @@ final class MainViewListState {
     private func run(limit: Int? = nil) {
         let queryText = searchText
         let categoryID = categorySelection
+        let tag = selectedTag
         let dataVersion = self.dataVersion
         let effectiveLimit = limit ?? InMemoryHistoryStore.pageSize
-        let rowsKey = (text: queryText, category: categoryID, limit: effectiveLimit, dataVersion: dataVersion)
+        let rowsKey = (text: queryText, category: categoryID, tag: tag, limit: effectiveLimit, dataVersion: dataVersion)
         guard lastRowsKey.map({ $0 != rowsKey }) ?? true else { return }
         generation += 1
         let currentGeneration = generation
         task?.cancel()
         task = Task { @MainActor in
-            guard let snapshot = await store.queryViewSnapshot(queryText: queryText, categoryID: categoryID, limit: effectiveLimit) else {
+            guard let snapshot = await store.queryViewSnapshot(queryText: queryText, categoryID: categoryID, limit: effectiveLimit, tag: tag) else {
                 guard !Task.isCancelled, currentGeneration == generation else { return }
                 self.failed = true
                 self.lastRowsKey = nil
@@ -431,6 +446,7 @@ final class MainViewListState {
             applyPipeline(
                 searchText: queryText,
                 categorySelection: categoryID,
+                selectedTag: tag,
                 dataVersion: dataVersion,
                 snapshot: snapshot
             )
@@ -446,10 +462,11 @@ final class MainViewListState {
     private func applyPipeline(
         searchText: String,
         categorySelection: Int,
+        selectedTag: String?,
         dataVersion: Int,
         snapshot: QueryViewSnapshot? = nil
     ) {
-        lastPipelineInput = (text: searchText, category: categorySelection, dataVersion: dataVersion)
+        lastPipelineInput = (text: searchText, category: categorySelection, tag: selectedTag, dataVersion: dataVersion)
 
         let rowMap = rowCache.rows(for: results, language: LocalizationManager.shared.effectiveLanguageCode)
         let rowDict = Dictionary(rowMap.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -518,8 +535,8 @@ final class MainViewListState {
     /// 运行时语言切换后重算管线输出（分类名在管线内本地化；
     /// 计数/过滤结果不变，仅刷新名称与选中态）
     func refreshLocalizedOutput() {
-        let last = lastPipelineInput ?? (text: "", category: 0, dataVersion: 0)
-        applyPipeline(searchText: last.text, categorySelection: last.category, dataVersion: last.dataVersion)
+        let last = lastPipelineInput ?? (text: "", category: 0, tag: selectedTag, dataVersion: 0)
+        applyPipeline(searchText: last.text, categorySelection: last.category, selectedTag: last.tag, dataVersion: last.dataVersion)
     }
 
 

@@ -361,7 +361,7 @@ final class SyncVisibilityTests: XCTestCase {
 
         let defaults = makeIsolatedDefaults()
         defaults.set("device-reset-1", forKey: "nook.sync.deviceID")
-        let engine = ICloudDriveSyncEngine(customBaseURL: syncDir, defaults: defaults, keychainServicePrefix: "test.nook.reset.\(UUID().uuidString)")
+        let engine = ICloudDriveSyncEngine(customBaseURL: syncDir, defaults: defaults, secretsNamespace: "test.nook.reset.\(UUID().uuidString)")
         engine.isEnabled = true
         engine.isE2EEEnabled = true
         engine.e2eePassphrase = "initial-passphrase-2026"
@@ -407,7 +407,7 @@ final class SyncVisibilityTests: XCTestCase {
     func testSyncModeConfigurationIsolation() {
         let suite = "com.nook.test.syncopts.isolation.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        let engine = ICloudDriveSyncEngine(defaults: defaults, keychainServicePrefix: "test.iso.\(UUID().uuidString)")
+        let engine = ICloudDriveSyncEngine(defaults: defaults, secretsNamespace: "test.iso.\(UUID().uuidString)")
 
         // 1. 初始为 iCloudDrive：默认未启用加密，口令为空
         XCTAssertEqual(engine.syncMode, .iCloudDrive)
@@ -442,5 +442,332 @@ final class SyncVisibilityTests: XCTestCase {
         XCTAssertTrue(engine.isE2EEEnabled)
         XCTAssertEqual(engine.e2eePassphrase, "local-dir-passphrase-888")
         XCTAssertFalse(engine.syncSensitiveItems)
+    }
+
+    // MARK: - 同步通道入口收敛（本地目录映射 / WebDAV 暂时关闭）
+
+    /// 设置页「同步方式」只应出现用户可见的通道；引擎能力本身仍然保留。
+    func testOnlyICloudIsUserSelectableSyncMode() {
+        XCTAssertEqual(CloudSyncMode.userSelectableModes, [.iCloudDrive])
+        XCTAssertTrue(CloudSyncMode.iCloudDrive.isUserSelectable)
+        XCTAssertFalse(CloudSyncMode.localDirectory.isUserSelectable)
+        XCTAssertFalse(CloudSyncMode.webdav.isUserSelectable)
+        // 引擎仍能构造三条通道的后端选项（入口关闭 ≠ 能力删除）
+        XCTAssertEqual(CloudSyncMode.allCases.count, 3)
+    }
+
+    /// 入口关闭后，legacy 停在 WebDAV / 本地目录映射的用户在启动时收敛回 iCloud，
+    /// 否则设置页选不到通道、实际同步却仍在走 WebDAV 轮询或自定义目录。
+    /// 同时必须关掉同步开关：不能把原本只发往自建 WebDAV 的数据默默改道 iCloud。
+    func testLegacyUnsupportedSyncModeMigratesToICloud() {
+        let defaults = makeIsolatedDefaults()
+        // 模拟旧版本留下的状态：通道 = webdav，且通道专属配置齐全
+        defaults.set("webdav", forKey: "nook.sync.mode")
+        defaults.set("https://dav.example.com", forKey: "nook.sync.webdav.url")
+        defaults.set("alice", forKey: "nook.sync.webdav.username")
+        defaults.set(true, forKey: "enableICloudSync")
+
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.migrate.\(UUID().uuidString)"
+        )
+
+        XCTAssertEqual(engine.syncMode, .iCloudDrive, "不可选通道必须收敛回 iCloud")
+        XCTAssertEqual(defaults.string(forKey: "nook.sync.mode"), "icloud")
+        XCTAssertFalse(engine.isEnabled, "迁移不得把数据默默改道 iCloud，同步开关需用户自己重新打开")
+        // 通道专属配置原样保留，后续版本重新放开时用户不必重配
+        XCTAssertEqual(engine.webDavURL, "https://dav.example.com")
+        XCTAssertEqual(engine.webDavUsername, "alice")
+    }
+
+    /// 本地目录映射同样是不可选通道，迁移到 iCloud 后自定义目录配置不得被清零。
+    func testLegacyLocalDirectorySyncModeMigratesToICloudKeepingDirectoryConfig() {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("local_dir", forKey: "nook.sync.mode")
+        defaults.set("/tmp/nook-custom-sync", forKey: "iCloudSyncDirectoryCustomPath")
+
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.migrate.\(UUID().uuidString)"
+        )
+
+        XCTAssertEqual(engine.syncMode, .iCloudDrive)
+        XCTAssertEqual(
+            defaults.string(forKey: "iCloudSyncDirectoryCustomPath"),
+            "/tmp/nook-custom-sync",
+            "自定义目录配置属于通道专属设置，迁移时不得清除"
+        )
+    }
+
+    /// iCloud 是可选通道：构造引擎不得改写它（迁移逻辑只处理不可选通道）。
+    func testSupportedSyncModeIsNotRewrittenOnInit() {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("icloud", forKey: "nook.sync.mode")
+
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.migrate.\(UUID().uuidString)"
+        )
+
+        XCTAssertEqual(engine.syncMode, .iCloudDrive)
+        XCTAssertEqual(defaults.string(forKey: "nook.sync.mode"), "icloud")
+    }
+
+    // MARK: - E2EE 敏感同步：判定口径与一次性引导
+
+    /// 新增回归：仅勾选 E2EE 但口令为空时，界面文案不得声称「已加密同步」，
+    /// 同步层也必须继续过滤敏感条目（此前 `isE2EEEnabled && syncSensitiveItems` 会误判）。
+    func testSensitiveSyncRequiresPassphraseNotJustE2EEToggle() {
+        let defaults = makeIsolatedDefaults()
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.sensitive.\(UUID().uuidString)"
+        )
+        engine.isEnabled = true
+        engine.syncMode = .webdav
+        engine.isE2EEEnabled = true
+        engine.syncSensitiveItems = true
+        engine.e2eePassphrase = ""
+
+        // 勾了 E2EE + 开了敏感同步，但没有口令 → 不生效
+        XCTAssertFalse(engine.isE2EESensitiveSyncActive)
+        XCTAssertFalse(engine.makeSyncOptions(deviceId: "mac-1", localAssetsDir: "/tmp/assets").allowSensitive)
+
+        // 口令为纯空白同样不生效，防止 trim 后为空的边界
+        engine.e2eePassphrase = "   "
+        XCTAssertFalse(engine.isE2EESensitiveSyncActive)
+
+        // 补齐口令后才真正生效
+        engine.e2eePassphrase = "a-real-passphrase-2026"
+        XCTAssertTrue(engine.isE2EESensitiveSyncActive)
+        let opts = engine.makeSyncOptions(deviceId: "mac-1", localAssetsDir: "/tmp/assets")
+        XCTAssertTrue(opts.allowSensitive)
+        XCTAssertEqual(opts.passphrase, "a-real-passphrase-2026")
+
+        // 关闭 E2EE 立刻回到安全默认
+        engine.isE2EEEnabled = false
+        XCTAssertFalse(engine.isE2EESensitiveSyncActive)
+        XCTAssertFalse(engine.makeSyncOptions(deviceId: "mac-1", localAssetsDir: "/tmp/assets").allowSensitive)
+    }
+
+    /// 同步整体关闭时，敏感同步必然不生效，且不得为了回答这个问题去读口令。
+    /// 这是「首次启动就弹钥匙串密码」的直接根因回归测试。
+    func testSensitiveSyncInactiveWhenSyncDisabledAndSecretNotRead() {
+        let defaults = makeIsolatedDefaults()
+        var legacyReadCount = 0
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.disabled.\(UUID().uuidString)",
+            legacySecretReader: { _, _ in
+                legacyReadCount += 1
+                return nil
+            }
+        )
+        engine.syncMode = .iCloudDrive
+        engine.isE2EEEnabled = true
+        engine.syncSensitiveItems = true
+        engine.e2eePassphrase = "should-not-be-read"
+
+        // 同步关闭：既不算敏感同步生效，也不碰旧钥匙串
+        XCTAssertFalse(engine.isEnabled)
+        XCTAssertFalse(engine.isE2EESensitiveSyncActive)
+        XCTAssertEqual(legacyReadCount, 0)
+
+        // 打开同步后同一口令才被认可（iCloud 通道的 E2EE 已在上面显式开启）
+        engine.isEnabled = true
+        XCTAssertTrue(engine.isE2EESensitiveSyncActive)
+    }
+
+    /// 口令必须落到 0600 本地文件，且不再写入系统钥匙串。
+    func testSyncPassphraseStoredInRestrictedFile() throws {
+        let defaults = makeIsolatedDefaults()
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("nook-secret-store-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "store",
+            secretStoreDirectory: dir,
+            legacySecretReader: { _, _ in nil }
+        )
+        engine.isEnabled = true
+        engine.syncMode = .webdav
+        engine.e2eePassphrase = "file-backed-passphrase"
+
+        XCTAssertEqual(engine.e2eePassphrase, "file-backed-passphrase")
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        XCTAssertEqual(files.count, 1, "同步口令应落在一个本地文件里")
+        let fileURL = dir.appendingPathComponent(files[0])
+        let attrs = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let perms = (attrs[.posixPermissions] as? NSNumber)?.intValue ?? 0
+        XCTAssertEqual(perms, 0o600, "同步口令文件的权限必须是 0600")
+
+        // 新实例（模拟重启）能读回，证明不依赖内存缓存
+        let reopened = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "store",
+            secretStoreDirectory: dir,
+            legacySecretReader: { _, _ in nil }
+        )
+        XCTAssertEqual(reopened.e2eePassphrase(for: .webdav), "file-backed-passphrase")
+    }
+
+    /// 旧钥匙串里是按通道存的（账号名 sync_passphrase_<通道>），
+    /// 迁移时必须逐通道搬迁，不能只找更早的单通道账号。
+    func testLegacyPerChannelPassphraseMigratesIntoFile() {
+        let defaults = makeIsolatedDefaults()
+        let legacyStore = ["sync_passphrase_webdav": "webdav-legacy-pass"]
+        let namespace = "test.nook.perchannel.\(UUID().uuidString)"
+        var readAccounts: [String] = []
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: namespace,
+            legacySecretReader: { _, account in
+                readAccounts.append(account)
+                return legacyStore[account]
+            }
+        )
+        engine.isEnabled = true
+        engine.syncMode = .webdav
+
+        XCTAssertEqual(engine.e2eePassphrase(for: .webdav), "webdav-legacy-pass")
+        XCTAssertTrue(readAccounts.contains("sync_passphrase_webdav"), "必须按通道账号尝试迁移")
+
+        // 已落盘：换成「读旧钥匙串必失败」的引擎，也照样读得到
+        let afterRestart = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: namespace,
+            legacySecretReader: { _, _ in nil }
+        )
+        XCTAssertEqual(afterRestart.e2eePassphrase(for: .webdav), "webdav-legacy-pass")
+
+        // 用户主动清空口令后重启：即便旧钥匙串里仍保留条目（供回退旧版本使用），
+        // 也不得再次从旧钥匙串复活口令，也不得重复穿透查询旧钥匙串。
+        afterRestart.setE2EEPassphrase("", for: .webdav)
+        XCTAssertEqual(afterRestart.e2eePassphrase(for: .webdav), "")
+
+        var postClearLegacyReads = 0
+        let afterClearRestart = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: namespace,
+            legacySecretReader: { _, account in
+                postClearLegacyReads += 1
+                return legacyStore[account]
+            }
+        )
+        afterClearRestart.isEnabled = true
+        XCTAssertEqual(
+            afterClearRestart.e2eePassphrase(for: .webdav),
+            "",
+            "用户清空口令后重启不得从旧钥匙串复活旧口令"
+        )
+        XCTAssertEqual(postClearLegacyReads, 0, "已完成迁移的账号不得再次穿透读取旧钥匙串")
+    }
+
+    /// 同步开启但旧钥匙串与本地均无口令时，迁移探测最多执行一次，后续读取不得反复穿透查询钥匙串。
+    func testEmptyLegacyPassphraseProbesKeychainAtMostOnce() {
+        let defaults = makeIsolatedDefaults()
+        let namespace = "test.nook.emptyprobe.\(UUID().uuidString)"
+        var readAccounts: [String] = []
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: namespace,
+            legacySecretReader: { _, account in
+                readAccounts.append(account)
+                return nil
+            }
+        )
+        engine.isEnabled = true
+        engine.syncMode = .iCloudDrive
+
+        XCTAssertEqual(engine.e2eePassphrase(for: .iCloudDrive), "")
+        let firstPassReads = readAccounts.count
+        XCTAssertGreaterThan(firstPassReads, 0, "首次读取应尝试一次性旧钥匙串迁移")
+
+        // 同一实例再次读取 & 重建实例（模拟重启）再次读取：均不得再穿透旧钥匙串
+        XCTAssertEqual(engine.e2eePassphrase(for: .iCloudDrive), "")
+        XCTAssertEqual(readAccounts.count, firstPassReads, "空口令完成一次性探测后应命中缓存/迁移标记")
+
+        let reopened = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: namespace,
+            legacySecretReader: { _, account in
+                readAccounts.append(account)
+                return nil
+            }
+        )
+        reopened.isEnabled = true
+        XCTAssertEqual(reopened.e2eePassphrase(for: .iCloudDrive), "")
+        XCTAssertEqual(readAccounts.count, firstPassReads, "重启后也不得重复查询旧钥匙串")
+    }
+
+    /// 一次性引导：未决策前为 false；记录后为 true；且必须按通道独立。
+    func testSensitiveSyncDecisionIsRecordedOncePerMode() {
+        let suite = "com.nook.test.sensitivedecided.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.sensitivedecided.\(UUID().uuidString)"
+        )
+
+        XCTAssertFalse(engine.hasDecidedSensitiveSync(for: .iCloudDrive))
+        engine.markSensitiveSyncDecided(for: .iCloudDrive)
+        XCTAssertTrue(engine.hasDecidedSensitiveSync(for: .iCloudDrive))
+
+        // 其他通道不受影响，避免 iCloud 决策泄漏到 WebDAV
+        XCTAssertFalse(engine.hasDecidedSensitiveSync(for: .webdav))
+        XCTAssertFalse(engine.hasDecidedSensitiveSync(for: .localDirectory))
+
+        // 决策标记必须持久化，App 重启后不再重复弹窗
+        let reloaded = ICloudDriveSyncEngine(
+            defaults: UserDefaults(suiteName: suite)!,
+            secretsNamespace: "test.nook.sensitivedecided.reload"
+        )
+        XCTAssertTrue(reloaded.hasDecidedSensitiveSync(for: .iCloudDrive))
+    }
+
+    /// 预览区胶囊文案必须跟随「敏感同步是否真的生效」：开启后不得再声称「绝不上云」。
+    @MainActor
+    func testPreviewSensitiveBadgeFollowsSensitiveSyncState() {
+        XCTAssertEqual(
+            PreviewPane.sensitiveSyncBadgeKey(isSensitiveSyncActive: false),
+            "preview.sensitive.local_only",
+            "未开启敏感同步时保持本地边界承诺"
+        )
+        XCTAssertEqual(
+            PreviewPane.sensitiveSyncBadgeKey(isSensitiveSyncActive: true),
+            "preview.sensitive.e2ee_sync",
+            "已开启端到端加密跨端同步后，胶囊必须改成加密同步文案"
+        )
+    }
+
+    /// 设置写入必须让可观测版本号自增，否则预览区胶囊拿不到失效通知（会一直显示旧文案）。
+    @MainActor
+    func testSensitiveSyncConfigWritesBumpObservableRevision() {
+        let suite = "com.nook.test.sensitiverevision.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        addTeardownBlock { UserDefaults.standard.removePersistentDomain(forName: suite) }
+        let engine = ICloudDriveSyncEngine(
+            defaults: defaults,
+            secretsNamespace: "test.nook.sensitiverevision.\(UUID().uuidString)"
+        )
+
+        let start = engine.sensitiveSyncConfigRevision
+        engine.isE2EEEnabled = true
+        XCTAssertGreaterThan(engine.sensitiveSyncConfigRevision, start, "E2EE 开关写入必须触发重算")
+
+        let afterToggle = engine.sensitiveSyncConfigRevision
+        engine.syncSensitiveItems = true
+        XCTAssertGreaterThan(engine.sensitiveSyncConfigRevision, afterToggle, "敏感同步开关写入必须触发重算")
+
+        let afterSensitive = engine.sensitiveSyncConfigRevision
+        engine.e2eePassphrase = "a-real-passphrase-2026"
+        XCTAssertGreaterThan(engine.sensitiveSyncConfigRevision, afterSensitive, "口令写入必须触发重算")
+
+        let afterPass = engine.sensitiveSyncConfigRevision
+        engine.syncMode = .webdav
+        XCTAssertGreaterThan(engine.sensitiveSyncConfigRevision, afterPass, "切换同步通道必须触发重算")
     }
 }

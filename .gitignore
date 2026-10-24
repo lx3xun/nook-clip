@@ -31,3 +31,4 @@ crates/nookclip-ffi/lib/
 scratch/
 
 /.taste-skill
+.snapshots/

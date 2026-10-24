@@ -1,49 +1,26 @@
 import SwiftUI
 
-// MARK: - 分类条与搜索过滤接线（T037/T038 · 拆自 MainView，纯移动）
-// 分类状态机本体见 CategoryBarCoordinator（契约 R10）；
-// 本扩展承接 MainView 侧的视图接线（分类条 chip / 第 4 槽下拉 / 键盘循环 /
-// 搜索建议与筛选菜单），数据源仍由 MainView 持有。
+// MARK: - 分类过滤面板与搜索过滤接线（收编自原分类条，纯移动 + 简化）
+// 分类/标签统一收进搜索框展开面板（Spotlight/Raycast 式）：
+// 原「第 4 槽下拉 / 拖拽重排 / 右键上下移」复杂状态已彻底移除，
+// 「按类型」改为固定 4 列 × 2 行网格（8 槽平权、位置固定）。
+// 状态机本体见 CategoryBarCoordinator（网格派生 + ⌘[⌘] 循环）；
+// 本扩展承接 MainView 侧的视图接线，数据源仍由 MainView 持有。
 
 extension MainView {
-    // MARK: 分类条派生（转发协调器；输入 = 管线输出的分类计数集）
+    // MARK: 网格派生（转发协调器；输入 = 管线输出的分类计数集）
 
-    /// 手动序（nil = 自动数量序）
-    var customCategoryOrder: [Int]? {
-        categoryBar.customCategoryOrder
+    /// 8 个固定类型槽（空槽 count == 0，网格永不塌缩）
+    var filterGridCategories: [SidebarCategory] {
+        categoryBar.filterGridCategories(pipelineOutput.categories)
     }
 
-    /// 手动序生效时的全量分类（「全部」首位 + 手动序）；自动序为 nil
-    var manuallyOrderedCategories: [SidebarCategory]? {
-        categoryBar.manuallyOrderedCategories(pipelineOutput.categories)
-    }
-
-    /// 筛选条固定展示的分类（全部/收藏常驻 + 数量前 1；手动序取前 3 位）
-    var fixedCategories: [SidebarCategory] {
-        categoryBar.fixedCategories(in: pipelineOutput.categories)
-    }
-
-    /// 可经第 4 槽动态切换的分类
-    var switchableCategories: [SidebarCategory] {
-        categoryBar.switchableCategories(in: pipelineOutput.categories)
-    }
-
-    /// 第 4 槽占位类目
-    var slot5Category: SidebarCategory? {
-        categoryBar.slot5Category(in: pipelineOutput.categories, effective: effectiveCategory)
-    }
-
-    /// 第 4 槽下拉项（切换入口 + 排序面；「全部」不入列）
-    var categoryMenuCategories: [SidebarCategory] {
-        categoryBar.categoryMenuCategories(in: pipelineOutput.categories)
-    }
-
-    /// 键盘循环序（⌘[ / ⌘]）
+    /// 键盘循环序（⌘[ / ⌘]）：「全部」+ 8 类型
     var orderedCategoryIDs: [Int] {
         categoryBar.orderedCategoryIDs(in: pipelineOutput.categories)
     }
 
-    /// ⌘[ / ⌘] 在分类间循环，序与筛选条同一 id 空间
+    /// ⌘[ / ⌘] 在「全部 ↔ 类型」间循环
     func cycleCategory(_ step: Int) {
         if let next = categoryBar.cycledCategory(
             selection: categorySelection, step: step, in: pipelineOutput.categories
@@ -52,46 +29,9 @@ extension MainView {
         }
     }
 
-    var categoryMenuOptions: [DropdownOption<Int>] {
-        categoryMenuCategories.map { category in
-            DropdownOption(
-                id: category.id,
-                title: category.name,
-                symbol: category.symbol,
-                count: category.count,
-                isSelected: category.id == effectiveCategory
-            )
-        }
+    /// 当前生效分类在网格中的分类对象（用于搜索框内嵌分类胶囊；id 0 = 无）
+    var activeCategoryObject: SidebarCategory? {
+        guard effectiveCategory != 0 else { return nil }
+        return filterGridCategories.first { $0.id == effectiveCategory }
     }
-
-    /// 下拉内拖拽重排；选中类目被挤出可见条时过滤回落「全部」（语义见协调器注释）
-    func reorderCategory(_ dragging: Int, before target: Int) {
-        if categoryBar.reorderCategory(
-            dragging, before: target, in: pipelineOutput.categories, selection: categorySelection
-        ) {
-            categorySelection = 0
-        }
-    }
-
-    /// 右键「上移/下移」：可见序内相邻项换算为完整序插入
-    func nudgeCategory(_ id: Int, offset: Int) {
-        if categoryBar.nudgeCategory(id, offset: offset, in: pipelineOutput.categories, selection: categorySelection) {
-            categorySelection = 0
-        }
-    }
-
-    /// 清除手动序，回到自动数量序
-    func resetCategoryOrder() {
-        categoryBar.resetCategoryOrder()
-    }
-
-    func toggleCategoryMenu() {
-        guard !categoryMenuCategories.isEmpty else { return }
-        filterState.toggleCategoryMenu(initialHighlight: categoryMenuCategories.first?.id)
-    }
-
-    func moveCategoryMenuHighlight(_ offset: Int) {
-        filterState.moveCategoryMenuHighlight(offset, ids: categoryMenuCategories.map(\.id))
-    }
-
 }

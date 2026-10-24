@@ -1,14 +1,64 @@
 use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::{
     crypto::CryptoEngine,
     error::{CoreError, Result},
-    model::{ClipItemDetail, ClipItemSummary, PrunedItemRecord, QueryFilter, RetentionConfig},
+    model::{ClipItemDetail, ClipItemSummary, PrunedItemRecord, QueryFilter, RetentionConfig, TagStat},
     storage::{payload_asset::PayloadAssetStore, schema::initialize_database},
 };
 use std::path::{Path, PathBuf};
+
+/// 单条目最多保留的标签数（超出部分忽略）。
+const MAX_TAGS_PER_ITEM: usize = 10;
+/// 单个标签最大字符数（Unicode scalar 计）。
+const MAX_TAG_CHARS: usize = 24;
+
+/// 把一组标签拼成 FTS `tags` 列内容（空格分隔）。
+fn tags_fts_text(tags: &[String]) -> String {
+    tags.join(" ")
+}
+
+/// 批量读取一批 clip_id 的标签（一次 IN 查询，避免 N+1）。
+/// 返回 `clip_id -> Vec<tag>`（每行内按 created_at 升序，再按 tag 升序兜底）。
+/// 指定个数的占位符直接内联（标签读取为批量短 id 集合，远小于 SQLite 变量上限）。
+fn load_tags_for(conn: &Connection, ids: &[String]) -> Result<HashMap<String, Vec<String>>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    if ids.is_empty() {
+        return Ok(map);
+    }
+    let placeholders = vec!["?"; ids.len()].join(",");
+    let sql = format!(
+        "SELECT clip_id, tag FROM clip_tags WHERE clip_id IN ({placeholders}) \
+         ORDER BY clip_id, created_at ASC, tag ASC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(ids.iter()), |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    for r in rows {
+        let (clip_id, tag) = r?;
+        map.entry(clip_id).or_default().push(tag);
+    }
+    Ok(map)
+}
+
+/// 对一批已映射的摘要批量回填标签（一次 IN 查询后按 id 分派）。
+fn attach_tags(conn: &Connection, items: &mut [ClipItemSummary]) -> Result<()> {
+    if items.is_empty() {
+        return Ok(());
+    }
+    let ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();
+    let mut map = load_tags_for(conn, &ids)?;
+    for item in items.iter_mut() {
+        if let Some(tags) = map.remove(&item.id) {
+            item.tags = tags;
+        }
+    }
+    Ok(())
+}
 
 pub struct StorageRepository {
     conn: Arc<Mutex<Connection>>,
@@ -111,6 +161,8 @@ fn map_summary_row(row: &rusqlite::Row<'_>, assets_dir: Option<&Path>) -> rusqli
         source_device_id: row.get(16)?,
         source_device_name: row.get(17)?,
         source_platform: row.get(18)?,
+        // tags 逐行映射无法批量，由调用方在返回 Vec 后统一 attach_tags 回填。
+        tags: Vec::new(),
     })
 }
 
@@ -132,6 +184,7 @@ struct LocalSyncRow {
     updated_at: f64,
     id: String,
     favorite_updated_at: f64,
+    tags_updated_at: f64,
 }
 
 /// 删除状态裁决（对齐 data-model §3 冲突矩阵）。
@@ -228,6 +281,26 @@ fn compute_kind_and_metadata(
 }
 
 impl StorageRepository {
+    /// 标签规范化（契约 §1，唯一定义，作为关联函数供 `Self::normalize_tag` 调用）：
+    /// - trim 首尾空白；剥离所有前导 `#`（`##api` → `api`）；折叠内部连续空白为单个空格；
+    /// - 空串 → `None`；
+    /// - 截断到 [`MAX_TAG_CHARS`] 个字符（`chars().take`，不切坏多字节字符）。
+    pub(crate) fn normalize_tag(raw: &str) -> Option<String> {
+        let trimmed = raw.trim();
+        let stripped = trimmed.trim_start_matches('#');
+        // split_whitespace + join(" ") 同时完成 trim 与内部空白折叠。
+        let collapsed = stripped.split_whitespace().collect::<Vec<_>>().join(" ");
+        if collapsed.is_empty() {
+            return None;
+        }
+        let truncated: String = collapsed.chars().take(MAX_TAG_CHARS).collect();
+        if truncated.is_empty() {
+            None
+        } else {
+            Some(truncated)
+        }
+    }
+
     pub fn new(db_path: &str, master_key: &[u8]) -> Result<Self> {
         let conn = Connection::open(db_path)?;
         initialize_database(&conn)?;
@@ -563,7 +636,7 @@ impl StorageRepository {
         // 5. 合并行状态：upsert 冲突时 title/summary 保留旧值（自定义标题
         //    保留特性）、ocr/metadata COALESCE 合并——返回值与 FTS 重建都
         //    必须以此为准，回显输入条目会让增量更新镜像的调用方与库错位
-        let persisted: ClipItemSummary = tx.query_row(
+        let mut persisted: ClipItemSummary = tx.query_row(
             r#"
             SELECT ci.id, ci.item_type, ci.title, ci.summary, ci.created_at, ci.last_used_at,
                    ci.copy_count, ci.favorite, ci.source_app_bundle_id, ci.source_app_name,
@@ -602,9 +675,16 @@ impl StorageRepository {
                     source_device_id: row.get(16)?,
                     source_device_name: row.get(17)?,
                     source_platform: row.get(18)?,
+                    // 稍后由 load_tags_for 回填。
+                    tags: Vec::new(),
                 })
             },
         )?;
+
+        // 回填标签（单条：一次查询）。FTS 的 tags 列随后据此写入。
+        if let Some(tags) = load_tags_for(tx, &[target_id.clone()])?.remove(&target_id) {
+            persisted.tags = tags;
+        }
 
         // clip_items.rowid：FTS 定位用（不变量 clip_fts.rowid == clip_items.rowid）。
         // 单独一次主键查询，避免在 FTS 的 DELETE/INSERT 里各嵌一次全表子查询。
@@ -620,7 +700,7 @@ impl StorageRepository {
         // FTS5 按 rowid 定位：clip_id 是 UNINDEXED 列，按其删除/更新需全表扫描（O(N)，
         // 批量场景退化为 O(N²)）。不变量：clip_fts.rowid == clip_items.rowid。
         // rowid 已由上方 SELECT（ci.rowid）取出，直接传数字，免两次子查询全表扫。
-        // 敏感条目收录 title 供别名检索，正文/OCR/来源全部留空以防明文泄密。
+        // 敏感条目收录 title 与 tags 供检索，正文/OCR/来源全部留空以防明文泄密。
         if target_rowid >= 0 {
             tx.execute(
                 "DELETE FROM clip_fts WHERE rowid = ?1",
@@ -637,12 +717,13 @@ impl StorageRepository {
                 persisted.source_app_bundle_id.as_deref().unwrap_or(""),
             )
         };
+        let fts_tags = tags_fts_text(&persisted.tags);
         if target_rowid >= 0 {
             tx.execute(
                 r#"
                 INSERT INTO clip_fts (
-                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                    rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, tags, clip_id
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
                 "#,
                 params![
                     target_rowid,
@@ -651,6 +732,7 @@ impl StorageRepository {
                     fts_ocr,
                     fts_app_name,
                     fts_bundle_id,
+                    &fts_tags,
                     &target_id,
                 ],
             )?;
@@ -667,6 +749,7 @@ impl StorageRepository {
         item_type: Option<&str>,
         search_query: Option<&str>,
         id: Option<&str>,
+        tag: Option<&str>,
     ) -> SearchConditions {
         let mut conditions = Vec::new();
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
@@ -694,13 +777,52 @@ impl StorageRepository {
             }
         }
 
+        // 显式 filter.tag（单标签等值过滤，大小写不敏感）与搜索词里解析出的 tag 过滤
+        // 通过同一条件模板追加，多个 tag 即多条 EXISTS → 天然 AND。
+        let push_tag_condition = |tag_val: &str,
+                                      conditions: &mut Vec<String>,
+                                      params: &mut Vec<Box<dyn rusqlite::ToSql>>| {
+            if let Some(normalized) = StorageRepository::normalize_tag(tag_val) {
+                params.push(Box::new(normalized));
+                let idx = params.len();
+                conditions.push(format!(
+                    "EXISTS (SELECT 1 FROM clip_tags ct WHERE ct.clip_id = ci.id AND ct.tag = ?{idx} COLLATE NOCASE)"
+                ));
+            }
+        };
+
+        if let Some(t) = tag {
+            if !t.trim().is_empty() {
+                push_tag_condition(t, &mut conditions, &mut params);
+            }
+        }
+
         let mut fts_join = String::new();
         if let Some(q) = search_query {
             let clean_q = q.trim();
             if !clean_q.is_empty() {
                 let tokens = crate::search::tokenize_search_query(clean_q);
+                // 搜索词中的 `#xxx` / `tag:xxx` 解析为标签过滤（从普通关键词中剔除）。
+                let (tag_tokens, keyword_tokens): (Vec<String>, Vec<String>) =
+                    tokens.into_iter().partition(|t| {
+                        t.starts_with('#') || t.to_lowercase().starts_with("tag:")
+                    });
+                for tag_token in tag_tokens {
+                    // 去掉 `tag:` 前缀或前导 `#`，再交给 normalize_tag 统一处理。
+                    let raw = if let Some(rest) = tag_token
+                        .strip_prefix("tag:")
+                        .or_else(|| tag_token.strip_prefix("Tag:"))
+                        .or_else(|| tag_token.strip_prefix("TAG:"))
+                    {
+                        rest
+                    } else {
+                        tag_token.strip_prefix('#').unwrap_or(&tag_token)
+                    };
+                    push_tag_condition(raw, &mut conditions, &mut params);
+                }
+
                 let (long_tokens, short_tokens): (Vec<String>, Vec<String>) =
-                    tokens.into_iter().partition(|t| t.chars().count() >= 3);
+                    keyword_tokens.into_iter().partition(|t| t.chars().count() >= 3);
 
                 if !long_tokens.is_empty() {
                     let fts_expr = long_tokens
@@ -799,6 +921,7 @@ impl StorageRepository {
         for r in rows {
             out.push(r?);
         }
+        attach_tags(&conn, &mut out)?;
         Ok(out)
     }
 
@@ -811,6 +934,7 @@ impl StorageRepository {
             filter.item_type.as_deref(),
             filter.search_query.as_deref(),
             filter.id.as_deref(),
+            filter.tag.as_deref(),
         );
         let SearchConditions {
             fts_join,
@@ -877,13 +1001,18 @@ impl StorageRepository {
         for r in rows {
             results.push(r?);
         }
+        attach_tags(&conn, &mut results)?;
         Ok(results)
     }
 
     /// 全历史分类统计：基于持久化 ci.kind 列在 SQLite 内直接聚合，无需全表拉取 summary/metadata。
     /// 用 `GROUP BY kind` 单遍聚合，替代 9 个逐行求值的 `SUM(CASE WHEN kind=…)`
     ///（实测 5 万行 12ms → 8ms，且分类增减不再线性叠加成本）。
-    pub fn count_categories(&self, search_query: Option<&str>) -> Result<crate::model::CategoryCounts> {
+    pub fn count_categories(
+        &self,
+        search_query: Option<&str>,
+        tag: Option<&str>,
+    ) -> Result<crate::model::CategoryCounts> {
         let conn = self.conn.lock();
 
         let SearchConditions {
@@ -891,7 +1020,7 @@ impl StorageRepository {
             conditions,
             params,
             needs_payload_join,
-        } = Self::build_search_conditions(false, false, None, search_query, None);
+        } = Self::build_search_conditions(false, false, None, search_query, None, tag);
 
         let where_clause = if conditions.is_empty() {
             String::new()
@@ -963,6 +1092,7 @@ impl StorageRepository {
             filter.item_type.as_deref(),
             filter.search_query.as_deref(),
             filter.id.as_deref(),
+            filter.tag.as_deref(),
         );
 
         let derived = DerivedKindFilter::new(filter.kind.as_deref());
@@ -1026,6 +1156,7 @@ impl StorageRepository {
             filter.item_type.as_deref(),
             filter.search_query.as_deref(),
             filter.id.as_deref(),
+            filter.tag.as_deref(),
         );
 
         let derived = DerivedKindFilter::new(filter.kind.as_deref());
@@ -1279,6 +1410,266 @@ impl StorageRepository {
 
         drop(conn);
         self.get_item_summary(id)
+    }
+
+    // ---------------------------------------------------------------------
+    // 轻量标签（契约 §1、§4）
+    // ---------------------------------------------------------------------
+
+    /// 规范化一组标签：逐个 normalize_tag、按小写判重（保留首次出现的大小写）、
+    /// 截断到 [`MAX_TAGS_PER_ITEM`] 个。返回 (展示名, 小写判重键) 的有序去重列表。
+    fn normalize_tag_list(tags: &[String]) -> Vec<String> {
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut out: Vec<String> = Vec::new();
+        for raw in tags {
+            let Some(norm) = Self::normalize_tag(raw) else {
+                continue;
+            };
+            let key = norm.to_lowercase();
+            if seen.insert(key) {
+                out.push(norm);
+                if out.len() >= MAX_TAGS_PER_ITEM {
+                    break;
+                }
+            }
+        }
+        out
+    }
+
+    /// 在事务内用给定标签列表全量替换某条目的标签，并推进 tags_updated_at、重建 FTS 行。
+    /// 调用方保证 id 存在；不做条目存在性校验之外的额外副作用。
+    fn write_tags_in_tx(
+        tx: &rusqlite::Transaction<'_>,
+        id: &str,
+        tags: &[String],
+        now: f64,
+    ) -> Result<()> {
+        tx.execute("DELETE FROM clip_tags WHERE clip_id = ?1", params![id])?;
+        for tag in tags {
+            tx.execute(
+                "INSERT OR IGNORE INTO clip_tags (clip_id, tag, created_at) VALUES (?1, ?2, ?3)",
+                params![id, tag, now],
+            )?;
+        }
+        tx.execute(
+            "UPDATE clip_items SET tags_updated_at = ?1 WHERE id = ?2",
+            params![now, id],
+        )?;
+        // 标签变更后重建该行 FTS（tags 列），并推进 tags_updated_at。
+        Self::rebuild_fts_row_in_tx(tx, id)?;
+        Ok(())
+    }
+
+    /// 全量替换某条目的标签。返回带 tags 的最新摘要。
+    pub fn set_tags(&self, id: &str, tags: &[String]) -> Result<ClipItemSummary> {
+        let normalized = Self::normalize_tag_list(tags);
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        // 校验条目存在（否则不静默创建孤儿标签）。
+        let exists: bool = tx
+            .query_row("SELECT 1 FROM clip_items WHERE id = ?1", params![id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if !exists {
+            return Err(CoreError::NotFound(id.to_string()));
+        }
+        Self::write_tags_in_tx(&tx, id, &normalized, Self::unix_now())?;
+        let summary = Self::load_summary_in_tx(&tx, id)?;
+        tx.commit()?;
+        Ok(summary)
+    }
+
+    /// 追加单个标签（已存在则无变化）。返回带 tags 的最新摘要。
+    pub fn add_tag(&self, id: &str, tag: &str) -> Result<ClipItemSummary> {
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        let exists: bool = tx
+            .query_row("SELECT 1 FROM clip_items WHERE id = ?1", params![id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if !exists {
+            return Err(CoreError::NotFound(id.to_string()));
+        }
+        let mut current: Vec<String> = load_tags_for(&tx, &[id.to_string()])?
+            .remove(id)
+            .unwrap_or_default();
+        if let Some(norm) = Self::normalize_tag(tag) {
+            // 判重键不区分大小写；已达上限则忽略新标签。
+            let key = norm.to_lowercase();
+            let already = current.iter().any(|t| t.to_lowercase() == key);
+            if !already && current.len() < MAX_TAGS_PER_ITEM {
+                current.push(norm);
+            }
+        }
+        Self::write_tags_in_tx(&tx, id, &current, Self::unix_now())?;
+        let summary = Self::load_summary_in_tx(&tx, id)?;
+        tx.commit()?;
+        Ok(summary)
+    }
+
+    /// 移除单个标签（大小写不敏感匹配）。返回带 tags 的最新摘要。
+    pub fn remove_tag(&self, id: &str, tag: &str) -> Result<ClipItemSummary> {
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        let exists: bool = tx
+            .query_row("SELECT 1 FROM clip_items WHERE id = ?1", params![id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if !exists {
+            return Err(CoreError::NotFound(id.to_string()));
+        }
+        let target_key = Self::normalize_tag(tag)
+            .map(|t| t.to_lowercase())
+            .unwrap_or_else(|| tag.to_lowercase());
+        let current: Vec<String> = load_tags_for(&tx, &[id.to_string()])?
+            .remove(id)
+            .unwrap_or_default();
+        let filtered: Vec<String> = current
+            .into_iter()
+            .filter(|t| t.to_lowercase() != target_key)
+            .collect();
+        Self::write_tags_in_tx(&tx, id, &filtered, Self::unix_now())?;
+        let summary = Self::load_summary_in_tx(&tx, id)?;
+        tx.commit()?;
+        Ok(summary)
+    }
+
+    /// 统计全部未删除条目使用到的标签（按 count DESC, name ASC）。
+    pub fn list_tags(&self) -> Result<Vec<TagStat>> {
+        let conn = self.conn.lock();
+        // 按小写聚合并取任一原样大小写作为展示名（MAX(tag) 稳定可预期）。
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT MAX(ct.tag) AS name, COUNT(*) AS cnt
+            FROM clip_tags ct
+            JOIN clip_items ci ON ct.clip_id = ci.id
+            WHERE ci.deleted_at IS NULL
+            GROUP BY lower(ct.tag)
+            ORDER BY cnt DESC, name ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(TagStat {
+                name: row.get(0)?,
+                count: row.get::<_, i64>(1)? as u32,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// 全库重命名标签（大小写不敏感匹配）。合并到已存在的同名标签。
+    /// 返回受影响的条目数（去重后的 clip_id 数）。
+    pub fn rename_tag(&self, old: &str, new: &str) -> Result<u32> {
+        let Some(new_norm) = Self::normalize_tag(new) else {
+            return Ok(0);
+        };
+        let old_key = Self::normalize_tag(old)
+            .map(|t| t.to_lowercase())
+            .unwrap_or_else(|| old.to_lowercase());
+        if old_key.is_empty() || old_key == new_norm.to_lowercase() {
+            // 新旧判重键相同：仅大小写/空白差异，无需改动。
+            return Ok(0);
+        }
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        // 收集旧标签关联的条目（未删除）。
+        let affected: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT DISTINCT clip_id FROM clip_tags \
+                 WHERE tag = ?1 COLLATE NOCASE",
+            )?;
+            let rows = stmt.query_map(params![old], |r| r.get::<_, String>(0))?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        if affected.is_empty() {
+            tx.commit()?;
+            return Ok(0);
+        }
+        let now = Self::unix_now();
+        let mut touched: Vec<String> = Vec::new();
+        for clip_id in &affected {
+            let mut current: Vec<String> =
+                load_tags_for(&tx, std::slice::from_ref(clip_id))?.remove(clip_id).unwrap_or_default();
+            // 删除旧标签、插入新标签（若已存在同名则合并，不重复）。
+            let mut new_list: Vec<String> = Vec::new();
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for t in current.drain(..) {
+                if t.to_lowercase() == old_key {
+                    continue; // 旧标签移除
+                }
+                let key = t.to_lowercase();
+                if seen.insert(key) {
+                    new_list.push(t);
+                }
+            }
+            let new_key = new_norm.to_lowercase();
+            if !seen.contains(&new_key) && new_list.len() < MAX_TAGS_PER_ITEM {
+                new_list.push(new_norm.clone());
+            }
+            // 仅在结果确实变化时更新（旧标签本就在、新标签合并）。
+            Self::write_tags_in_tx(&tx, clip_id, &new_list, now)?;
+            touched.push(clip_id.clone());
+        }
+        tx.commit()?;
+        Ok(touched.len() as u32)
+    }
+
+    /// 删除某标签（解除所有关联），不删除条目。返回受影响条目数。
+    pub fn delete_tag(&self, name: &str) -> Result<u32> {
+        let key = Self::normalize_tag(name)
+            .map(|t| t.to_lowercase())
+            .unwrap_or_else(|| name.to_lowercase());
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        let affected: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT DISTINCT clip_id FROM clip_tags WHERE tag = ?1 COLLATE NOCASE",
+            )?;
+            let rows = stmt.query_map(params![name], |r| r.get::<_, String>(0))?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        if affected.is_empty() {
+            tx.commit()?;
+            return Ok(0);
+        }
+        let now = Self::unix_now();
+        for clip_id in &affected {
+            let current: Vec<String> =
+                load_tags_for(&tx, std::slice::from_ref(clip_id))?.remove(clip_id).unwrap_or_default();
+            let filtered: Vec<String> = current
+                .into_iter()
+                .filter(|t| t.to_lowercase() != key)
+                .collect();
+            Self::write_tags_in_tx(&tx, clip_id, &filtered, now)?;
+        }
+        tx.commit()?;
+        Ok(affected.len() as u32)
+    }
+
+    /// 在事务内读取单条摘要（带 tags），供标签写操作回显。
+    fn load_summary_in_tx(tx: &rusqlite::Transaction<'_>, id: &str) -> Result<ClipItemSummary> {
+        let assets_dir_snapshot = None; // 标签写操作不涉及载荷路径解析，返回原始路径即可
+        let mut summary = tx.query_row(
+            &format!(
+                r#"
+                SELECT {columns}
+                FROM clip_items ci
+                LEFT JOIN clip_payloads cp ON ci.id = cp.id
+                WHERE ci.id = ?1
+                "#,
+                columns = summary_columns("ci.summary"),
+            ),
+            params![id],
+            |row| map_summary_row(row, assets_dir_snapshot),
+        )?;
+        if let Some(tags) = load_tags_for(tx, &[id.to_string()])?.remove(id) {
+            summary.tags = tags;
+        }
+        Ok(summary)
     }
 
     pub fn toggle_sensitive(&self, id: &str) -> Result<ClipItemSummary> {
@@ -1557,19 +1948,54 @@ impl StorageRepository {
         tx.execute(
             r#"
             INSERT INTO clip_fts (
-                rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, clip_id
+                rowid, title, summary, ocr_text, source_app_name, source_app_bundle_id, tags, clip_id
             )
             SELECT ci.rowid, ci.title,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE ci.summary END,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(cp.ocr_text, '') END,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_name, '') END,
                    CASE WHEN ci.is_sensitive = 1 THEN '' ELSE COALESCE(ci.source_app_bundle_id, '') END,
+                   COALESCE((SELECT group_concat(ct.tag, ' ') FROM clip_tags ct WHERE ct.clip_id = ci.id), ''),
                    ci.id
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE ci.id = ?1
             "#,
             params![id],
+        )?;
+        Ok(())
+    }
+
+    /// 同步/导入用：全量替换某条目的标签集合（在事务内）。
+    /// - DELETE + INSERT clip_tags（判重键 NOCASE，保留原大小写）
+    /// - 推进 clip_items.tags_updated_at
+    /// - 刷新 clip_fts.tags 列（须在 FTS 重建之后调用，避免被重建覆盖）
+    /// 注意：调用方需保证 tags 已规范化（远端来自同代码设备，导入路径经 normalize_tag）。
+    fn sync_write_tags_in_tx(
+        tx: &rusqlite::Transaction<'_>,
+        clip_id: &str,
+        tags: &[String],
+        tags_updated_at: f64,
+    ) -> Result<()> {
+        tx.execute("DELETE FROM clip_tags WHERE clip_id = ?1", params![clip_id])?;
+        let base = Self::unix_now();
+        for (i, tag) in tags.iter().enumerate() {
+            if tag.is_empty() {
+                continue;
+            }
+            tx.execute(
+                "INSERT OR IGNORE INTO clip_tags (clip_id, tag, created_at) VALUES (?1, ?2, ?3)",
+                params![clip_id, tag, base + i as f64 * 1e-6],
+            )?;
+        }
+        tx.execute(
+            "UPDATE clip_items SET tags_updated_at = ?1 WHERE id = ?2",
+            params![tags_updated_at, clip_id],
+        )?;
+        let tags_text = tags.join(" ");
+        tx.execute(
+            "UPDATE clip_fts SET tags = ?1 WHERE rowid = (SELECT rowid FROM clip_items WHERE id = ?2)",
+            params![tags_text, clip_id],
         )?;
         Ok(())
     }
@@ -1883,7 +2309,8 @@ impl StorageRepository {
                 // 只清活跃条目：软删除条目在撤销宽限窗口内，由回收站路径处理
                 let mut stmt = tx.prepare(
                     "SELECT id, rowid, item_type, payload_path FROM clip_items \
-                     WHERE favorite = 0 AND deleted_at IS NULL AND last_used_at < ?1",
+                     WHERE favorite = 0 AND deleted_at IS NULL AND last_used_at < ?1 \
+                       AND NOT EXISTS (SELECT 1 FROM clip_tags ct WHERE ct.clip_id = clip_items.id)",
                 )?;
                 let rows = stmt.query_map(params![cutoff], |r| {
                     Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
@@ -1907,6 +2334,7 @@ impl StorageRepository {
                     let mut stmt = tx.prepare(
                         "SELECT id, rowid, item_type, payload_path FROM clip_items \
                          WHERE favorite = 0 AND deleted_at IS NULL \
+                           AND NOT EXISTS (SELECT 1 FROM clip_tags ct WHERE ct.clip_id = clip_items.id) \
                          ORDER BY last_used_at ASC LIMIT ?1",
                     )?;
                     let rows = stmt.query_map(params![excess], |r| {
@@ -1975,11 +2403,12 @@ impl StorageRepository {
             return Ok(Vec::new());
         }
         let root = std::path::Path::new(managed_dir);
-        let candidates: Vec<(String, String, String, bool, bool, f64)> = {
+        let candidates: Vec<(String, String, String, bool, bool, f64, bool)> = {
             let conn = self.conn.lock();
             let mut stmt = conn.prepare(
                 r#"
-                SELECT id, item_type, payload_path, favorite, deleted_at IS NOT NULL, last_used_at
+                SELECT id, item_type, payload_path, favorite, deleted_at IS NOT NULL, last_used_at,
+                       EXISTS(SELECT 1 FROM clip_tags ct WHERE ct.clip_id = clip_items.id) AS has_tags
                 FROM clip_items
                 WHERE payload_path IS NOT NULL AND payload_path != ''
                 ORDER BY last_used_at ASC
@@ -1993,6 +2422,7 @@ impl StorageRepository {
                     row.get::<_, i64>(3)? == 1,
                     row.get::<_, bool>(4)?,
                     row.get::<_, f64>(5)?,
+                    row.get::<_, bool>(6)?,
                 ))
             })?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
@@ -2001,7 +2431,7 @@ impl StorageRepository {
         let mut total_bytes: u64 = 0;
         let mut evictable: Vec<(String, String, u64, f64)> = Vec::new();
 
-        for (id, item_type, path_str, is_favorite, is_deleted, last_used_at) in candidates {
+        for (id, item_type, path_str, is_favorite, is_deleted, last_used_at, has_tags) in candidates {
             let resolved = PayloadAssetStore::resolve_for_runtime(
                 &item_type,
                 Some(&path_str),
@@ -2014,7 +2444,8 @@ impl StorageRepository {
             }
             let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
             total_bytes = total_bytes.saturating_add(size);
-            if is_deleted || !is_favorite {
+            // 带标签的条目受保护：不参与 LRU 磁盘驱逐。
+            if (is_deleted || !is_favorite) && !has_tags {
                 evictable.push((id, resolved, size, last_used_at));
             }
         }
@@ -2048,7 +2479,9 @@ impl StorageRepository {
             // 用户刚收藏的内容（并写墓碑，无法从对端恢复）。
             let still_evictable: Option<i64> = tx
                 .query_row(
-                    "SELECT rowid FROM clip_items WHERE id = ?1 AND (favorite = 0 OR deleted_at IS NOT NULL)",
+                    "SELECT rowid FROM clip_items WHERE id = ?1 \
+                     AND (favorite = 0 OR deleted_at IS NOT NULL) \
+                     AND NOT EXISTS (SELECT 1 FROM clip_tags ct WHERE ct.clip_id = clip_items.id)",
                     params![&id],
                     |r| r.get(0),
                 )
@@ -2140,7 +2573,7 @@ impl StorageRepository {
                    ci.updated_at, ci.copy_count, ci.payload_path,
                    ci.source_app_bundle_id, ci.source_app_name,
                    ci.source_device_id, ci.source_device_name, ci.source_platform,
-                   cp.encrypted_content, cp.nonce, ci.favorite_updated_at
+                   cp.encrypted_content, cp.nonce, ci.favorite_updated_at, ci.tags_updated_at
             FROM clip_items ci
             LEFT JOIN clip_payloads cp ON ci.id = cp.id
             WHERE (ci.is_sensitive = 0 OR ?2 = 1)
@@ -2181,6 +2614,7 @@ impl StorageRepository {
             let encrypted_content: Option<Vec<u8>> = row.get(18)?;
             let nonce: Option<Vec<u8>> = row.get(19)?;
             let favorite_updated_at: f64 = row.get(20)?;
+            let tags_updated_at: f64 = row.get(21)?;
 
             // 附件池：单张附件上限 5MB，超限附件仅留存本机，不随 pack 同步
             let asset_file_name = if item_type == "file" {
@@ -2227,6 +2661,9 @@ impl StorageRepository {
                     source_device_id,
                     source_device_name,
                     source_platform,
+                    // tags 在收集完成后批量回填（避免 N+1）
+                    tags: Vec::new(),
+                    tags_updated_at,
                 },
                 encrypted_content,
                 nonce,
@@ -2242,6 +2679,26 @@ impl StorageRepository {
                 }
             }
             items.push(item);
+        }
+
+        // 批量回填 tags（升序），避免 N+1：一次性查所有涉及 id 的 clip_tags。
+        if !items.is_empty() {
+            let mut tag_map: HashMap<String, Vec<String>> = HashMap::new();
+            let mut stmt = conn.prepare(
+                "SELECT clip_id, tag FROM clip_tags ORDER BY clip_id, created_at ASC, tag ASC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            for row in rows {
+                let (clip_id, tag) = row?;
+                tag_map.entry(clip_id).or_default().push(tag);
+            }
+            for item in &mut items {
+                if let Some(tags) = tag_map.remove(&item.id) {
+                    item.tags = tags;
+                }
+            }
         }
 
         // 硬删除墓碑：行已物理删除，只携带 id 与删除时间让对端软删同 id 条目
@@ -2272,6 +2729,8 @@ impl StorageRepository {
                     source_device_id: None,
                     source_device_name: None,
                     source_platform: None,
+                    tags: Vec::new(),
+                    tags_updated_at: 0.0,
                 })
             })?;
             for row in rows {
@@ -2334,7 +2793,7 @@ impl StorageRepository {
         for item in items {
             let local: Option<LocalSyncRow> = tx
                 .query_row(
-                    "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id, favorite_updated_at \
+                    "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id, favorite_updated_at, tags_updated_at \
                      FROM clip_items WHERE id = ?1",
                     params![&item.id],
                     |row| {
@@ -2345,6 +2804,7 @@ impl StorageRepository {
                             updated_at: row.get(4)?,
                             id: row.get(5)?,
                             favorite_updated_at: row.get(6)?,
+                            tags_updated_at: row.get(7)?,
                         })
                     },
                 )
@@ -2355,7 +2815,7 @@ impl StorageRepository {
                 Some(l) => Some(l),
                 None if !item.is_sensitive && item.deleted_at.is_none() => {
                     tx.query_row(
-                        "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id, favorite_updated_at \
+                        "SELECT last_used_at, deleted_at, copy_count, favorite, updated_at, id, favorite_updated_at, tags_updated_at \
                          FROM clip_items \
                          WHERE item_type = ?1 AND summary = ?2 AND is_sensitive = 0 AND deleted_at IS NULL \
                          ORDER BY last_used_at DESC LIMIT 1",
@@ -2368,6 +2828,7 @@ impl StorageRepository {
                                 updated_at: row.get(4)?,
                                 id: row.get(5)?,
                                 favorite_updated_at: row.get(6)?,
+                                tags_updated_at: row.get(7)?,
                             })
                         },
                     ).optional()?
@@ -2402,11 +2863,25 @@ impl StorageRepository {
                     };
                     let favorite_wins = remote_fav_time > local_fav_time;
 
+                    // 标签对账：tags_win = 远端标签时间戳更新；
+                    // 旧 pack（双方均为 0）时若本地无标签而远端有 → 取远端（非空优先）。
+                    let local_tags_empty = tx
+                        .query_row(
+                            "SELECT COUNT(*) FROM clip_tags WHERE clip_id = ?1",
+                            params![&matched_id],
+                            |r| r.get::<_, i64>(0),
+                        )? == 0;
+                    let tags_win = item.tags_updated_at > local_row.tags_updated_at
+                        || (item.tags_updated_at == 0.0
+                            && local_row.tags_updated_at == 0.0
+                            && local_tags_empty
+                            && !item.tags.is_empty());
+
                     // 单调字段（copy_count / last_used_at）无条件合并；
                     // 若三项都没有变化则整条跳过，不做无谓写入。
                     let monotonic_progress = item.copy_count > local_row.copy_count
                         || item.last_used_at > local_row.last_used_at;
-                    if !metadata_wins && !deletion_changed && !favorite_wins && !monotonic_progress {
+                    if !metadata_wins && !deletion_changed && !favorite_wins && !monotonic_progress && !tags_win {
                         continue;
                     }
 
@@ -2484,6 +2959,11 @@ impl StorageRepository {
                     )?;
                     // 按最终状态重算 FTS 行（活跃则重建、已删除则移除）
                     Self::rebuild_fts_row_in_tx(&tx, &matched_id)?;
+                    // 标签胜出：全量替换 clip_tags、更新 tags_updated_at，并刷新 FTS tags 列
+                    //（必须在 rebuild 之后写入，否则重建会覆盖 tags 列）
+                    if tags_win {
+                        Self::sync_write_tags_in_tx(&tx, &matched_id, &item.tags, item.tags_updated_at)?;
+                    }
                     if metadata_wins {
                         if let Some(text) = &item.raw_text {
                             if item.is_sensitive {
@@ -2589,6 +3069,10 @@ impl StorageRepository {
                     }
                     if item.deleted_at.is_none() {
                         Self::rebuild_fts_row_in_tx(&tx, &item.id)?;
+                        // 新条目：直接落地远端标签（rebuild 之后写 FTS tags 列）
+                        if !item.tags.is_empty() {
+                            Self::sync_write_tags_in_tx(&tx, &item.id, &item.tags, item.tags_updated_at)?;
+                        }
                     }
                     merged_count += 1;
                 }
@@ -2707,7 +3191,29 @@ impl StorageRepository {
                 created_at,
                 last_used_at,
                 copy_count,
+                // 标签批量回填（避免 N+1）
+                tags: Vec::new(),
             });
+        }
+
+        // 批量回填 tags（升序）
+        if !results.is_empty() {
+            let mut tag_map: HashMap<String, Vec<String>> = HashMap::new();
+            let mut stmt = conn.prepare(
+                "SELECT clip_id, tag FROM clip_tags ORDER BY clip_id, created_at ASC, tag ASC",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            for row in rows {
+                let (clip_id, tag) = row?;
+                tag_map.entry(clip_id).or_default().push(tag);
+            }
+            for item in &mut results {
+                if let Some(tags) = tag_map.remove(&item.id) {
+                    item.tags = tags;
+                }
+            }
         }
 
         Ok(results)
@@ -2817,6 +3323,25 @@ impl StorageRepository {
                 "#,
                 params![&item.title, fts_summary, &item.id],
             )?;
+            // 导入标签：规范化（trim/#/空白折叠/截断24）、大小写不敏感判重、上限 10，
+            // 然后写入 clip_tags 并推进 tags_updated_at + 刷新 FTS tags 列。
+            if !item.tags.is_empty() {
+                let mut normalized: Vec<String> = Vec::new();
+                let mut seen_lower: std::collections::HashSet<String> = std::collections::HashSet::new();
+                for raw in &item.tags {
+                    if normalized.len() >= 10 {
+                        break;
+                    }
+                    if let Some(tag) = Self::normalize_tag(raw) {
+                        if seen_lower.insert(tag.to_lowercase()) {
+                            normalized.push(tag);
+                        }
+                    }
+                }
+                if !normalized.is_empty() {
+                    Self::sync_write_tags_in_tx(&tx, &item.id, &normalized, Self::unix_now())?;
+                }
+            }
             report.imported_count += 1;
         }
 

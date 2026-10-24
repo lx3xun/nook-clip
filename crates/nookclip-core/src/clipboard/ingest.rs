@@ -139,6 +139,7 @@ fn ingest_file_item(
         ocr_text: None,
         metadata_json: None,
         kind: "file".to_string(),
+        tags: Vec::new(),
     };
     let item = repo.save_item(&item_summary, raw_text.as_deref())?;
     Ok(IngestOutcome::Saved { item })
@@ -253,6 +254,7 @@ fn ingest_text_or_url_item(
         ocr_text: None,
         metadata_json,
         kind: item_type.to_string(),
+        tags: Vec::new(),
     };
     let item = repo.save_item(&item_summary, raw_text.as_deref())?;
     Ok(IngestOutcome::Saved { item })
@@ -344,6 +346,7 @@ fn ingest_image_item(
         ocr_text: None,
         metadata_json: None,
         kind: "image".to_string(),
+        tags: Vec::new(),
     };
     let item = repo.save_item(&item_summary, None)?;
     Ok(IngestOutcome::Saved { item })

@@ -341,7 +341,7 @@ fn test_migration_from_v2_schema_without_kind_column() {
     let items = repo.query_items(&QueryFilter::default()).unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, "legacy-1");
-    let counts = repo.count_categories(None).unwrap();
+    let counts = repo.count_categories(None, None).unwrap();
     assert_eq!(counts.color, 1);
 }
 
@@ -433,6 +433,6 @@ fn test_in_memory_database_read_path_sees_writes() {
 
     assert_eq!(repo.query_items(&filter).unwrap().len(), 1, "内存库查询必须看到写入");
     assert_eq!(repo.count_items().unwrap(), 1);
-    assert_eq!(repo.count_categories(None).unwrap().total, 1);
+    assert_eq!(repo.count_categories(None, None).unwrap().total, 1);
     assert_eq!(repo.time_group_timestamps(&filter).unwrap().len(), 1);
 }

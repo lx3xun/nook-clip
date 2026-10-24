@@ -52,7 +52,7 @@ struct AppRowView: View {
                 Capsule()
                     .fill(isSolid ? Color.white.opacity(0.2) : NookClip.bgInset)
             }
-        } subtitle: { isSolid in
+        } subtitle: { isSolid, _ in
             Text(verbatim: app.path)
                 .font(.nookClipMeta)
                 .foregroundStyle(isSolid ? NookClip.textOnAccentSecondary : NookClip.textTertiary)

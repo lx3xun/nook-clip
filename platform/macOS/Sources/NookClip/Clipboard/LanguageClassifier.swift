@@ -77,7 +77,8 @@ struct LanguageClassifier {
         "vue": "Vue",
         "json": "JSON",
         "yaml": "YAML",
-        "toml": "TOML"
+        "toml": "TOML",
+        "markdown": "Markdown"
     ]
 
     private static func detect(text: String, formatJSON: Bool) -> DetectionResult {

@@ -580,17 +580,27 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 public protocol NookClipHistoryEngineProtocol : AnyObject {
     
+    /**
+     * 追加单个标签（已存在则无变化），返回带 tags 的最新摘要。
+     */
+    func addTag(id: String, tag: String) throws  -> ClipItemSummary
+    
     func analyzeContent(text: String)  -> DetectionResult
     
     func clearAllHistory(keepFavorites: Bool) throws  -> [PrunedItemRecord]
     
     func commitOcrResult(id: String, rawOcrText: String) throws  -> String?
     
-    func countCategories(searchQuery: String?) throws  -> CategoryCounts
+    func countCategories(searchQuery: String?, tag: String?) throws  -> CategoryCounts
     
     func countFavorites() throws  -> UInt64
     
     func countItems() throws  -> UInt64
+    
+    /**
+     * 删除某标签（解除所有关联），返回受影响条目数。
+     */
+    func deleteTag(name: String) throws  -> UInt32
     
     func enforceDiskLimit(managedDir: String, limitBytes: UInt64) throws  -> [PrunedItemRecord]
     
@@ -610,6 +620,11 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
     func importJson(jsonContent: String) throws  -> ImportReport
     
     func ingestClipboardSnapshot(snapshot: RawClipboardSnapshot, config: IngestConfig, lastPastedSummary: String?, lastPastedTime: Double?, nowTs: Double) throws  -> IngestOutcome
+    
+    /**
+     * 统计全部未删除条目使用的标签（count DESC, name ASC）。
+     */
+    func listTags() throws  -> [TagStat]
     
     func markUsed(id: String, usedAt: Double) throws  -> ClipItemSummary
     
@@ -640,6 +655,16 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
      */
     func rekey(newMasterKey: Data) throws  -> UInt64
     
+    /**
+     * 移除单个标签（大小写不敏感），返回带 tags 的最新摘要。
+     */
+    func removeTag(id: String, tag: String) throws  -> ClipItemSummary
+    
+    /**
+     * 全库重命名标签（大小写不敏感，合并到已有同名标签），返回受影响条目数。
+     */
+    func renameTag(old: String, new: String) throws  -> UInt32
+    
     func resetSyncPassphrase(options: SyncOptions) throws  -> SyncReport
     
     func restoreDeleted(id: String) throws 
@@ -662,6 +687,11 @@ public protocol NookClipHistoryEngineProtocol : AnyObject {
      * 配置当前运行时的受管载荷目录（使相对文件名 payload_path 在查询/淘汰时自动解析为当前容器绝对路径）
      */
     func setAssetsDir(assetsDir: String) 
+    
+    /**
+     * 全量替换某条目的标签，返回带 tags 的最新摘要。
+     */
+    func setTags(id: String, tags: [String]) throws  -> ClipItemSummary
     
     func softDelete(id: String) throws 
     
@@ -763,6 +793,18 @@ public static func openWithKeyManager(dbPath: String, keyFilePath: String, legac
     
 
     
+    /**
+     * 追加单个标签（已存在则无变化），返回带 tags 的最新摘要。
+     */
+open func addTag(id: String, tag: String)throws  -> ClipItemSummary {
+    return try  FfiConverterTypeClipItemSummary.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_add_tag(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),
+        FfiConverterString.lower(tag),$0
+    )
+})
+}
+    
 open func analyzeContent(text: String) -> DetectionResult {
     return try!  FfiConverterTypeDetectionResult.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_analyze_content(self.uniffiClonePointer(),
@@ -788,10 +830,11 @@ open func commitOcrResult(id: String, rawOcrText: String)throws  -> String? {
 })
 }
     
-open func countCategories(searchQuery: String?)throws  -> CategoryCounts {
+open func countCategories(searchQuery: String?, tag: String?)throws  -> CategoryCounts {
     return try  FfiConverterTypeCategoryCounts.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_count_categories(self.uniffiClonePointer(),
-        FfiConverterOptionString.lower(searchQuery),$0
+        FfiConverterOptionString.lower(searchQuery),
+        FfiConverterOptionString.lower(tag),$0
     )
 })
 }
@@ -806,6 +849,17 @@ open func countFavorites()throws  -> UInt64 {
 open func countItems()throws  -> UInt64 {
     return try  FfiConverterUInt64.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_count_items(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * 删除某标签（解除所有关联），返回受影响条目数。
+     */
+open func deleteTag(name: String)throws  -> UInt32 {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_delete_tag(self.uniffiClonePointer(),
+        FfiConverterString.lower(name),$0
     )
 })
 }
@@ -879,6 +933,16 @@ open func ingestClipboardSnapshot(snapshot: RawClipboardSnapshot, config: Ingest
         FfiConverterOptionString.lower(lastPastedSummary),
         FfiConverterOptionDouble.lower(lastPastedTime),
         FfiConverterDouble.lower(nowTs),$0
+    )
+})
+}
+    
+    /**
+     * 统计全部未删除条目使用的标签（count DESC, name ASC）。
+     */
+open func listTags()throws  -> [TagStat] {
+    return try  FfiConverterSequenceTypeTagStat.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_list_tags(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -974,6 +1038,30 @@ open func rekey(newMasterKey: Data)throws  -> UInt64 {
 })
 }
     
+    /**
+     * 移除单个标签（大小写不敏感），返回带 tags 的最新摘要。
+     */
+open func removeTag(id: String, tag: String)throws  -> ClipItemSummary {
+    return try  FfiConverterTypeClipItemSummary.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_remove_tag(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),
+        FfiConverterString.lower(tag),$0
+    )
+})
+}
+    
+    /**
+     * 全库重命名标签（大小写不敏感，合并到已有同名标签），返回受影响条目数。
+     */
+open func renameTag(old: String, new: String)throws  -> UInt32 {
+    return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_rename_tag(self.uniffiClonePointer(),
+        FfiConverterString.lower(old),
+        FfiConverterString.lower(new),$0
+    )
+})
+}
+    
 open func resetSyncPassphrase(options: SyncOptions)throws  -> SyncReport {
     return try  FfiConverterTypeSyncReport.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_reset_sync_passphrase(self.uniffiClonePointer(),
@@ -1031,6 +1119,18 @@ open func setAssetsDir(assetsDir: String) {try! rustCall() {
         FfiConverterString.lower(assetsDir),$0
     )
 }
+}
+    
+    /**
+     * 全量替换某条目的标签，返回带 tags 的最新摘要。
+     */
+open func setTags(id: String, tags: [String])throws  -> ClipItemSummary {
+    return try  FfiConverterTypeClipItemSummary.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
+    uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_set_tags(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),
+        FfiConverterSequenceString.lower(tags),$0
+    )
+})
 }
     
 open func softDelete(id: String)throws  {try rustCallWithError(FfiConverterTypeNookClipError.lift) {
@@ -1667,10 +1767,11 @@ public struct ClipItemSummary {
     public var sourceDeviceId: String?
     public var sourceDeviceName: String?
     public var sourcePlatform: String?
+    public var tags: [String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, itemType: String, title: String, summary: String, createdAt: Double, lastUsedAt: Double, copyCount: Int64, favorite: Bool, sourceAppBundleId: String?, sourceAppName: String?, isSensitive: Bool, deletedAt: Double?, payloadPath: String?, ocrText: String?, metadataJson: String?, kind: String = "", sourceDeviceId: String? = nil, sourceDeviceName: String? = nil, sourcePlatform: String? = nil) {
+    public init(id: String, itemType: String, title: String, summary: String, createdAt: Double, lastUsedAt: Double, copyCount: Int64, favorite: Bool, sourceAppBundleId: String?, sourceAppName: String?, isSensitive: Bool, deletedAt: Double?, payloadPath: String?, ocrText: String?, metadataJson: String?, kind: String = "", sourceDeviceId: String? = nil, sourceDeviceName: String? = nil, sourcePlatform: String? = nil, tags: [String] = []) {
         self.id = id
         self.itemType = itemType
         self.title = title
@@ -1690,6 +1791,7 @@ public struct ClipItemSummary {
         self.sourceDeviceId = sourceDeviceId
         self.sourceDeviceName = sourceDeviceName
         self.sourcePlatform = sourcePlatform
+        self.tags = tags
     }
 }
 
@@ -1754,6 +1856,9 @@ extension ClipItemSummary: Equatable, Hashable {
         if lhs.sourcePlatform != rhs.sourcePlatform {
             return false
         }
+        if lhs.tags != rhs.tags {
+            return false
+        }
         return true
     }
 
@@ -1777,6 +1882,7 @@ extension ClipItemSummary: Equatable, Hashable {
         hasher.combine(sourceDeviceId)
         hasher.combine(sourceDeviceName)
         hasher.combine(sourcePlatform)
+        hasher.combine(tags)
     }
 }
 
@@ -1806,7 +1912,8 @@ public struct FfiConverterTypeClipItemSummary: FfiConverterRustBuffer {
                 kind: FfiConverterString.read(from: &buf), 
                 sourceDeviceId: FfiConverterOptionString.read(from: &buf), 
                 sourceDeviceName: FfiConverterOptionString.read(from: &buf), 
-                sourcePlatform: FfiConverterOptionString.read(from: &buf)
+                sourcePlatform: FfiConverterOptionString.read(from: &buf), 
+                tags: FfiConverterSequenceString.read(from: &buf)
         )
     }
 
@@ -1830,6 +1937,7 @@ public struct FfiConverterTypeClipItemSummary: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.sourceDeviceId, into: &buf)
         FfiConverterOptionString.write(value.sourceDeviceName, into: &buf)
         FfiConverterOptionString.write(value.sourcePlatform, into: &buf)
+        FfiConverterSequenceString.write(value.tags, into: &buf)
     }
 }
 
@@ -2764,6 +2872,10 @@ public struct QueryFilter {
     public var limit: UInt32
     public var offset: UInt32
     public var summaryMaxChars: UInt32?
+    /**
+     * 单标签等值过滤（大小写不敏感）；None/空 = 不过滤。
+     */
+    public var tag: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -2773,7 +2885,10 @@ public struct QueryFilter {
          */id: String? = nil, searchQuery: String?, itemType: String?, kind: String?, favoriteOnly: Bool, includeDeleted: Bool, 
         /**
          * 只看回收站（deleted_at IS NOT NULL，按删除时间倒序）
-         */onlyDeleted: Bool = false, limit: UInt32, offset: UInt32, summaryMaxChars: UInt32? = nil) {
+         */onlyDeleted: Bool = false, limit: UInt32, offset: UInt32, summaryMaxChars: UInt32? = nil, 
+        /**
+         * 单标签等值过滤（大小写不敏感）；None/空 = 不过滤。
+         */tag: String? = nil) {
         self.id = id
         self.searchQuery = searchQuery
         self.itemType = itemType
@@ -2784,6 +2899,7 @@ public struct QueryFilter {
         self.limit = limit
         self.offset = offset
         self.summaryMaxChars = summaryMaxChars
+        self.tag = tag
     }
 }
 
@@ -2821,6 +2937,9 @@ extension QueryFilter: Equatable, Hashable {
         if lhs.summaryMaxChars != rhs.summaryMaxChars {
             return false
         }
+        if lhs.tag != rhs.tag {
+            return false
+        }
         return true
     }
 
@@ -2835,6 +2954,7 @@ extension QueryFilter: Equatable, Hashable {
         hasher.combine(limit)
         hasher.combine(offset)
         hasher.combine(summaryMaxChars)
+        hasher.combine(tag)
     }
 }
 
@@ -2855,7 +2975,8 @@ public struct FfiConverterTypeQueryFilter: FfiConverterRustBuffer {
                 onlyDeleted: FfiConverterBool.read(from: &buf), 
                 limit: FfiConverterUInt32.read(from: &buf), 
                 offset: FfiConverterUInt32.read(from: &buf), 
-                summaryMaxChars: FfiConverterOptionUInt32.read(from: &buf)
+                summaryMaxChars: FfiConverterOptionUInt32.read(from: &buf), 
+                tag: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -2870,6 +2991,7 @@ public struct FfiConverterTypeQueryFilter: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.limit, into: &buf)
         FfiConverterUInt32.write(value.offset, into: &buf)
         FfiConverterOptionUInt32.write(value.summaryMaxChars, into: &buf)
+        FfiConverterOptionString.write(value.tag, into: &buf)
     }
 }
 
@@ -3398,6 +3520,75 @@ public func FfiConverterTypeSyncReport_lift(_ buf: RustBuffer) throws -> SyncRep
 #endif
 public func FfiConverterTypeSyncReport_lower(_ value: SyncReport) -> RustBuffer {
     return FfiConverterTypeSyncReport.lower(value)
+}
+
+
+/**
+ * 单个标签的统计信息（用于筛选条）。
+ */
+public struct TagStat {
+    public var name: String
+    public var count: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, count: UInt32) {
+        self.name = name
+        self.count = count
+    }
+}
+
+
+
+extension TagStat: Equatable, Hashable {
+    public static func ==(lhs: TagStat, rhs: TagStat) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.count != rhs.count {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(count)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTagStat: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TagStat {
+        return
+            try TagStat(
+                name: FfiConverterString.read(from: &buf), 
+                count: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TagStat, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterUInt32.write(value.count, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTagStat_lift(_ buf: RustBuffer) throws -> TagStat {
+    return try FfiConverterTypeTagStat.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTagStat_lower(_ value: TagStat) -> RustBuffer {
+    return FfiConverterTypeTagStat.lower(value)
 }
 
 
@@ -4033,8 +4224,15 @@ public enum TimeBucketKey {
     case today
     case yesterday
     case thisWeek
+    /**
+     * 已弃用：「上周」档不再出现在任何分组结果中，保留仅为跨端枚举兼容
+     */
     case lastWeek
-    case month(year: Int32, month: UInt32
+    /**
+     * 月归档。`last_day` = 本月桶实际覆盖到的最后一天（本地日），
+     * 展示层渲染成「10月 1–15日」，避免与按天归档的近档重叠歧义。
+     */
+    case month(year: Int32, month: UInt32, lastDay: UInt32
     )
     case year(year: Int32
     )
@@ -4059,7 +4257,7 @@ public struct FfiConverterTypeTimeBucketKey: FfiConverterRustBuffer {
         
         case 4: return .lastWeek
         
-        case 5: return .month(year: try FfiConverterInt32.read(from: &buf), month: try FfiConverterUInt32.read(from: &buf)
+        case 5: return .month(year: try FfiConverterInt32.read(from: &buf), month: try FfiConverterUInt32.read(from: &buf), lastDay: try FfiConverterUInt32.read(from: &buf)
         )
         
         case 6: return .year(year: try FfiConverterInt32.read(from: &buf)
@@ -4089,10 +4287,11 @@ public struct FfiConverterTypeTimeBucketKey: FfiConverterRustBuffer {
             writeInt(&buf, Int32(4))
         
         
-        case let .month(year,month):
+        case let .month(year,month,lastDay):
             writeInt(&buf, Int32(5))
             FfiConverterInt32.write(year, into: &buf)
             FfiConverterUInt32.write(month, into: &buf)
+            FfiConverterUInt32.write(lastDay, into: &buf)
             
         
         case let .year(year):
@@ -4624,6 +4823,31 @@ fileprivate struct FfiConverterSequenceTypePrunedItemRecord: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeTagStat: FfiConverterRustBuffer {
+    typealias SwiftType = [TagStat]
+
+    public static func write(_ value: [TagStat], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTagStat.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TagStat] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TagStat]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTagStat.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeTimeGroupSection: FfiConverterRustBuffer {
     typealias SwiftType = [TimeGroupSection]
 
@@ -4830,6 +5054,9 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_tokenize_search_keywords() != 11317) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_add_tag() != 42607) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_analyze_content() != 2994) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4839,13 +5066,16 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_commit_ocr_result() != 7707) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_count_categories() != 58753) {
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_count_categories() != 27360) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_count_favorites() != 50638) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_count_items() != 47354) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_delete_tag() != 64040) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_enforce_disk_limit() != 20078) {
@@ -4870,6 +5100,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_ingest_clipboard_snapshot() != 1126) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_list_tags() != 7112) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_mark_used() != 65063) {
@@ -4902,6 +5135,12 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_rekey() != 4669) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_remove_tag() != 43900) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_rename_tag() != 20677) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_reset_sync_passphrase() != 1343) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4918,6 +5157,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_set_assets_dir() != 5505) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_set_tags() != 25627) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_method_nookcliphistoryengine_soft_delete() != 19347) {

@@ -34,7 +34,7 @@ extension InMemoryHistoryStore {
             deviceId: syncDeviceID,
             localAssetsDir: payloadStore.directory.path
         )
-        // 口令校验基于后台读取结果，避免入口处主线程同步读 Keychain 与 TOCTOU
+        // 口令校验基于实际参与同步的选项，避免入口处与真正下发的参数不一致（TOCTOU）
         if syncEngine.isE2EEEnabled && options.passphrase == nil {
             syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
             return
@@ -90,7 +90,7 @@ extension InMemoryHistoryStore {
             deviceId: syncDeviceID,
             localAssetsDir: payloadStore.directory.path
         )
-        // 口令校验基于后台读取结果（避免入口处主线程同步读 Keychain）
+        // 口令校验基于实际参与同步的选项，避免入口处与真正下发的参数不一致
         if syncEngine.isE2EEEnabled && options.passphrase == nil {
             syncEngine.recordFailureMessage(L10n.tr("settings.sync.passphrase_required"))
             return false
@@ -117,14 +117,19 @@ extension InMemoryHistoryStore {
         }
     }
 
-    // MARK: - 保留期清理
+    // MARK: - 条数上限裁剪
 
-    /// days <= 0（无限制）时完全跳过本地清理；否则清理所有符合条件的本地条目。
-    func pruneExpiredItems(days: Int) {
-        guard days > 0 else { return }
-        let pruned = rustStore.pruneExpired(days: days, maxCount: nil)
+    /// 把非收藏、无标签的活跃条目裁到最多 `count` 条（超限时淘汰最久未使用的，
+    /// 收藏条目始终豁免）。「无限制」已退役：传入值先经策略收敛，
+    /// 0/负数等价于硬上限，超上限也按硬上限处理。
+    func pruneToMaxItems(_ count: Int) {
+        let limit = HistoryMaxItemsPolicy.clamp(count)
+        let pruned = rustStore.pruneExpired(days: nil, maxCount: limit)
         items = rustStore.page(limit: Self.pageSize, offset: 0)
         trashItems = rustStore.trashItems()
+        // 裁剪减少了总条数，翻页终止信号必须随库重算，否则列表尾部会残留
+        // 「还有更多」按钮却翻不出任何内容
+        refreshHasMore()
         publishMutation(scheduleSync: false)
         for record in pruned {
             payloadStore.remove(path: record.payloadPath)

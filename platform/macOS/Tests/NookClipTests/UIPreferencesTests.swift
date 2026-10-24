@@ -11,11 +11,5 @@ final class UIPreferencesTests: XCTestCase {
     }
 
 
-    func testTimelineJumpModeEnum() {
-        XCTAssertEqual(TimelineJumpMode.indexRail.rawValue, "indexRail")
-        XCTAssertEqual(TimelineJumpMode.groupHeaderMenu.rawValue, "groupHeaderMenu")
-        XCTAssertEqual(TimelineJumpMode.allCases.count, 2)
-        XCTAssertEqual(TimelineJumpMode(rawValue: "unknown"), nil)
-    }
 
 }

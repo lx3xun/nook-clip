@@ -45,6 +45,8 @@ fn sync_record(id: &str, title: &str, updated_at: f64, deleted_at: Option<f64>) 
         source_device_id: None,
         source_device_name: None,
         source_platform: None,
+        tags: Vec::new(),
+        tags_updated_at: 0.0,
     }
 }
 

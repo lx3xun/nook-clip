@@ -32,12 +32,15 @@ public struct ClipboardItem: Identifiable, Equatable, Codable {
     public var summaryIsTruncated: Bool = false
     /// 存储层持久化的规范分类（text / image / file / url / code / json / color / sensitive）
     public var persistedKind: String? = nil
+    /// 轻量标签（归一化后的展示字符串，按 created_at 升序）。空 = 无标签。
+    public var tags: [String] = []
 
     private enum CodingKeys: String, CodingKey {
         case id, type, title, summary, createdAt, lastUsedAt, copyCount, isFavorite
         case payloadPath, ocrText, sourceAppBundleId, sourceAppName, isSensitive
         case sourceDeviceId, sourceDeviceName, sourcePlatform
         case encryptedContent, metadata, deletedAt, summaryIsTruncated, persistedKind
+        case tags
     }
 
     /// 敏感明文查看失败原因：钥匙串授权被拒 ≠ 密文损坏

@@ -11,6 +11,8 @@ struct BatchBar: View {
     let onMergePaste: () -> Void
     /// 删除勾选集（⌘⌫）
     let onDelete: () -> Void
+    /// 打开批量标签编辑器（⌘L）
+    var onEditTags: (() -> Void)? = nil
 
     var body: some View {
         // 两行布局：列表列仅 336pt，单行塞「计数 + 提示 + 两按钮」会挤压截断
@@ -38,6 +40,11 @@ struct BatchBar: View {
                 Spacer(minLength: 0)
                 batchButton(text: L10n.tr("batch.merge_paste"), kbd: "⏎", role: .primary) {
                     onMergePaste()
+                }
+                if let onEditTags {
+                    batchButton(text: L10n.tr("tag.action"), kbd: "⌘\u{200A}L", role: .primary) {
+                        onEditTags()
+                    }
                 }
                 batchButton(text: L10n.tr("batch.delete"), kbd: "⌘\u{200A}⌫", role: .danger) {
                     onDelete()

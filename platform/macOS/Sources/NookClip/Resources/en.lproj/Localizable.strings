@@ -63,14 +63,8 @@
 "settings.general.lang_system" = "Follow System";
 "settings.general.launch_at_login" = "Launch at Login";
 "settings.general.launch_desc" = "Automatically start NookClip when logging into macOS";
-"settings.general.history_retention" = "History Retention";
+"settings.general.history_max_items" = "Maximum Items";
 "settings.general.disk_limit" = "Disk Space Limit";
-"settings.retention.day" = "1 Day";
-"settings.retention.week" = "1 Week";
-"settings.retention.month" = "1 Month";
-"settings.retention.quarter" = "1 Quarter";
-"settings.retention.half_year" = "6 Months";
-"settings.retention.year" = "1 Year";
 "settings.retention.unlimited" = "Unlimited";
 "settings.general.appearance_section" = "Appearance & Layout";
 "settings.general.appearance" = "Appearance";
@@ -127,7 +121,7 @@
 "settings.hotkey.action_undo" = "Undo last delete";
 "settings.hotkey.action_toggle_preview" = "Toggle preview pane";
 "settings.hotkey.action_focus_search" = "Focus search box";
-"settings.hotkey.action_dismiss" = "Clear filters or dismiss panel";
+"settings.hotkey.action_dismiss" = "Layered dismiss filters or panel";
 
 /* Settings - Excluded Apps */
 "excluded.title" = "Excluded Applications";
@@ -197,9 +191,9 @@
 "settings.permissions.restart" = "Restart NookClip";
 "settings.permissions.stale_title" = "If already enabled in System Settings but not working:";
 "settings.permissions.stale_desc" = "CDHash changed due to a new build. Please remove (-) NookClip in Privacy & Security > Accessibility, then re-add (+) it.";
-"settings.sync.section" = "Cross-Device Clipboard Sync (Cloud Sync)";
-"settings.sync.enable" = "Cross-Device Clipboard Sync";
-"settings.sync.enable_desc" = "Automatically sync copied text and images across Macs, Windows, and mobile devices with deduplication.";
+"settings.sync.section" = "iCloud Clipboard Sync";
+"settings.sync.enable" = "Enable iCloud Sync";
+"settings.sync.enable_desc" = "Automatically sync copied text and images between your Macs through your personal iCloud Drive, with deduplication.";
 "settings.sync.mode_label" = "Sync Mode";
 "settings.sync.mode_icloud" = "iCloud Drive (Native Apple Ecosystem, zero-config, no password)";
 "settings.sync.mode_webdav" = "WebDAV Storage (Universal cross-platform, supports any standard WebDAV)";
@@ -210,8 +204,8 @@
 "settings.sync.btn_test_conn" = "Test Connection";
 "settings.sync.conn_success" = "WebDAV connected successfully!";
 "settings.sync.conn_failed" = "Connection Failed: %@";
-"settings.sync.e2ee_title" = "End-to-End Encryption (E2EE)";
-"settings.sync.e2ee_desc" = "Optional security enhancement: encrypts data locally with AES-256-GCM. Cloud providers cannot decrypt plaintext (no password needed if off).";
+"settings.sync.e2ee_title" = "End-to-End Encryption (E2EE) · Advanced";
+"settings.sync.e2ee_desc" = "iCloud already encrypts data in transit and at rest, so this is optional for everyday use. With it on, data is encrypted with a key only you hold, so not even Apple can decrypt it. The trade-off: every Mac must use the same passphrase, and losing it makes the cloud history permanently unrecoverable. (Off by default; sensitive items stay on this Mac by default.)";
 "settings.sync.e2ee_passphrase" = "Sync Passphrase";
 "settings.sync.e2ee_passphrase_desc" = "Pairing credential across devices; enter the exact same passphrase to decrypt";
 "settings.sync.e2ee_passphrase_placeholder" = "Enter passphrase (match across devices)";
@@ -225,7 +219,7 @@
 "settings.sync.e2ee_reset_confirm_action" = "Reset & Re-sync";
 "settings.sync.e2ee_reset_success" = "Cloud passphrase reset and synced successfully";
 "settings.sync.e2ee_sync_sensitive" = "Sync Sensitive Items (Passwords / API Keys / Secrets)";
-"settings.sync.e2ee_sync_sensitive_desc" = "When enabled, sensitive items are encrypted and synced across devices; otherwise they stay strictly on this Mac.";
+"settings.sync.e2ee_sync_sensitive_desc" = "When enabled, sensitive items are encrypted and synced to your other Macs; otherwise they stay strictly on this Mac.";
 "settings.sync.dir_label" = "Sync Storage Location";
 "settings.sync.change_dir" = "Change Directory…";
 "settings.sync.status_label" = "Sync Status";
@@ -253,11 +247,15 @@
 "settings.sync.dir_switched" = "Sync directory switched successfully";
 "settings.sync.dir_failed" = "Failed to set directory: %@";
 "settings.sync.rules_section" = "Sync Rules & Privacy Policy";
-"settings.sync.rule_e2ee_on" = "AES-256 end-to-end encryption enabled: data is encrypted before leaving this device; cloud storage providers cannot read it";
-"settings.sync.rule_e2ee_off" = "Currently in unencrypted sync mode; enable End-to-End Encryption to protect clipboard privacy";
-"settings.sync.rule_sensitive_on" = "Sensitive items (passwords, API keys) are encrypted and synced across your devices";
+"settings.sync.rule_e2ee_on" = "AES-256 end-to-end encryption enabled: data is encrypted before leaving this device; iCloud and cloud storage cannot read it";
+"settings.sync.rule_e2ee_off" = "Currently using iCloud's built-in encryption (encrypted in transit and at rest, key held by Apple); passwords and API keys stay on this Mac by default and are not synced";
+"settings.sync.rule_sensitive_on" = "Sensitive items (passwords, API keys) are encrypted and synced to your other Macs";
 "settings.sync.rule_sensitive_off" = "Sensitive items (passwords, API keys) stay strictly on this Mac and are never uploaded";
-"settings.sync.rule_assets_and_delete" = "Image attachments automatically synced (≤ 2MB per image, oversized stay local); deletions sync across devices";
+"settings.sync.sensitive_prompt_title" = "Sync passwords and API keys too?";
+"settings.sync.sensitive_prompt_message" = "End-to-end encryption is now enabled. Should records detected as sensitive (passwords, API keys) also sync to your other Macs?\n\nIf enabled: they are encrypted with your passphrase before leaving this Mac, so iCloud and cloud storage cannot read them — but anyone who obtains your sync passphrase can read them on another device.\nIf disabled: sensitive items stay strictly on this Mac and never leave it.\n\nYou can change this anytime under Sensitive Data Sync.";
+"settings.sync.sensitive_prompt_enable" = "Enable encrypted sync";
+"settings.sync.sensitive_prompt_keep_local" = "This Mac only (recommended)";
+"settings.sync.rule_assets_and_delete" = "Image attachments automatically synced (≤ 2MB per image, oversized stay local); deletions sync across your Macs";
 "settings.backup.exported_success" = "Successfully exported %d items to %@";
 "settings.backup.export_failed" = "Export failed: %@";
 "settings.backup.imported_success" = "Successfully imported %d new records (duplicates skipped)";
@@ -268,6 +266,7 @@
 "preview.ocr_title" = "Extracted Text";
 "preview.lines_and_chars" = "%d lines · %d characters";
 "preview.copied_feedback" = "Copied";
+"preview.copy_count_short" = "Copied %@×";
 "preview.copy_path" = "Copy Path";
 "preview.file.count" = "%@ files";
 "preview.file.count_total" = "%1$@ files · %2$@ total";
@@ -308,6 +307,7 @@
 "preview.toolbar.delete.hint" = "Press ⌘⌫ to delete";
 "preview.toolbar.unfavorite.hint" = "Press ⌘S to unfavorite";
 "hints.rename" = "Set Alias";
+"hints.dismiss" = "Layered dismiss / hide";
 "rename.placeholder" = "Leave blank to clear the alias";
 "context.rename" = "Set Alias…";
 "context.unfavorite" = "Unfavorite";
@@ -334,6 +334,7 @@
 "preview.meta_line" = "%1$@ · %2$@ · Copied %3$@ times";
 "preview.sensitive.encrypted" = "Encrypted locally";
 "preview.sensitive.local_only" = "Local only · never synced to iCloud";
+"preview.sensitive.e2ee_sync" = "End-to-end encrypted · synced";
 "preview.sensitive.auto_remask" = "Automatically re-masked 30 seconds after viewing or pasting, and cleared from the system clipboard";
 "preview.image.fallback_type" = "Image";
 "preview.image.ocr_badge" = "Recognized offline";
@@ -398,11 +399,15 @@
 /* New UI - Relative Time & Timeline */
 "time.month_day" = "%1$d/%2$d %3$@";
 "time.full_date" = "%1$@/%2$d/%3$d";
+"row.time.toggle_hint" = "Click to toggle full date & weekday";
 "timeline.today" = "Today";
 "timeline.yesterday" = "Yesterday";
 "timeline.this_week" = "This Week";
 "timeline.last_week" = "Last Week";
 "timeline.year" = "%@";
+"timeline.month" = "%@";
+"timeline.month_range" = "%@ %d–%d";
+"timeline.month_range_same_day" = "%@ %d";
 
 /* New UI - Sidebar Categories */
 "category.all" = "All";
@@ -417,6 +422,11 @@
 "category.move_up" = "Move Up";
 "category.move_down" = "Move Down";
 "category.reset_order" = "Reset to Automatic Order";
+"category.trash" = "Trash";
+"filter.by_type" = "By Type";
+"filter.by_tag" = "By Tag";
+"filter.remove_condition" = "Remove filter";
+"filter.add_keyword_hint" = "Type to search…";
 
 /* New UI - Source */
 "source.unknown" = "Unknown Source";
@@ -439,7 +449,6 @@
 "settings.sync.last_result_failure_credential" = "Sync failed (iCloud account issue) · %@";
 "settings.sync.last_result_failure_unknown" = "Sync failed (unknown error) · %@";
 "settings.sync.last_result_failure_webdav_auth" = "Sync failed (WebDAV authentication error) · %@";
-"settings.sync.plaintext_disclosure" = "Content synced via iCloud is stored in plain text (sensitive items are never synced)";
 
 /* Settings - Appearance Polish (005-ui-ux-redesign) */
 "settings.appearance.list_section" = "List & Navigation Style";
@@ -447,7 +456,13 @@
 "settings.appearance.selection_style_desc" = "Visual feedback style when navigating rows via keyboard";
 "settings.appearance.selection_solid" = "Classic System Accent";
 "settings.appearance.selection_subtle" = "Subtle Light Tint";
-"settings.appearance.timeline_jump" = "Timeline Jump Style";
-"settings.appearance.timeline_jump_desc" = "Interaction method for jumping between time sections";
-"settings.appearance.timeline_rail" = "Refined Index Rail";
-"settings.appearance.timeline_header_menu" = "Header Dropdown Menu";
+"tag.title" = "Tags";
+"tag.action" = "Tags";
+"tag.edit_menu" = "Tags…";
+"tag.edit_tooltip" = "Tags ⌘L";
+"tag.input_placeholder" = "Type or pick a tag…";
+"tag.create" = "Create \"#%@\"";
+"tag.rename" = "Rename Tag…";
+"tag.rename_placeholder" = "New tag name";
+"tag.delete" = "Delete This Tag";
+"common.cancel" = "Cancel";

@@ -63,14 +63,8 @@
 "settings.general.lang_system" = "跟隨系統";
 "settings.general.launch_at_login" = "開機自動啟動";
 "settings.general.launch_desc" = "登入 macOS 時自動啟動 NookClip";
-"settings.general.history_retention" = "歷史保留天數";
+"settings.general.history_max_items" = "歷史最大記錄條數";
 "settings.general.disk_limit" = "磁碟空間上限";
-"settings.retention.day" = "1 天";
-"settings.retention.week" = "1 週";
-"settings.retention.month" = "1 個月";
-"settings.retention.quarter" = "1 個季度";
-"settings.retention.half_year" = "半年";
-"settings.retention.year" = "1 年";
 "settings.retention.unlimited" = "無限制";
 "settings.general.appearance_section" = "外觀與佈局";
 "settings.general.appearance" = "外觀模式";
@@ -127,7 +121,7 @@
 "settings.hotkey.action_undo" = "復原最近一次刪除";
 "settings.hotkey.action_toggle_preview" = "收合/展開詳細預覽區";
 "settings.hotkey.action_focus_search" = "聚焦搜尋方塊";
-"settings.hotkey.action_dismiss" = "清空篩選或收起面板";
+"settings.hotkey.action_dismiss" = "分層清空篩選或收起面板";
 
 /* Settings - Excluded Apps */
 "excluded.title" = "排除應用程式";
@@ -197,9 +191,9 @@
 "settings.permissions.restart" = "重新啟動 NookClip 生效";
 "settings.permissions.stale_title" = "若已在系統設定中勾選過但未生效：";
 "settings.permissions.stale_desc" = "因重新建置更新，舊權限綁定已失效。請在「系統設定 > 隱私權與安全性 > 輔助使用」中先按【-】移除舊 NookClip，再重新新增/勾選並按一下「重新檢查」。";
-"settings.sync.section" = "多端剪貼簿同步 (Cloud Sync)";
-"settings.sync.enable" = "多端剪貼簿同步";
-"settings.sync.enable_desc" = "在 Mac、Windows、手機之間自動雙向同步複製的文字與圖片，同內容自動去重。";
+"settings.sync.section" = "iCloud 剪貼簿同步";
+"settings.sync.enable" = "啟用 iCloud 同步";
+"settings.sync.enable_desc" = "透過你自己的 iCloud 雲碟，在多台 Mac 之間自動雙向同步複製的文字與圖片，同內容自動去重。";
 "settings.sync.mode_label" = "同步方式";
 "settings.sync.mode_icloud" = "iCloud 雲碟（Apple 裝置原生，免配置、無需密碼）";
 "settings.sync.mode_webdav" = "WebDAV 雲端硬碟（跨平台通用，支援任意標準 WebDAV 服務）";
@@ -210,10 +204,10 @@
 "settings.sync.btn_test_conn" = "測試連線";
 "settings.sync.conn_success" = "WebDAV 連線成功！";
 "settings.sync.conn_failed" = "連線失敗: %@";
-"settings.sync.e2ee_title" = "端對端加密 (E2EE)";
-"settings.sync.e2ee_desc" = "可選安全強化。啟用後於本機使用 AES-256-GCM 加密，雲端與網盤完全無法解密明文（未開啟時無需密碼）。";
+"settings.sync.e2ee_title" = "端對端加密 (E2EE) · 進階選項";
+"settings.sync.e2ee_desc" = "iCloud 本身的傳輸與儲存已加密，日常使用無需額外設定。開啟此項後改用只有你持有的金鑰加密，連 Apple 也無法解密；代價是所有 Mac 都要輸入同一個密碼，且密碼遺失後雲端歷史永久無法恢復。（預設關閉，敏感內容預設只留本機）";
 "settings.sync.e2ee_passphrase" = "同步密碼 (Passphrase)";
-"settings.sync.e2ee_passphrase_desc" = "多裝置配對憑證，所有裝置輸入完全相同的密碼即可解密互通";
+"settings.sync.e2ee_passphrase_desc" = "多台 Mac 的配對憑證，所有裝置輸入完全相同的密碼即可解密互通";
 "settings.sync.e2ee_passphrase_placeholder" = "請輸入同步密碼（各裝置需一致）";
 "settings.sync.passphrase_required" = "已啟用端對端加密，請先設定同步密碼";
 "settings.sync.e2ee_verify_btn" = "驗證/初始化密碼";
@@ -225,7 +219,7 @@
 "settings.sync.e2ee_reset_confirm_action" = "重設並重新同步";
 "settings.sync.e2ee_reset_success" = "雲端密碼已重設並重新同步";
 "settings.sync.e2ee_sync_sensitive" = "同步敏感資料 (密碼 / API Key / 憑證)";
-"settings.sync.e2ee_sync_sensitive_desc" = "開啟後敏感內容受端對端加密保護跨裝置同步；未開啟時嚴格僅留存於當前 Mac 本機。";
+"settings.sync.e2ee_sync_sensitive_desc" = "開啟後敏感內容受端對端加密保護，可同步到你的其他 Mac；未開啟時嚴格僅留存於當前 Mac 本機。";
 "settings.sync.dir_label" = "同步目錄存放位置";
 "settings.sync.change_dir" = "變更目錄...";
 "settings.sync.status_label" = "同步狀態";
@@ -253,11 +247,15 @@
 "settings.sync.dir_switched" = "已成功切換同步目錄";
 "settings.sync.dir_failed" = "設定目錄失敗: %@";
 "settings.sync.rules_section" = "同步規則與隱私說明";
-"settings.sync.rule_e2ee_on" = "已啟用 AES-256 端對端加密，離機前全程加密，雲端及網盤服務商無法解密";
-"settings.sync.rule_e2ee_off" = "目前為未加密傳輸模式，建議開啟「端對端加密」以保護雲端剪貼簿隱私";
-"settings.sync.rule_sensitive_on" = "密碼與 API Key 等敏感內容受端對端加密保護並跨裝置同步";
+"settings.sync.rule_e2ee_on" = "已啟用 AES-256 端對端加密，離機前全程加密，iCloud 與雲端無法解密";
+"settings.sync.rule_e2ee_off" = "目前使用 iCloud 自帶加密（傳輸與儲存均已加密，金鑰由 Apple 持有）；密碼與 API Key 等敏感內容預設只留在本機，不會同步";
+"settings.sync.rule_sensitive_on" = "密碼與 API Key 等敏感內容受端對端加密保護，可同步到你的其他 Mac";
 "settings.sync.rule_sensitive_off" = "敏感內容（密碼、API Key）嚴格僅留存於當前 Mac 本機，絕不上傳雲端";
-"settings.sync.rule_assets_and_delete" = "圖片附件自動隨記錄同步（單張 ≤ 2MB，超限僅存本機）；跨裝置刪除操作即時同步";
+"settings.sync.sensitive_prompt_title" = "是否同步密碼與 API Key？";
+"settings.sync.sensitive_prompt_message" = "你已啟用端對端加密。是否把識別為敏感的記錄（密碼、API Key 等）也同步到你的其他 Mac？\n\n開啟後：這些內容離機前會用你的口令加密，iCloud 與雲端無法解密；但任何取得你同步口令的人都能在其他裝置上讀取它們。\n關閉後：敏感內容嚴格僅留存本機，不上傳雲端、不離開這台 Mac。\n\n可隨時在「敏感資料同步」中修改。";
+"settings.sync.sensitive_prompt_enable" = "開啟加密同步";
+"settings.sync.sensitive_prompt_keep_local" = "僅保留本機（建議）";
+"settings.sync.rule_assets_and_delete" = "圖片附件自動隨記錄同步（單張 ≤ 2MB，超限僅存本機）；其他 Mac 上的刪除操作即時同步";
 "settings.backup.exported_success" = "成功匯出 %d 筆記錄到 %@";
 "settings.backup.export_failed" = "匯出失敗: %@";
 "settings.backup.imported_success" = "成功匯入 %d 筆新記錄（重複記錄已自動略過）";
@@ -268,6 +266,7 @@
 "preview.ocr_title" = "擷取文字";
 "preview.lines_and_chars" = "%d 行 · %d 字元";
 "preview.copied_feedback" = "已複製";
+"preview.copy_count_short" = "複製 %@ 次";
 "preview.copy_path" = "複製路徑";
 "preview.file.count" = "%@ 個檔案";
 "preview.file.count_total" = "%1$@ 個檔案 · 共 %2$@";
@@ -308,6 +307,7 @@
 "preview.toolbar.delete.hint" = "按下 ⌘⌫ 刪除";
 "preview.toolbar.unfavorite.hint" = "按下 ⌘S 取消收藏";
 "hints.rename" = "設置別名";
+"hints.dismiss" = "分層返回 / 收起面板";
 "rename.placeholder" = "留空清除別名";
 "context.rename" = "設置別名…";
 "context.unfavorite" = "取消收藏";
@@ -334,6 +334,7 @@
 "preview.meta_line" = "%1$@ · %2$@ · 複製 %3$@ 次";
 "preview.sensitive.encrypted" = "已在本機加密";
 "preview.sensitive.local_only" = "純本機 · 不同步 iCloud";
+"preview.sensitive.e2ee_sync" = "端對端加密 · 可同步";
 "preview.sensitive.auto_remask" = "檢視或貼上 30 秒後自動重新遮罩，並清除系統剪貼簿";
 "preview.image.fallback_type" = "圖片";
 "preview.image.ocr_badge" = "已離線辨識";
@@ -398,11 +399,15 @@
 /* New UI - Relative Time & Timeline */
 "time.month_day" = "%d月%d日 %@";
 "time.full_date" = "%@年%d月%d日";
+"row.time.toggle_hint" = "點擊切換完整日期/星期";
 "timeline.today" = "今天";
 "timeline.yesterday" = "昨天";
 "timeline.this_week" = "本週";
 "timeline.last_week" = "上週";
 "timeline.year" = "%@年";
+"timeline.month" = "%@";
+"timeline.month_range" = "%@ %d–%d日";
+"timeline.month_range_same_day" = "%@ %d日";
 
 /* New UI - Sidebar Categories */
 "category.all" = "全部";
@@ -417,6 +422,11 @@
 "category.move_up" = "上移";
 "category.move_down" = "下移";
 "category.reset_order" = "恢復自動排序";
+"category.trash" = "資源回收筒";
+"filter.by_type" = "按類型";
+"filter.by_tag" = "按標籤";
+"filter.remove_condition" = "移除篩選條件";
+"filter.add_keyword_hint" = "輸入關鍵詞搜尋…";
 
 /* New UI - Source */
 "source.unknown" = "未知來源";
@@ -439,7 +449,6 @@
 "settings.sync.last_result_failure_credential" = "同步失敗（iCloud 帳號問題）· %@";
 "settings.sync.last_result_failure_unknown" = "同步失敗（未知錯誤）· %@";
 "settings.sync.last_result_failure_webdav_auth" = "同步失敗（WebDAV 帳號或密碼錯誤）· %@";
-"settings.sync.plaintext_disclosure" = "透過 iCloud 同步的內容為明文（敏感條目不會同步）";
 
 /* Settings - Appearance Polish (005-ui-ux-redesign) */
 "settings.appearance.list_section" = "列表與導航風格";
@@ -447,7 +456,13 @@
 "settings.appearance.selection_style_desc" = "設定鍵盤連續導航時的行選中視覺反饋";
 "settings.appearance.selection_solid" = "經典系統強調色（反白文字）";
 "settings.appearance.selection_subtle" = "現代柔和微底（指示線）";
-"settings.appearance.timeline_jump" = "時間定位導航樣式";
-"settings.appearance.timeline_jump_desc" = "設定列表中按時間快速跳轉定位的互動方式";
-"settings.appearance.timeline_rail" = "右側時間導航條";
-"settings.appearance.timeline_header_menu" = "分組標題下拉選單";
+"tag.title" = "標籤";
+"tag.action" = "標籤";
+"tag.edit_menu" = "標籤…";
+"tag.edit_tooltip" = "標籤 ⌘L";
+"tag.input_placeholder" = "輸入或選擇標籤…";
+"tag.create" = "建立「#%@」";
+"tag.rename" = "重新命名標籤…";
+"tag.rename_placeholder" = "新標籤名稱";
+"tag.delete" = "刪除該標籤";
+"common.cancel" = "取消";

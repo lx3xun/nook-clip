@@ -145,6 +145,10 @@ struct ClipboardRowModel: Identifiable, Equatable {
     let sourcePlatform: String?
     /// lastUsedAt 的相对时间展示文本，构造期算一次（视图只读，避免每行重复 Calendar 计算）
     let timestampText: String
+    /// 点击时间戳后切换的完整展示文本（当年：xx月xx日 周几 时间；跨年额外带年份），构造期算一次
+    let timestampDetailedText: String
+    /// 条目标签（行内副行最多展示 2 个迷你胶囊，超出显示 +N）
+    let tags: [String]
 
     var sourceDisplayName: String {
         let appName = source.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -229,7 +233,19 @@ struct ClipboardRowModel: Identifiable, Equatable {
                     derivedSummaryMono = true
                 } else if effectiveKind == "code" || hasMetadataLang {
                     derivedKind = .code
-                    derivedBadge = .language(hasMetadataLang ? metadataLang! : "code")
+                    // 代码分类副行要展示「具体语言」：优先用捕获侧已识别的 metadata.language；
+                    // 缺失时（如持久化 kind=code 但未写入语言）再对正文做一次轻量识别兜底，
+                    // 仍识别不出才回退通用 "code"。
+                    let concreteLang: String = {
+                        if hasMetadataLang, let mLang = metadataLang { return mLang }
+                        let detected = classifyTextContent(text: item.summary)
+                        if detected.isCode, let lang = detected.detectedLanguage,
+                           !lang.isEmpty, lang != "json" {
+                            return lang
+                        }
+                        return "code"
+                    }()
+                    derivedBadge = .language(concreteLang)
                     derivedTitleMono = true
                     derivedSummaryMono = true
                 } else if effectiveKind == "color", let hex = parseColorHex(text: item.summary) {
@@ -278,6 +294,8 @@ struct ClipboardRowModel: Identifiable, Equatable {
         // 相对时间字符串构造期算一次：body 与无障碍摘要会各读一次，
         // 放在视图里会导致每行重复执行 Calendar 计算（列表高频求值时开销显著）
         timestampText = RelativeTime.string(from: item.lastUsedAt)
+        timestampDetailedText = RelativeTime.detailedString(from: item.lastUsedAt)
+        tags = item.tags
     }
 
     /// 副行展示文本：image 剥离捕获侧拼接的 ` #hash前8位` 尾巴（ClipboardMonitor.swift:193-198），
@@ -415,25 +433,126 @@ extension ClipboardRowModel {
 // MARK: - 相对时间格式化（原型 MockData.timeString 的去 Mock 迁移版）
 
 enum RelativeTime {
-    static func string(from date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+    /// 展示用日历：语言跟随 App 内语言设置（而非系统语言），时区用系统本地时区。
+    /// App 内切换语言（如系统中文、App 选英文）时必须按英文输出日期，否则会出现
+    /// 「Wed, 10月21日」这类中英混排。
+    static var displayCalendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = LocalizationManager.shared.locale
+        cal.timeZone = TimeZone.current
+        return cal
+    }
+
+    static func string(from date: Date, now: Date = Date(), calendar: Calendar? = nil) -> String {
+        let calendar = calendar ?? displayCalendar
         let minutes = Int(now.timeIntervalSince(date) / 60)
         if minutes < 1 { return L10n.tr("time.just_now") }
         if minutes < 60 { return L10n.tr("time.minutes_ago", minutes) }
-        if calendar.isDate(date, inSameDayAs: now) { return L10n.tr("time.today", clock(date)) }
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
-           calendar.isDate(date, inSameDayAs: yesterday) { return L10n.tr("time.yesterday", clock(date)) }
-        let month = calendar.component(.month, from: date)
-        let day = calendar.component(.day, from: date)
-        let year = calendar.component(.year, from: date)
-        if year == calendar.component(.year, from: now) {
-            return L10n.tr("time.month_day", month, day, clock(date))
+        // 今天（或跨端时钟微偏超前于今天 00:00）：只显示时间，不再带「今天」前缀
+        let todayStart = calendar.startOfDay(for: now)
+        if date >= todayStart || calendar.isDate(date, inSameDayAs: now) {
+            return clock(date, calendar: calendar)
         }
-        return L10n.tr("time.full_date", String(year), month, day)
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: todayStart),
+           calendar.isDate(date, inSameDayAs: yesterday) {
+            return L10n.tr("time.yesterday", clock(date, calendar: calendar))
+        }
+        // 本周（距今 ≤ TimeGroupSpan.justifiedDays 天、且早于昨天）：
+        // 显示具体周几 + 时间，如「周三 14:30」/「Wed 14:30」。
+        // 必须与 Timeline.group 的分档同源——否则会出现「组头写着本周、
+        // 行内却显示上周日期」的错位（曾按系统周界判定，跨周日后即错开）。
+        if let windowStart = calendar.date(
+            byAdding: .day, value: -TimeGroupSpan.justifiedDays, to: todayStart
+        ), date >= windowStart {
+            return "\(weekday(date, calendar: calendar)) \(clock(date, calendar: calendar))"
+        }
+        let year = calendar.component(.year, from: date)
+        // 更早日期同样走系统本地化日期模板，保证与详细视图一致：
+        // 中文「10月12日」、英文「Oct 12」，跨年再补年份（英文「Oct 21, 2024」）。
+        if year == calendar.component(.year, from: now) {
+            return "\(localizedDate(date, calendar: calendar, template: "MMMd")) \(clock(date, calendar: calendar))"
+        }
+        return localizedDate(date, calendar: calendar, template: "yyyyMMMd")
     }
 
-    private static func clock(_ date: Date) -> String {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+    /// 按 App 语言生成日期串（模板由系统重排顺序与分隔符，英文自动加逗号）。
+    private static let formatterLock = NSLock()
+    private static var localizedDateFormatterCache: [String: DateFormatter] = [:]
+
+    private static func localizedDate(_ date: Date, calendar: Calendar, template: String) -> String {
+        let locale = calendar.locale ?? Locale.current
+        let timeZone = calendar.timeZone
+        let cacheKey = "\(calendar.identifier)|\(locale.identifier)|\(timeZone.identifier)|\(template)"
+        formatterLock.lock()
+        defer { formatterLock.unlock() }
+        let formatter: DateFormatter
+        if let cached = localizedDateFormatterCache[cacheKey] {
+            formatter = cached
+        } else {
+            let f = DateFormatter()
+            f.calendar = calendar
+            f.locale = locale
+            f.timeZone = timeZone
+            f.setLocalizedDateFormatFromTemplate(template)
+            localizedDateFormatterCache[cacheKey] = f
+            formatter = f
+        }
+        return formatter.string(from: date)
+    }
+
+    /// 完整时间文本（点击时间戳切换后的展示）：
+    /// - 中文 当年：`10月21日 周三 09:05`；跨年：`2024年10月21日 周一 09:05`
+    /// - 英文 当年：`Wed, Oct 21 09:05`；跨年：`Mon, Oct 21, 2024 09:05`
+    ///
+    /// 日期与周几交给 `setLocalizedDateFormatFromTemplate("MMMdEEE")` /
+    /// `"yyyyMMMdEEE"` 由系统按语言重排并补标点（英文自动加逗号、德文调整顺序），
+    /// 不硬编码「年月日」或分隔符；时间统一 24 小时制追加在末尾。
+    static func detailedString(from date: Date, now: Date = Date(), calendar: Calendar? = nil) -> String {
+        let calendar = calendar ?? displayCalendar
+        let year = calendar.component(.year, from: date)
+        let isCurrentYear = year == calendar.component(.year, from: now)
+
+        // 日期 + 周几交给组合模板，让系统按语言决定顺序与标点：
+        // 英文自动加逗号（Wed, Oct 21）、日文括号（10月21日(水)）、德文换序。
+        let datePart = localizedDate(
+            date,
+            calendar: calendar,
+            template: isCurrentYear ? "MMMdEEE" : "yyyyMMMdEEE"
+        )
+        let time = clock(date, calendar: calendar)
+        return "\(insertSpaceBeforeCJKWeekdayIfNeeded(datePart)) \(time)"
+    }
+
+    /// zh-TW 的 CLDR 组合模板会把周几直接粘在日期后（「10月21日週三」），
+    /// 这里补一个空格，保证与 zh-CN「10月21日 周三」等其它语言节奏一致。
+    private static func insertSpaceBeforeCJKWeekdayIfNeeded(_ text: String) -> String {
+        guard let firstCJKWeekday = text.firstIndex(where: { "週周星期".contains($0) }),
+              firstCJKWeekday > text.startIndex else { return text }
+        let previousIndex = text.index(before: firstCJKWeekday)
+        // 已有空格或左括号等分隔符时不重复插入
+        guard !" (（[【".contains(text[previousIndex]) else { return text }
+        var result = text
+        result.insert(" ", at: firstCJKWeekday)
+        return result
+    }
+
+    private static func clock(_ date: Date, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)
+    }
+
+    /// 系统语言环境下的短周几名（中文「周三」/英文「Wed」）。
+    /// 按日历的 weekday 序号（1 = 周日）取本地化符号，随系统语言自动适配。
+    /// 必须沿用调用方日历的时区：用系统默认时区换算会让跨时区的日期偏一天。
+    private static func weekday(_ date: Date, calendar: Calendar) -> String {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.locale = calendar.locale ?? Locale.current
+        gregorian.timeZone = calendar.timeZone
+        let index = gregorian.component(.weekday, from: date) // 1...7（1 = 周日）
+        let symbols = gregorian.shortWeekdaySymbols
+        guard !symbols.isEmpty else { return "" }
+        let safeIndex = min(max(index - 1, 0), symbols.count - 1)
+        return symbols[safeIndex]
     }
 }
 
@@ -473,7 +592,7 @@ struct SidebarCategory: Identifiable, Equatable {
         case 4: return NookClip.tintCategoryURL
         case 5: return NookClip.tintCategoryCode
         case 6: return NookClip.tintCategoryColor
-        case 7: return NookClip.colorSensitive
+        case 7: return NookClip.textTertiary   // 回收站占位槽（无回收站计数，恒置灰）
         default: return NookClip.accent
         }
     }

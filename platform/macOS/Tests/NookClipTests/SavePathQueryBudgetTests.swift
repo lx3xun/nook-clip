@@ -134,11 +134,11 @@ final class SavePathQueryBudgetTests: XCTestCase {
         XCTAssertEqual(spy.purgeCallCount, 0, "init 不得同步执行空白行清理")
     }
 
-    /// 启动维护功能规格（接缝 A）：过期条目被清理出库与镜像，载荷同步清删
+    /// 启动维护功能规格（接缝 A）：超出条数上限的条目被清理出库与镜像，载荷同步清删
     func test_startupMaintenancePurgesExpiredItemsAndPayloads() async throws {
         let spy = try QueryCountingHistoryStore()
         let defaults = makeIsolatedDefaults()
-        defaults.set(30, forKey: RetentionPolicy.defaultsKey)
+        defaults.set(1, forKey: HistoryMaxItemsPolicy.defaultsKey)
         // 载荷须在受管目录内（FileStore.remove 只删受管文件，防误删用户原始文件）
         let payloadDir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("nook_payload_\(UUID().uuidString)", isDirectory: true)
@@ -152,14 +152,14 @@ final class SavePathQueryBudgetTests: XCTestCase {
             payloadStore: payloadStore
         )
 
-        // 播种一条 40 天前的过期条目（带载荷）+ 一条新条目
+        // 播种一条最久未使用的旧条目（带载荷）+ 一条新条目，上限 1 条 → 旧条目被淘汰
         let payloadPath = payloadDir.appendingPathComponent("expired-payload.txt").path
         try "payload".write(toFile: payloadPath, atomically: true, encoding: .utf8)
         let expiredID = UUID()
         _ = spy.save(ClipboardItem(
             id: expiredID,
             type: .text,
-            title: "过期",
+            title: "超限",
             summary: "expired needle",
             lastUsedAt: Date(timeIntervalSinceNow: -40 * 86400),
             payloadPath: payloadPath
@@ -169,9 +169,9 @@ final class SavePathQueryBudgetTests: XCTestCase {
         // init 已完成（同步路径不含清理）；驱动维护
         await store.performStartupMaintenance()
 
-        XCTAssertEqual(spy.pruneExpiredCallCount, 1, "维护执行保留期清理")
-        XCTAssertNil(store.item(withID: expiredID), "过期条目被清理")
-        XCTAssertEqual(store.items.first(where: { $0.summary == "fresh needle" })?.summary, "fresh needle", "未过期条目保留")
+        XCTAssertEqual(spy.pruneExpiredCallCount, 1, "维护执行条数上限裁剪")
+        XCTAssertNil(store.item(withID: expiredID), "超限的最久未使用条目被清理")
+        XCTAssertEqual(store.items.first(where: { $0.summary == "fresh needle" })?.summary, "fresh needle", "未超限条目保留")
         XCTAssertFalse(FileManager.default.fileExists(atPath: payloadPath), "被清理条目的载荷文件同步删除")
     }
 }

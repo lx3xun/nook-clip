@@ -23,17 +23,13 @@ enum UserDefaultsKey: String {
     // MARK: 更新源（GeneralSettingsTab 选择 / UpdateService 读取）
     case updateSource
 
-    // MARK: 分类条（T037 · CategoryBarCoordinator 持久化）
-    /// 第 4 槽（动态槽）用户固定的占位类目 id（-1 = 未指定）
-    case filterSlot5CategoryID = "filterSlot5CategoryID"
-    /// 分类手动序（逗号分隔 id；空 = 自动数量序）
+    // MARK: 分类（分类已收进搜索框展开面板，固定 8 槽无手动序种子槽）
+    /// 分类手动序（逗号分隔 id；空 = 自动数量序）——当前仅 CategoryOrdering 纯函数保留，UI 不再暴露排序
     case customCategoryOrder
 
     // MARK: 外观与交互定制（005-ui-ux-redesign）
     /// 选中行高亮风格（solidAccent / subtleAccent，缺省 solidAccent）
     case rowSelectionStyle
-    /// 时间快速跳转模式（indexRail / groupHeaderMenu，缺省 indexRail）
-    case timelineJumpMode
 
     // MARK: 首次启动引导
     /// 是否已经完成过首次启动引导（首启自动唤出面板 + 菜单栏提示）

@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// 分类下拉菜单与时间锚点定位的状态机（第 4 槽菜单开合、高亮、时间锚点、吸顶组）。
-/// 状态迁移集中在协调器；滚动、聚焦、槽固定等宿主副作用经钩子注入（保持 View 层接线）。
+/// 搜索框展开过滤面板（类型网格 + 标签流式胶囊）与时间锚点定位的状态机。
+/// 分类/标签统一收进搜索框展开面板后，原「第 4 槽下拉菜单开合/高亮」状态已移除；
+/// 浮层开合仅作为「持久展开」标记（聚焦搜索框且未打字时由视图派生展示）。
+/// 状态迁移集中在协调器；滚动、聚焦等宿主副作用经钩子注入（保持 View 层接线）。
 @MainActor
 @Observable
 final class MainViewFilterState {
@@ -10,43 +12,27 @@ final class MainViewFilterState {
 
     /// 时间锚点定位（选中的 TimeGroup id；nil = 未定位。定位不隐藏条目，仅滚动）
     var timeSelection: String?
-    /// 分类第 4 槽切换下拉菜单（槽尾 ▾ 入口；⌘↓ 或点击打开）
-    var categoryMenuOpen = false
-    var categoryMenuHighlight: Int?
+    /// 过滤面板显式展开（点搜索框 / ⌘↓ 触发；聚焦且未打字时也派生展开）
+    var filterPanelOpen = false
     var stickyGroupID: String?
 
     // MARK: 宿主副作用钩子（View 在 onAppear 接线）
 
-    /// 分类被选中（下拉/⌘数字/chip）：View 负责 categorySelection、第 4 槽固定与聚焦
+    /// 分类被选中（网格/⌘[⌘]/胶囊清除）：View 负责 categorySelection 与聚焦
     var onCategorySelected: ((Int) -> Void)?
     /// 时间定位复位（「全部」/Esc 清筛选）：View 负责滚回列表顶部
     var onTimeAnchorReset: (() -> Void)?
     /// 定位到时间分组：View 负责滚动到组头
     var onSelectTimeGroup: ((String) -> Void)?
 
-    var isAnyMenuOpen: Bool { categoryMenuOpen }
-
+    /// 关闭菜单类浮层（保留接口语义；分类下拉已移除，无实际状态）
     func closeMenus() {
-        categoryMenuOpen = false
-        categoryMenuHighlight = nil
+        filterPanelOpen = false
     }
 
-    /// 第 4 槽下拉开合（无可切换项时不打开）
-    func toggleCategoryMenu(initialHighlight: Int?) {
-        if categoryMenuOpen {
-            closeMenus()
-        } else {
-            categoryMenuHighlight = initialHighlight
-            categoryMenuOpen = true
-        }
-    }
-
-    /// 菜单内 ↑↓ 高亮循环（ids 为当前菜单项 id 序列）
-    func moveCategoryMenuHighlight(_ offset: Int, ids: [Int]) {
-        guard !ids.isEmpty else { return }
-        let currentIndex = categoryMenuHighlight.flatMap { ids.firstIndex(of: $0) } ?? (offset > 0 ? -1 : ids.count)
-        let nextIndex = (currentIndex + offset + ids.count) % ids.count
-        categoryMenuHighlight = ids[nextIndex]
+    /// 开合过滤面板（点击搜索框 / ⌘↓）
+    func toggleFilterPanel() {
+        filterPanelOpen.toggle()
     }
 
     /// 组头 frame 偏好判定出的吸顶组写入（仅变化时写入，滚动中不触发无效重渲染）
@@ -82,7 +68,7 @@ final class MainViewFilterState {
     // MARK: 选中动作（含钩子副作用）
 
     func selectCategory(_ id: Int) {
-        closeMenus()
+        filterPanelOpen = false
         onCategorySelected?(id)
     }
 
