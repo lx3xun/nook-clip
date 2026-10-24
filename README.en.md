@@ -95,7 +95,7 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 
 Download the Universal DMG package directly (runs natively on both Apple Silicon `arm64` and Intel `x86_64`):
 
-- **GitHub Direct Download**: [Download NookClip.dmg (Latest)](https://github.com/lx3xun/nook-clip/releases/latest/download/NookClip.dmg)
+- **GitHub Releases (Latest)**: [Download from GitHub Releases](https://github.com/lx3xun/nook-clip/releases/latest)
 - **Gitee Releases (Fast in China)**: [Visit Gitee Releases](https://gitee.com/lx3xun/nook-clip/releases)
 - **All Releases**: [GitHub Releases](https://github.com/lx3xun/nook-clip/releases)
 

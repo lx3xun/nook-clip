@@ -95,8 +95,8 @@
 
 推荐直接下载通用安装包（Universal 二进制，原生支持 Apple Silicon `arm64` 与 Intel `x86_64`）：
 
-- **GitHub 镜像直链**：[下载 NookClip.dmg (最新版本)](https://github.com/lx3xun/nook-clip/releases/latest/download/NookClip.dmg)
-- **Gitee 镜像直链（国内加速）**：[前往 Gitee 发行版下载](https://gitee.com/lx3xun/nook-clip/releases)
+- **GitHub 发行版（最新版本）**：[前往 GitHub Releases 下载](https://github.com/lx3xun/nook-clip/releases/latest)
+- **Gitee 镜像（国内加速）**：[前往 Gitee 发行版下载](https://gitee.com/lx3xun/nook-clip/releases)
 - **所有版本历史**：前往 [GitHub Releases](https://github.com/lx3xun/nook-clip/releases)
 
 下载后双击打开 `.dmg`，将 **NookClip** 拖入 **Applications（应用程序）** 文件夹即可。

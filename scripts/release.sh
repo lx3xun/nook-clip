@@ -295,8 +295,6 @@ for SRC in github gitee; do
     -o "$DIR/appcast.xml" \
     "$DIR"
   echo "    $SRC appcast 生成完毕"
-  # 生成完 appcast 后，再复制通用的 NookClip.dmg 供外部直接下载使用
-  cp "$DMG" "$DIR/NookClip.dmg"
 done
 
 # 如果是 Dry-Run 模式，在此正常退出并恢复版本文件
@@ -381,8 +379,17 @@ else
     -H 'Content-Type: application/json' -d "$GH_RELEASE_JSON" >/dev/null
 fi
 github_upload_asset "$VREL_ID" "$STAGING/github/$DMG_ASSET"
-github_upload_asset "$VREL_ID" "$STAGING/github/NookClip.dmg"
-
+# 清理历史遗留的通用 NookClip.dmg（若存在）
+OLD_GH_GENERIC_ID="$(github_api GET "/repos/$GITHUB_OWNER_REPO/releases/$VREL_ID" \
+  | python3 -c "
+import json,sys
+for a in json.load(sys.stdin).get('assets', []):
+    if a.get('name') == 'NookClip.dmg':
+        print(a.get('id')); break
+" 2>/dev/null || true)"
+if [[ -n "$OLD_GH_GENERIC_ID" ]]; then
+  github_api DELETE "/repos/$GITHUB_OWNER_REPO/releases/assets/$OLD_GH_GENERIC_ID" >/dev/null || true
+fi
 # 固定 appcast release
 git -C "$ROOT" push -f origin "$APPCAST_TAG" 2>/dev/null || true
 APPCAST_REL_ID="$(github_release_id "$APPCAST_TAG")"
@@ -436,22 +443,23 @@ else
   gitee_api PATCH "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID?access_token=$GITEE_TOKEN" \
     -H 'Content-Type: application/json' -d "$RELEASE_JSON" >/dev/null
 fi
-OLD_DMG_IDS="$(gitee_api GET "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID?access_token=$GITEE_TOKEN" 2>/dev/null \
+OLD_DMG_IDS="$(gitee_api GET "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" 2>/dev/null \
   | python3 -c '
 import json,sys
-r=json.load(sys.stdin)
-for f in r.get("attach_files") or []:
-    if f.get("name") in ("'"$DMG_ASSET"'", "NookClip.dmg"):
-        print(f.get("id"))
+try:
+    files = json.load(sys.stdin)
+    if isinstance(files, list):
+        for f in files:
+            if f.get("name") in ("'"$DMG_ASSET"'", "NookClip.dmg"):
+                print(f.get("id"))
+except Exception:
+    pass
 ' 2>/dev/null || true)"
 for AID in ${(f)OLD_DMG_IDS}; do
   [[ -n "$AID" ]] && gitee_api DELETE "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files/$AID?access_token=$GITEE_TOKEN" >/dev/null || true
 done
 gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" \
   -F "file=@$STAGING/gitee/$DMG_ASSET" >/dev/null
-gitee_api POST "/repos/$GITEE_OWNER_REPO/releases/$VREL_ID/attach_files?access_token=$GITEE_TOKEN" \
-  -F "file=@$STAGING/gitee/NookClip.dmg" >/dev/null
-
 git -C "$ROOT" push gitee -f "$APPCAST_TAG" 2>/dev/null || true
 APPCAST_REL_ID="$(gitee_release_id "$APPCAST_TAG")"
 if [[ -z "$APPCAST_REL_ID" ]]; then
