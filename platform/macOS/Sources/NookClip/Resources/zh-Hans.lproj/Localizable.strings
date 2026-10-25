@@ -466,3 +466,115 @@
 "tag.rename_placeholder" = "新标签名";
 "tag.delete" = "删除该标签";
 "common.cancel" = "取消";
+
+/* Settings · Privacy (US1) */
+"settings.tab.privacy" = "隐私";
+/* 脱敏规则 */
+"scrub.rule.api_keys" = "API 密钥";
+"scrub.rule.private_key" = "私钥文件";
+"scrub.rule.conn_secret" = "数据库连接串";
+"scrub.rule.ip_address" = "IP 地址";
+"scrub.rule.mac_address" = "MAC 地址";
+"scrub.rule.home_username" = "本机用户名";
+"scrub.rule.user_at_host" = "用户名@主机";
+"scrub.rule.cloud_bucket" = "云存储桶";
+"scrub.rule.serial_number" = "序列号";
+"scrub.rule.email" = "邮箱";
+"scrub.rule.phone" = "手机号";
+"scrub.rule.id_card" = "身份证号";
+"scrub.rule.ssn" = "美国社保号";
+"scrub.rule.passport" = "护照号";
+"scrub.rule.bank_card" = "银行卡号";
+"scrub.rule.iban" = "IBAN 账号";
+"scrub.rule.birth_date" = "出生日期";
+"scrub.rule.person_name" = "人名";
+"scrub.rule.address" = "地址";
+"scrub.rule.custom" = "自定义规则";
+/* 规则分组 */
+"scrub.group.credentials" = "凭据与密钥";
+"scrub.group.network" = "网络与主机";
+"scrub.group.personal" = "个人信息";
+"scrub.group.master" = "全部启用";
+"scrub.group.enabled_count" = "已启用 %@ / %@ 条规则";
+/* 脱敏结果 */
+"scrub.result.none" = "未发现需要脱敏的内容";
+"scrub.result.summary" = "已脱敏 %1$@ · 共 %2$@ 处";
+"scrub.restore.none" = "剪贴板里没有可还原的占位符";
+"scrub.restore.summary" = "已还原 %@ 处真实值";
+/* 面板提示 */
+"scrub.banner.detected" = "检测到 %@ 个脱敏占位符";
+"scrub.banner.restore" = "还原真实值粘贴";
+"scrub.hint.separator" = "、";
+"scrub.hint.more_rules" = " 等";
+"scrub.hint.detected" = "检测到 %@ 处敏感信息（%@）";
+"scrub.hint.action" = "脱敏粘贴";
+"scrub.hint.settings.title" = "粘贴前提醒";
+"scrub.hint.settings.desc" = "条目里含密钥、邮箱、卡号等敏感内容时，预览区显示一行提示。不会拦截正常粘贴。";
+"scrub.action.single_only" = "请在单选状态下使用脱敏粘贴";
+"scrub.action.text_only" = "仅文本和链接支持脱敏粘贴";
+"scrub.action.reveal_failed" = "无法读取该条目，脱敏未执行";
+"preview.scrub.button" = "脱敏粘贴";
+"preview.pin.button" = "钉在屏幕";
+/* 顺序粘贴栈 */
+"batch.paste_stack" = "顺序粘贴";
+"batch.paste_stack_help" = "顺序粘贴（⌥⏎）";
+"scrub.stack.hint" = "高亮即下一条 · ⌘V 贴出 · 点行跳转 · Esc 结束";
+"scrub.stack.hint_done" = "全部贴完 · Esc 关闭";
+"scrub.stack.hint_recording" = "复制即入队 · ⌘V 贴下一条 · ⌃⌥V 或 Esc 结束";
+"scrub.stack.progress" = "已贴 %1$@ / %2$@";
+"scrub.stack.paste" = "粘贴";
+"scrub.stack.paste_hint" = "粘贴这一条：%@";
+"scrub.stack.next_up" = "下一条待粘贴";
+"scrub.stack.order_hint" = "在正序与倒序之间切换";
+"scrub.stack.stop_hint" = "结束顺序粘贴";
+"scrub.stack.waiting" = "等待复制内容…";
+"scrub.stack.completed" = "已完成";
+"scrub.stack.order_fifo" = "顺序";
+"scrub.stack.order_lifo" = "倒序";
+"scrub.stack.paused" = "已暂停";
+/* 设置 · 自定义规则 */
+"scrub.custom.title" = "自定义脱敏规则";
+"scrub.custom.add" = "新增规则";
+"scrub.custom.edit_title" = "编辑规则";
+"scrub.custom.empty" = "还没有自定义规则。可把公司内部域名、工号等也变成占位符。";
+"scrub.custom.name" = "名称";
+"scrub.custom.is_regex" = "按正则表达式匹配";
+"scrub.custom.pattern" = "匹配内容";
+"scrub.custom.tag" = "占位符标签";
+"scrub.custom.save" = "保存";
+"scrub.custom.cancel" = "取消";
+"scrub.custom.delete" = "删除";
+"scrub.custom.delete_confirm" = "删除这条规则？";
+"scrub.custom.invalid_regex" = "正则表达式写法有误，无法保存";
+"scrub.custom.regex_badge" = "正则";
+"scrub.session.section" = "本次会话";
+"scrub.vault.title" = "脱敏映射表";
+"scrub.vault.count" = "当前 %@ 条映射，仅存于内存";
+"scrub.vault.ttl" = "闲置自动清除";
+"scrub.vault.clear" = "立即清空";
+"scrub.nlp.title" = "识别人名与地址";
+"scrub.nlp.desc" = "使用 macOS 本地语言模型离线分析，不会上传任何内容";
+"scrub.footer.privacy" = "映射表只驻留在内存，不写入数据库和日志；闲置超时后自动销毁。";
+/* 屏幕置顶贴条 */
+"pin.action.single_only" = "请先选中一条内容";
+"pin.limit_reached" = "最多同时钉住 %@ 条";
+
+"menu.paste_stack_record" = "录制顺序粘贴";
+"scrub.vault.ttl_5" = "5 分钟";
+"scrub.vault.ttl_15" = "15 分钟";
+"scrub.vault.ttl_30" = "30 分钟";
+"scrub.vault.ttl_60" = "1 小时";
+"scrub.vault.ttl_off" = "立即失效";
+"pin.collapse" = "折叠";
+"pin.expand" = "展开";
+"pin.opacity" = "不透明度";
+"pin.lock" = "点击穿透";
+"pin.unlock" = "取消穿透";
+"pin.close" = "关闭";
+"pin.copy" = "复制";
+"pin.copy_ocr" = "复制 OCR 文本";
+"pin.save_to_history" = "保存回历史";
+"pin.saved_hint" = "已保存";
+"pin.saved_source" = "置顶贴条";
+"pin.locked_hint" = "按 ⌥⌘P 恢复点击";
+"pin.empty_text" = "（空）";

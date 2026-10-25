@@ -222,9 +222,10 @@ final class InMemoryHistoryStore {
     /// （去重合并后的真实 id/copyCount/createdAt），不整页重查。
     /// hasMore 纯内存推导：镜像只有写满一页时库内才可能有剩余行，
     /// 置顶插入只会把队尾行推出镜像，不会使剩余行消失
-    func save(_ item: ClipboardItem) {
-        guard !item.isBlankText else { return }
-        guard let persisted = rustStore.save(item) else { return }
+    @discardableResult
+    func save(_ item: ClipboardItem) -> Bool {
+        guard !item.isBlankText else { return false }
+        guard let persisted = rustStore.save(item) else { return false }
         // 去重命中回收站行时，该 id 会从回收站「复活」为活跃行；
         // 不同步移除会在回收站列表里留下一条实际已活跃的幽灵记录。
         trashItems.removeAll { $0.id == persisted.id }
@@ -237,6 +238,7 @@ final class InMemoryHistoryStore {
         purgeExpiredTrash()
         scheduleDiskLimitEnforcementIfNeeded()
         publishMutation()
+        return true
     }
 
     /// 捕获管线已完成数据库持久化时的内存镜像增量更新入口：

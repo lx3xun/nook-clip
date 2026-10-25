@@ -399,9 +399,30 @@ final class DraggablePanel: NSPanel {
         // 以下按键不响应按住自动重复（与原 onKeyPress phases: .down 一致）
         guard !event.isARepeat else { return false }
 
-        // ⏎（含小键盘 ⏎）：⌘ 保持面板打开 / ⌥ 纯文本粘贴
+        // ⏎（含小键盘 ⏎）：⌃ 脱敏粘贴 / ⌃⇧ 还原粘贴 / ⌘ 保持面板打开 / ⌥ 纯文本粘贴
+        // ⌃⏎ 与 ⌃⇧⏎ 必须在通用 confirm 之前判定：两者都是 ⏎ 系列，
+        // 若不先分流会被 confirm 吞掉，脱敏与还原入口即失效（contracts phase1 C1）
         if keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter {
+            if modifiers.contains(.control) {
+                if modifiers.contains(.shift) {
+                    actions.restoreScrubConfirm()
+                } else {
+                    actions.scrubConfirm()
+                }
+                return true
+            }
+            // ⌥⏎ 在多选态是「顺序粘贴栈」，单选态仍是「纯文本粘贴」：
+            // 由动作实现层判定并返回是否消费，未消费则回落通用 confirm
+            if modifiers == [.option], actions.startPasteStack() {
+                return true
+            }
             actions.confirm(modifiers.contains(.command), modifiers.contains(.option))
+            return true
+        }
+
+        // ⌘P：钉在屏幕上（面板内无打印语义，可安全占用）
+        if modifiers == .command, keyCode == kVK_ANSI_P {
+            actions.pinToScreen()
             return true
         }
 

@@ -16,6 +16,16 @@ struct PanelKeyActions {
     var toggleFilterPanel: () -> Void
     /// ⏎（⌘ 保持面板打开 / ⌥ 纯文本）：粘贴选中（批量合并），或打开匹配到的应用
     var confirm: (_ keepOpen: Bool, _ plainTextOnly: Bool) -> Void
+    /// ⌃⏎：脱敏粘贴——把选中条目做语义占位符脱敏后写入剪贴板并粘贴
+    var scrubConfirm: () -> Void = {}
+    /// ⌃⇧⏎：把剪贴板里的占位符还原成真实值再粘贴（无活跃占位符时回退普通粘贴）
+    var restoreScrubConfirm: () -> Void = {}
+    /// ⌥⏎（仅多选态）：按当前列表顺序启动顺序粘贴栈。
+    /// 返回 true 表示已消费该按键；false 让分发表回落成普通「纯文本粘贴」
+    /// （单选态 ⌥⏎ 必须保持原语义，见 contracts phase1 C1）
+    var startPasteStack: () -> Bool = { false }
+    /// ⌘P：把选中条目钉在屏幕上（贴条）
+    var pinToScreen: () -> Void = {}
     /// Esc 分层清空：过滤浮层 → 批量选区 → 关键词 → 标签 → 分类 → 时间定位 → 收起面板
     var escape: () -> Void
     /// ⌘[ / ⌘]：分类循环（⌘[ 上一个，⌘] 下一个）

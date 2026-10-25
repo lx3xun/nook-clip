@@ -37,9 +37,14 @@ struct MainView: View {
         // T040 (contracts R4/R5): clipboard writes are explicitly injected into UI workflows.
         _pasteWorkflow = State(initialValue: ClipboardWorkflow(store: store, clipboardWriter: clipboardWriter))
         _deletionWorkflow = State(initialValue: DeletionWorkflow(store: store))
+        self.clipboardWriter = clipboardWriter
         previewData = PreviewDataProvider(fileStore: .shared, clipboardWriter: clipboardWriter)
     }
 
+    /// 剪贴板写入出口（与 pasteWorkflow / previewData 共用同一注入实例）。
+    /// 脱敏粘贴（⌃⏎）与还原粘贴（⌃⇧⏎）的入参是「变换后的文本」而非条目本身，
+    /// 无法走 ClipboardWorkflow 的条目级 API，故在此保留协议出口直写文本。
+    let clipboardWriter: any ClipboardWriter
 
     /// 预览数据出口（与 pasteWorkflow 共用同一注入的 ClipboardWriter）
     private let previewData: PreviewDataProvider
@@ -113,6 +118,9 @@ struct MainView: View {
     @State var deletionWorkflow: DeletionWorkflow
     /// 文件条目失效提示（原文件被移动/删除或磁盘未挂载时阻断粘贴/复制）
     @State var staleFileMessage: String?
+    /// 脱敏/还原/贴条等「即时动作」的短暂反馈文案（nil = 不显示）。
+    /// 与 staleFileMessage 的 alert 形态区分：这些动作多为成功反馈，用 toast 更轻
+    @State var scrubFeedbackMessage: String?
     /// 辅助功能权限状态（未授权时在列表底部展示引导横幅，支持一键跳转系统设置）
     @State var accessibilityTrusted = PasteService.isAccessibilityTrusted
 
@@ -449,7 +457,15 @@ struct MainView: View {
                 }
                 ZStack(alignment: .bottom) {
                     itemList
-                    if !deletionWorkflow.pendingUndoIDs.isEmpty {
+                    if let scrubFeedbackMessage {
+                        // 脱敏/还原/钉住的轻量确认：非阻断，2 秒自动消失，
+                        // 优先级高于撤销条与权限提示（它刚由用户主动触发）
+                        ActionToast(
+                            systemImage: NookClipIcon.Sensitive.shieldOk,
+                            message: scrubFeedbackMessage
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else if !deletionWorkflow.pendingUndoIDs.isEmpty {
                         // T038：撤销 toast 抽为 UndoToast 组件（纯移动）
                         UndoToast(
                             pendingCount: deletionWorkflow.pendingUndoIDs.count,
@@ -473,6 +489,10 @@ struct MainView: View {
                     BatchBar(
                         selectedCount: selectionCoordinator.selectionIDs.count,
                         onMergePaste: { pasteBatch(keepOpen: false, plainTextOnly: false) },
+                        onStartPasteStack: {
+                            // 顺序粘贴栈：把当前多选按列表序装进栈并逐条粘贴（US2）
+                            _ = startPasteStackFromSelection()
+                        },
                         onDelete: { deleteSelection() },
                         onEditTags: { beginTagEditForBatch() }
                     )
@@ -562,7 +582,11 @@ struct MainView: View {
                         onEditTags: { id in beginTagEdit(for: id) },
                         onRenameTag: { tag in beginTagRename(tag) },
                         onDeleteTag: { tag in store.deleteTag(name: tag) },
-                        isSensitiveSyncActive: store.syncEngine.isE2EESensitiveSyncActive
+                        isSensitiveSyncActive: store.syncEngine.isE2EESensitiveSyncActive,
+                        onScrubPaste: { scrubPasteSelected() },
+                        onPinToScreen: { pinSelectedToScreen() },
+                        canScrubPaste: selectedRow.map { $0.kind == .text || $0.kind == .url } ?? false,
+                        onRestoreScrub: { restoreScrubPaste() }
                     )
                 }
             }

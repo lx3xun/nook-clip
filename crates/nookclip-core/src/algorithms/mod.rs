@@ -4,6 +4,7 @@ pub mod kind;
 pub mod language;
 pub mod ocr_layout;
 pub mod retention;
+pub mod scrub;
 pub mod sensitive;
 pub mod source_resolver;
 use crate::model::DetectionResult;

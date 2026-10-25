@@ -57,11 +57,17 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 - **Privacy Masking**: Displays as `••••••••` in the list with automatic re-masking after 30 seconds.
 - **Isolated from Search & Sync**: Sensitive entries are never written to search indexes or uploaded during sync.
 - **App Blacklist**: Automatically pauses recording when password managers or other excluded apps are active in the foreground.
+- **Semantic Redaction on Paste (`⌃ ⏎`)**: press `⌃ ⏎` and 19 categories of sensitive data — keys, phone numbers, IDs, bank cards, IBANs, emails, IPs, hostnames, home paths — become readable placeholders such as `<API_KEY_1>` and `<EMAIL_1>`, so you can hand "runnable but real-value-free" text to an AI or a colleague. Bank cards use Luhn, national IDs use ISO 7064 and IBANs use MOD-97, leaving everyday text like `127.0.0.1` and `/Users/Shared` untouched.
+- **One-Key Restore (`⌃ ⇧ ⏎`)**: when an AI reply brings placeholders back, the preview pane shows "N redaction placeholders detected" — press `⌃ ⇧ ⏎` to restore the real values before pasting.
+- **Hint Before Pasting**: selecting an item that contains keys, emails, card numbers or similar sensitive data shows a single line at the top of the preview pane — "N sensitive items found (email, API key)" — with a `⌃ ⏎` scrubbed-paste shortcut right there, so you no longer have to paste once to find out what you leaked. No dialog, no blocked keystrokes; switch it off in Settings → Privacy.
+- **Mapping Table Never Touches Disk**: placeholder-to-value pairs live only in RAM, never in the database or logs; they expire after 30 minutes of inactivity and can be wiped from Settings at any time.
 
 ### More Capabilities
 - **iCloud Drive Sync**: Optional sync across your own devices using your personal iCloud Drive (no third-party servers).
 - **Backup & Export**: Export to JSON or Markdown, with options to exclude or mask sensitive items.
 - **Batch Actions & Undo**: Select multiple items with Shift or ⌘ to merge-paste or delete; undo deletions within 10 seconds with `⌘ Z`.
+- **Paste Stack (`⌥ ⏎`)**: select several items and press `⌥ ⏎` to queue them **in the order you copied them** (oldest first — deliberately the reverse of the "newest first" list order); a panel appears at the bottom of the screen listing every queued item with "x of y pasted" progress. Pressing native `⌘ V` repeatedly in the target app pastes them one by one, or click the "Paste" button on any row to paste that item right away. The row marked ▶ is "next up" and advances automatically to the next item not yet pasted; clicking a row only moves the highlight (press `⏎` to paste it), and pasted rows get a check and strikethrough. The panel can be dragged and remembers its position, and recording mode has its own global shortcut `⌃ ⌥ V` (press again to stop). The panel never steals focus, so `Esc` ends the queue from any app without clicking it first. While recording, each copy also sends a small card arcing from the pointer into the row it just landed in. While the queue is active the clipboard always holds the highlighted row, so copying something new never displaces items you have not pasted yet.
+- **Pin to Screen (`⌘ P`)**: pin any item as a floating note (up to 12 at once) with adjustable opacity, collapse, click-through, inline editing, copy, or save back to history; image notes can copy their OCR text in one click.
 
 ---
 ## ⌨️ Keyboard Shortcuts
@@ -69,10 +75,14 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 | Shortcut | Action |
 | :--- | :--- |
 | **`⌘ ⇧ V`** | Show / hide quick panel (re-recordable in **Settings → Paste**) |
+| **`⌃ ⌥ V`** | Start / stop recording a Paste Stack (build a queue by copying from any app) |
 | **`↑` / `↓`** | Move selection up or down (hold to repeat; auto-paginates at the bottom) |
 | **`⇧ ↑` / `⇧ ↓` / `⌘ Click`** | Extend multi-selection (`⏎` to merge & paste, `⌘ ⌫` to bulk delete) |
 | **`⏎`** | Paste selection into the frontmost app / Launch selected application |
-| **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting) |
+| **`⌃ ⏎`** | Redacted paste: replace sensitive data with semantic placeholders (`<API_KEY_1>` etc.) |
+| **`⌃ ⇧ ⏎`** | Restore-and-paste: swap placeholders on the clipboard back for their real values |
+| **`⌘ P`** | Pin the selected item as a floating on-screen note |
+| **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting); starts Paste Stack in multi-select mode |
 | **`⌘ ⏎`** | Paste and keep panel open (great for filling multi-field forms) |
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
 | **`⌘ [` / `⌘ ]`** | Cycle content types (`⌘ ]` next, `⌘ [` previous, empty types skipped) |

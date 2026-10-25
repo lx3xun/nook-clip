@@ -93,12 +93,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // 顺序粘贴栈录制入口（菜单栏）：进入录制态后，新捕获的条目自动入队
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(startPasteStackRecording(_:)),
+            name: .startPasteStackRecording,
+            object: nil
+        )
+
         clipboardMonitor.onChange = { [weak self] item in
             self?.historyStore.applyCapturedItem(item)
+            // 录制态：把新复制的条目追加进栈尾（非录制态 append 自身会忽略）
+            PasteStackController.shared.append(item)
+        }
+
+        // 顺序粘贴浮窗里点「粘贴」要把内容贴到目标应用，而不是贴回我们自己的窗口。
+        // 复用面板那套判定：当前前台是外部应用就用它，否则回退到最近一次记录的
+        // 外部应用——用户点浮窗的一瞬间前台可能已经变成我们自己。
+        PasteStackController.shared.targetApplicationProvider = { [weak self] in
+            if let front = NSWorkspace.shared.frontmostApplication,
+               front.processIdentifier != myPID {
+                return front
+            }
+            return self?.lastTargetApplication
+        }
+
+        // 贴条「保存回历史」（US3）：把用户改过的 Scratchpad 正文作为新条目落库。
+        // 返回真实结果——贴条只在成功时闪确认，失败保持静默。
+        PinnedWindowManager.shared.onSaveToHistory = { [weak self] note in
+            guard let self else { return false }
+            let text = note.editableText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return false }
+            let item = ClipboardItem(
+                type: .text,
+                title: String(text.prefix(80)),
+                summary: text,
+                sourceAppBundleId: Bundle.main.bundleIdentifier,
+                sourceAppName: L10n.tr("pin.saved_source")
+            )
+            return self.historyStore.save(item)
         }
         clipboardMonitor.start()
 
         hotKeyManager.onPress = { [weak self] in self?.popoverController.toggle() }
+        // 第二热键：⌃⌥V 直接开始录制顺序粘贴栈（菜单栏项之外的全局入口）。
+        // 复用同一个 @objc 方法，保证两条入口的行为完全一致。
+        hotKeyManager.onPasteStackRecordingPress = { [weak self] in
+            self?.startPasteStackRecording(Notification(name: .startPasteStackRecording))
+        }
         hotKeyManager.register()
 
         // Sparkle 自动更新：先探测更新源再启动（延迟检查周期默认 24h）
@@ -175,6 +217,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return nil
         }()
         settingsWindowController.show(tab: requestedTab)
+    }
+
+    /// 菜单栏 / 全局快捷键 `⌃⌥V`「录制顺序粘贴栈」：进入录制态并把面板让位，
+    /// 之后的每次复制由 `clipboardMonitor.onChange` 追加进队列（US2）。
+    ///
+    /// 已在录制中再按一次 = 结束录制并把浮窗收掉：录制是个会一直挂着的模态态，
+    /// 用户误触开启后必须有个「原路退出」的出口，否则只能去点浮窗右上角的 ✕。
+    @objc private func startPasteStackRecording(_ notification: Notification) {
+        if PasteStackController.shared.isActive, PasteStackController.shared.state.isRecording {
+            PasteStackController.shared.stop()
+            return
+        }
+        popoverController.close(restoreFocus: false)
+        PasteStackController.shared.startRecording()
     }
 }
 

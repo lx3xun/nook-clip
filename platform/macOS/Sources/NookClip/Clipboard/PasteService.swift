@@ -89,6 +89,39 @@ final class PasteService {
     private(set) static var lastPastedTime: Date? = nil
     private var autoClearWorkItem: DispatchWorkItem?
 
+    /// 合成 ⌘V 事件的标记值（"NOOK"），写进 `CGEvent` 的 userData 字段。
+    ///
+    /// 存在的理由：顺序粘贴栈靠监听 ⌘V 推进队列，而按钮路径自己也会合成一次
+    /// ⌘V。若不把「自己发的」和「用户按的」区分开，队列会把自己的按键当成用户
+    /// 指令再推一格——表现为「点一条却跳了两条、中间漏掉一条」。
+    static let syntheticPasteTag: Int64 = 0x4E4F_4F4B
+
+    /// 合成 ⌘V 投递后的保护窗口（兜底用）。
+    ///
+    /// `eventSourceUserData` 在个别输入法/系统版本上可能被中转层吃掉，
+    /// 留一个极短的时间窗做双保险。窗口从真正 `post` 的那一刻开始算，
+    /// 监听回调在几毫秒内就到，150ms 足够宽；而人从点「粘贴」按钮到把手
+    /// 移到键盘按 ⌘V 远不止 150ms，所以不会误吞真实按键。
+    private static var syntheticPasteDeadline: Date?
+    private static let syntheticPasteWindow: TimeInterval = 0.15
+
+    /// 判断某个按键事件是否由本进程合成（顺序粘贴栈据此跳过自身回环）
+    static func isSyntheticPasteEvent(_ event: NSEvent) -> Bool {
+        if let cgEvent = event.cgEvent,
+           cgEvent.getIntegerValueField(.eventSourceUserData) == syntheticPasteTag {
+            return true
+        }
+        if let deadline = syntheticPasteDeadline, Date() < deadline {
+            return true
+        }
+        return false
+    }
+
+    /// 测试用：清掉合成事件保护窗口
+    static func resetSyntheticPasteTracking() {
+        syntheticPasteDeadline = nil
+    }
+
     /// 粘贴音效开关（设置 → 通用）：未写入过 UserDefaults 时默认开启
     private static var isPasteSoundEnabled: Bool {
         UserDefaults.standard.object(forKey: "pasteSoundEnabled") == nil
@@ -376,6 +409,12 @@ final class PasteService {
         }
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
+        // 打上自己的标记：顺序粘贴栈的键盘监听靠它区分「用户按的 ⌘V」与
+        // 「我们为了完成本次粘贴而合成的 ⌘V」，否则会把自己的按键当成
+        // 用户指令再推一格（连按两次只吐出第一条 / 点一条跳两条都是这个根因）
+        keyDown.setIntegerValueField(.eventSourceUserData, value: syntheticPasteTag)
+        keyUp.setIntegerValueField(.eventSourceUserData, value: syntheticPasteTag)
+        syntheticPasteDeadline = Date().addingTimeInterval(syntheticPasteWindow)
 
         // 仅通过 session tap 派发单一按键事件，避免双重派发导致重复粘贴
         keyDown.post(tap: .cgAnnotatedSessionEventTap)

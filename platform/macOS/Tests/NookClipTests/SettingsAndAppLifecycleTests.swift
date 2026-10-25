@@ -17,7 +17,7 @@ final class SettingsAndAppLifecycleTests: XCTestCase {
             XCTAssertFalse(tab.title.isEmpty, "Tab title should not be empty")
             XCTAssertFalse(tab.icon.isEmpty, "Tab icon name should not be empty")
         }
-        XCTAssertEqual(SettingsTab.allCases.count, 5)
+        XCTAssertEqual(SettingsTab.allCases.count, 6)
     }
 
     func testSettingsViewRendersAllTabsWithoutCrashing() {

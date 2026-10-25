@@ -1755,9 +1755,10 @@ final class NookClipTests: XCTestCase {
         _ = NookClip.focusRing
         _ = NookClip.dynamicAccentColor(lightAlpha: 0.12, darkAlpha: 0.24)
 
-        // 验证 SettingsTab 5 个分类齐备（通用打头，功能组按生命周期排，外观收尾）
-        XCTAssertEqual(SettingsTab.allCases.count, 5)
-        let expectedTabs: [SettingsTab] = [.general, .appearance, .capture, .history, .paste]
+        // 验证 SettingsTab 6 个分类齐备（通用打头，功能组按生命周期排，
+        // 隐私收在功能组末尾，外观收尾）
+        XCTAssertEqual(SettingsTab.allCases.count, 6)
+        let expectedTabs: [SettingsTab] = [.general, .appearance, .capture, .history, .paste, .privacy]
         XCTAssertEqual(SettingsTab.allCases, expectedTabs)
         for tab in SettingsTab.allCases {
             XCTAssertFalse(tab.title.isEmpty)

@@ -12,4 +12,7 @@ extension Notification.Name {
     /// 预览复制等动作后归还面板键盘焦点（脱离可选中文本视图；
     /// DraggablePanel 监听并执行 restoreKeyboardFocus）
     static let restoreKeyboardFocus = Notification.Name("NookClip.restoreKeyboardFocus")
+    /// 菜单栏「顺序粘贴栈」录制入口：开始录制后，用户按顺序复制的内容逐条入队，
+    /// 再按 ⌘V 一条条贴出（US2）。面板内的 ⌥⏎ 走的是另一条多选直送路径。
+    static let startPasteStackRecording = Notification.Name("NookClip.startPasteStackRecording")
 }

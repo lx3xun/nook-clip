@@ -12,6 +12,18 @@ struct HotKeyShortcut: Equatable {
         displayString: "⌘ ⇧ V"
     )
 
+    /// 顺序粘贴栈「录制模式」的全局快捷键。
+    ///
+    /// 为什么固定不开放自定义：它和主面板快捷键是两套互斥的语义（一个开面板、
+    /// 一个开始录制），都做成可配置会让设置页出现两张几乎一样的录制控件。
+    /// 选定 `⌃⌥V` 的理由：与主面板的 `⌘⇧V` 只差修饰键，肌肉记忆连续；
+    /// 同时避开系统级冲突（`⌘⌥V` 被部分 App 用作「粘贴并匹配样式」）。
+    static let pasteStackRecordingShortcut = HotKeyShortcut(
+        keyCode: UInt32(kVK_ANSI_V),
+        carbonModifiers: UInt32(controlKey | optionKey),
+        displayString: "⌃ ⌥ V"
+    )
+
     static let presets: [HotKeyShortcut] = [
         HotKeyShortcut(keyCode: UInt32(kVK_ANSI_V), carbonModifiers: UInt32(cmdKey | shiftKey), displayString: "⌘ ⇧ V"),
         HotKeyShortcut(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(optionKey), displayString: "⌥ Space"),
@@ -133,7 +145,13 @@ final class HotKeyManager {
     static let shared = HotKeyManager()
 
     var onPress: (() -> Void)?
+    /// 第二个全局热键（顺序粘贴栈录制）的触发回调。
+    ///
+    /// 单独一个回调而不是复用 `onPress`：两个键位的语义完全不同，共用一个
+    /// 闭包就成了「按 ⌃⌥V 却打开了面板」。事件处理器靠 `EventHotKeyID` 分派。
+    var onPasteStackRecordingPress: (() -> Void)?
     private var hotKeyRef: EventHotKeyRef?
+    private var recordingHotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private(set) var isPaused = false
     /// 仅供测试注入：模拟快捷键注册冲突/失败场景
@@ -161,6 +179,7 @@ final class HotKeyManager {
     func register() {
         installHandlerIfNeeded()
         registerHotKeyOnly()
+        registerRecordingHotKey()
     }
 
     @discardableResult
@@ -203,6 +222,7 @@ final class HotKeyManager {
 
     func unregister() {
         unregisterHotKeyOnly()
+        unregisterRecordingHotKey()
         if let handlerRef {
             RemoveEventHandler(handlerRef)
             self.handlerRef = nil
@@ -230,10 +250,12 @@ final class HotKeyManager {
             NSLog("[NookClip] Secure Input is enabled, global hotkey is suppressed by system")
         }
         unregisterHotKeyOnly()
+        unregisterRecordingHotKey()
         installHandlerIfNeeded()
         if !registerHotKeyOnly() {
             NSLog("[NookClip] Hotkey re-registration failed for \(currentDisplayString)")
         }
+        registerRecordingHotKey()
     }
 
     private func installHandlerIfNeeded() {
@@ -244,11 +266,33 @@ final class HotKeyManager {
             eventKind: UInt32(kEventHotKeyPressed)
         )
 
-        let callback: EventHandlerUPP = { _, _, userData in
+        let callback: EventHandlerUPP = { _, event, userData in
             guard let userData else { return noErr }
             let manager = Unmanaged<HotKeyManager>.fromOpaque(userData).takeUnretainedValue()
             guard !manager.isPaused else { return noErr }
-            DispatchQueue.main.async { manager.onPress?() }
+            // 通过 EventHotKeyID.id 区分是哪个热键：签名相同、id 不同。
+            // 早期只有一个热键时这里直接调 onPress，加第二个键位后不区分就会
+            // 出现「按录制键打开了面板」。
+            var hotKeyID = EventHotKeyID()
+            let status = GetEventParameter(
+                event,
+                EventParamName(kEventParamDirectObject),
+                EventParamType(typeEventHotKeyID),
+                nil,
+                MemoryLayout<EventHotKeyID>.size,
+                nil,
+                &hotKeyID
+            )
+            // 这里不能用 `Self.`：C 函数指针不允许捕获动态 Self 类型，
+            // 直接写具体类型名把常量当静态量取，不产生捕获
+            let isRecordingHotKey = status == noErr && hotKeyID.id == HotKeyManager.recordingHotKeyID
+            DispatchQueue.main.async {
+                if isRecordingHotKey {
+                    manager.onPasteStackRecordingPress?()
+                } else {
+                    manager.onPress?()
+                }
+            }
             return noErr
         }
 
@@ -262,10 +306,12 @@ final class HotKeyManager {
         )
     }
 
+    /// Carbon 热键签名（'NOOK'）。两个热键共用签名，靠 id 区分
+    private static let signature: OSType = 0x4E4F4F4B
+
     @discardableResult
     private func registerHotKeyOnly() -> Bool {
-        let signature: OSType = 0x4E4F4F4B
-        let hotKeyID = EventHotKeyID(signature: signature, id: 1)
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: Self.primaryHotKeyID)
         let status = RegisterEventHotKey(
             currentKeyCode,
             currentModifiers,
@@ -287,6 +333,48 @@ final class HotKeyManager {
             return false
         }
         return true
+    }
+
+    /// 主面板热键的 id（历史值，保持 1 不变以免影响既有行为）
+    private static let primaryHotKeyID: UInt32 = 1
+    /// 顺序粘贴栈录制热键的 id
+    private static let recordingHotKeyID: UInt32 = 2
+
+    // MARK: 第二个热键：顺序粘贴栈录制
+
+    /// 注册录制热键。失败只记日志不抛错——主面板快捷键才是必需品，
+    /// 录制键位被别的应用占用时应当降级（菜单栏入口始终可用），
+    /// 而不是让整个应用的热键体系起不来。
+    @discardableResult
+    private func registerRecordingHotKey() -> Bool {
+        guard recordingHotKeyRef == nil else { return true }
+        let shortcut = HotKeyShortcut.pasteStackRecordingShortcut
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: Self.recordingHotKeyID)
+        let status = RegisterEventHotKey(
+            shortcut.keyCode,
+            shortcut.carbonModifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &recordingHotKeyRef
+        )
+        if status != noErr {
+            recordingHotKeyRef = nil
+            NSLog(
+                "[NookClip] Failed to register paste-stack recording hotkey %@, error: %d",
+                shortcut.displayString,
+                status
+            )
+            return false
+        }
+        return true
+    }
+
+    private func unregisterRecordingHotKey() {
+        if let recordingHotKeyRef {
+            UnregisterEventHotKey(recordingHotKeyRef)
+            self.recordingHotKeyRef = nil
+        }
     }
 
     private func unregisterHotKeyOnly() {

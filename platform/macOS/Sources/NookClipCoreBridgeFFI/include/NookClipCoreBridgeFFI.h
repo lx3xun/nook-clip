@@ -549,9 +549,32 @@ void uniffi_nookclip_ffi_fn_method_nookcliphistoryengine_update_title(void*_Nonn
 void uniffi_nookclip_ffi_fn_init_callback_vtable_keyvaultbackupprovider(UniffiVTableCallbackInterfaceKeyVaultBackupProvider* _Nonnull vtable
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_ACTIVE_SCRUB_VAULT_COUNT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_ACTIVE_SCRUB_VAULT_COUNT
+uint32_t uniffi_nookclip_ffi_fn_func_active_scrub_vault_count(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_CLASSIFY_TEXT_CONTENT
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_CLASSIFY_TEXT_CONTENT
 RustBuffer uniffi_nookclip_ffi_fn_func_classify_text_content(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_CLEAR_SCRUB_SESSION_VAULT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_CLEAR_SCRUB_SESSION_VAULT
+void uniffi_nookclip_ffi_fn_func_clear_scrub_session_vault(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
+uint32_t uniffi_nookclip_ffi_fn_func_count_restorable_placeholders(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DEFAULT_ENABLED_SCRUB_RULES
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DEFAULT_ENABLED_SCRUB_RULES
+RustBuffer uniffi_nookclip_ffi_fn_func_default_enabled_scrub_rules(RustCallStatus *_Nonnull out_status
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_FORMAT_OCR_LAYOUT_BLOCKS
@@ -589,9 +612,24 @@ RustBuffer uniffi_nookclip_ffi_fn_func_resolve_clipboard_source_app(RustBuffer h
 RustBuffer uniffi_nookclip_ffi_fn_func_resolve_or_create_master_key(RustBuffer key_file_path, int8_t legacy_initialized, int8_t has_encrypted_payloads, uint64_t vault_provider, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_RESTORE_SCRUBBED_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_RESTORE_SCRUBBED_TEXT
+RustBuffer uniffi_nookclip_ffi_fn_func_restore_scrubbed_text(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SAVE_PAYLOAD_ASSET_FILE
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SAVE_PAYLOAD_ASSET_FILE
 RustBuffer uniffi_nookclip_ffi_fn_func_save_payload_asset_file(RustBuffer storage_dir, RustBuffer data, RustBuffer preferred_extension, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SCAN_SCRUB_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SCAN_SCRUB_TEXT
+RustBuffer uniffi_nookclip_ffi_fn_func_scan_scrub_text(RustBuffer text, RustBuffer config, RustBuffer external_spans, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SCRUB_SENSITIVE_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SCRUB_SENSITIVE_TEXT
+RustBuffer uniffi_nookclip_ffi_fn_func_scrub_sensitive_text(RustBuffer text, RustBuffer config, RustBuffer external_spans, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SWEEP_ORPHAN_PAYLOAD_ASSETS
@@ -894,9 +932,33 @@ void ffi_nookclip_ffi_rust_future_free_void(uint64_t handle
 void ffi_nookclip_ffi_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_ACTIVE_SCRUB_VAULT_COUNT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_ACTIVE_SCRUB_VAULT_COUNT
+uint16_t uniffi_nookclip_ffi_checksum_func_active_scrub_vault_count(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_CLASSIFY_TEXT_CONTENT
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_CLASSIFY_TEXT_CONTENT
 uint16_t uniffi_nookclip_ffi_checksum_func_classify_text_content(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_CLEAR_SCRUB_SESSION_VAULT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_CLEAR_SCRUB_SESSION_VAULT
+uint16_t uniffi_nookclip_ffi_checksum_func_clear_scrub_session_vault(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
+uint16_t uniffi_nookclip_ffi_checksum_func_count_restorable_placeholders(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DEFAULT_ENABLED_SCRUB_RULES
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DEFAULT_ENABLED_SCRUB_RULES
+uint16_t uniffi_nookclip_ffi_checksum_func_default_enabled_scrub_rules(void
     
 );
 #endif
@@ -942,9 +1004,27 @@ uint16_t uniffi_nookclip_ffi_checksum_func_resolve_or_create_master_key(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_RESTORE_SCRUBBED_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_RESTORE_SCRUBBED_TEXT
+uint16_t uniffi_nookclip_ffi_checksum_func_restore_scrubbed_text(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SAVE_PAYLOAD_ASSET_FILE
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SAVE_PAYLOAD_ASSET_FILE
 uint16_t uniffi_nookclip_ffi_checksum_func_save_payload_asset_file(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SCAN_SCRUB_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SCAN_SCRUB_TEXT
+uint16_t uniffi_nookclip_ffi_checksum_func_scan_scrub_text(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SCRUB_SENSITIVE_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SCRUB_SENSITIVE_TEXT
+uint16_t uniffi_nookclip_ffi_checksum_func_scrub_sensitive_text(void
     
 );
 #endif

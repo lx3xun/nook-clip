@@ -6,6 +6,8 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     case capture
     case history
     case paste
+    /// 隐私与脱敏（US1）：脱敏规则开关 / 自定义规则 / 会话映射表
+    case privacy
 
     var id: String { rawValue }
 
@@ -16,6 +18,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .capture: return L10n.tr("settings.tab.capture")
         case .history: return L10n.tr("settings.tab.history")
         case .paste: return L10n.tr("settings.tab.paste")
+        case .privacy: return L10n.tr("settings.tab.privacy")
         }
     }
 
@@ -26,6 +29,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .capture: return NookClipIcon.Settings.capture
         case .history: return NookClipIcon.Settings.history
         case .paste: return NookClipIcon.Settings.paste
+        case .privacy: return NookClipIcon.Settings.privacy
         }
     }
 }
@@ -64,6 +68,8 @@ struct SettingsView: View {
                         HistorySettingsTab(historyStore: historyStore)
                     case .paste:
                         PasteSettingsTab()
+                    case .privacy:
+                        PrivacyScrubSettingsTab()
                     }
                 }
                 .padding(.horizontal, 24)

@@ -466,3 +466,115 @@
 "tag.rename_placeholder" = "New tag name";
 "tag.delete" = "Delete This Tag";
 "common.cancel" = "Cancel";
+
+/* Settings · Privacy (US1) */
+"settings.tab.privacy" = "Privacy";
+/* Scrub rules */
+"scrub.rule.api_keys" = "API Keys";
+"scrub.rule.private_key" = "Private Keys";
+"scrub.rule.conn_secret" = "Connection Strings";
+"scrub.rule.ip_address" = "IP Addresses";
+"scrub.rule.mac_address" = "MAC Addresses";
+"scrub.rule.home_username" = "Local Username";
+"scrub.rule.user_at_host" = "user@host";
+"scrub.rule.cloud_bucket" = "Cloud Buckets";
+"scrub.rule.serial_number" = "Serial Numbers";
+"scrub.rule.email" = "Emails";
+"scrub.rule.phone" = "Phone Numbers";
+"scrub.rule.id_card" = "National IDs";
+"scrub.rule.ssn" = "SSNs";
+"scrub.rule.passport" = "Passport Numbers";
+"scrub.rule.bank_card" = "Card Numbers";
+"scrub.rule.iban" = "IBANs";
+"scrub.rule.birth_date" = "Birth Dates";
+"scrub.rule.person_name" = "Names";
+"scrub.rule.address" = "Addresses";
+"scrub.rule.custom" = "Custom rule";
+/* Rule groups */
+"scrub.group.credentials" = "Credentials & Secrets";
+"scrub.group.network" = "Network & Hosts";
+"scrub.group.personal" = "Personal Info";
+"scrub.group.master" = "Enable all";
+"scrub.group.enabled_count" = "%@ of %@ rules on";
+/* Results */
+"scrub.result.none" = "Nothing to scrub in this item";
+"scrub.result.summary" = "Scrubbed %1$@ · %2$@ spots";
+"scrub.restore.none" = "No placeholders to restore on the clipboard";
+"scrub.restore.summary" = "Restored %@ real values";
+/* Panel hints */
+"scrub.banner.detected" = "%@ scrubbed placeholders detected";
+"scrub.banner.restore" = "Restore & paste";
+"scrub.hint.separator" = ", ";
+"scrub.hint.more_rules" = " and more";
+"scrub.hint.detected" = "%@ sensitive items found (%@)";
+"scrub.hint.action" = "Scrub & paste";
+"scrub.hint.settings.title" = "Hint before pasting";
+"scrub.hint.settings.desc" = "Show a hint in the preview when a clip contains sensitive data such as keys, emails or card numbers. It never blocks a normal paste.";
+"scrub.action.single_only" = "Scrub & paste works on a single item";
+"scrub.action.text_only" = "Only text and links can be scrubbed";
+"scrub.action.reveal_failed" = "Couldn't read this item, nothing was scrubbed";
+"preview.scrub.button" = "Scrub & Paste";
+"preview.pin.button" = "Pin to Screen";
+/* Paste stack */
+"batch.paste_stack" = "Paste Stack";
+"batch.paste_stack_help" = "Paste Stack (⌥⏎)";
+"scrub.stack.hint" = "Highlight = next up · ⌘V pastes it · click a row to jump · Esc ends";
+"scrub.stack.hint_done" = "All pasted · Esc closes";
+"scrub.stack.hint_recording" = "Copies queue up · ⌘V pastes the next · ⌃⌥V or Esc ends";
+"scrub.stack.progress" = "%1$@ of %2$@ pasted";
+"scrub.stack.paste" = "Paste";
+"scrub.stack.paste_hint" = "Paste this item: %@";
+"scrub.stack.next_up" = "Next to paste";
+"scrub.stack.order_hint" = "Switch between in-order and reverse";
+"scrub.stack.stop_hint" = "End paste stack";
+"scrub.stack.waiting" = "Waiting for copies…";
+"scrub.stack.completed" = "Done";
+"scrub.stack.order_fifo" = "FIFO";
+"scrub.stack.order_lifo" = "LIFO";
+"scrub.stack.paused" = "Paused";
+/* Settings · Custom rules */
+"scrub.custom.title" = "Custom Scrub Rules";
+"scrub.custom.add" = "Add Rule";
+"scrub.custom.edit_title" = "Edit Rule";
+"scrub.custom.empty" = "No custom rules yet. Turn internal domains or employee IDs into placeholders too.";
+"scrub.custom.name" = "Name";
+"scrub.custom.is_regex" = "Match with regular expression";
+"scrub.custom.pattern" = "Pattern";
+"scrub.custom.tag" = "Placeholder tag";
+"scrub.custom.save" = "Save";
+"scrub.custom.cancel" = "Cancel";
+"scrub.custom.delete" = "Delete";
+"scrub.custom.delete_confirm" = "Delete this rule?";
+"scrub.custom.invalid_regex" = "Invalid regular expression, can't save";
+"scrub.custom.regex_badge" = "Regex";
+"scrub.session.section" = "This Session";
+"scrub.vault.title" = "Scrub Map";
+"scrub.vault.count" = "%@ mappings in memory only";
+"scrub.vault.ttl" = "Auto-clear when idle";
+"scrub.vault.clear" = "Clear Now";
+"scrub.nlp.title" = "Detect names and places";
+"scrub.nlp.desc" = "Analyzed offline by macOS language models; nothing is uploaded";
+"scrub.footer.privacy" = "The map lives in memory only — never written to the database or logs, and destroyed after the idle timeout.";
+/* Pin to screen */
+"pin.action.single_only" = "Select an item first";
+"pin.limit_reached" = "Up to %@ items can be pinned";
+
+"menu.paste_stack_record" = "Record Paste Stack";
+"scrub.vault.ttl_5" = "5 min";
+"scrub.vault.ttl_15" = "15 min";
+"scrub.vault.ttl_30" = "30 min";
+"scrub.vault.ttl_60" = "1 hour";
+"scrub.vault.ttl_off" = "Immediately";
+"pin.collapse" = "Collapse";
+"pin.expand" = "Expand";
+"pin.opacity" = "Opacity";
+"pin.lock" = "Click-through";
+"pin.unlock" = "Stop click-through";
+"pin.close" = "Close";
+"pin.copy" = "Copy";
+"pin.copy_ocr" = "Copy OCR Text";
+"pin.save_to_history" = "Save to History";
+"pin.saved_hint" = "Saved";
+"pin.saved_source" = "Pinned note";
+"pin.locked_hint" = "Press ⌥⌘P to restore";
+"pin.empty_text" = "(Empty)";

@@ -2063,6 +2063,597 @@ public func FfiConverterTypeDetectionResult_lower(_ value: DetectionResult) -> R
 }
 
 
+/**
+ * 用户自定义脱敏规则（与 Rust 侧 `CustomScrubRule` 一一对应）。
+ */
+public struct FfiCustomScrubRule {
+    public var id: String
+    public var name: String
+    /**
+     * false = 字面量关键词匹配，true = 正则表达式
+     */
+    public var isRegex: Bool
+    public var pattern: String
+    /**
+     * 占位符标签前缀，如 "COMPANY" 生成 `<COMPANY_1>`
+     */
+    public var placeholderTag: String
+    public var enabled: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, name: String, 
+        /**
+         * false = 字面量关键词匹配，true = 正则表达式
+         */isRegex: Bool, pattern: String, 
+        /**
+         * 占位符标签前缀，如 "COMPANY" 生成 `<COMPANY_1>`
+         */placeholderTag: String, enabled: Bool) {
+        self.id = id
+        self.name = name
+        self.isRegex = isRegex
+        self.pattern = pattern
+        self.placeholderTag = placeholderTag
+        self.enabled = enabled
+    }
+}
+
+
+
+extension FfiCustomScrubRule: Equatable, Hashable {
+    public static func ==(lhs: FfiCustomScrubRule, rhs: FfiCustomScrubRule) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.isRegex != rhs.isRegex {
+            return false
+        }
+        if lhs.pattern != rhs.pattern {
+            return false
+        }
+        if lhs.placeholderTag != rhs.placeholderTag {
+            return false
+        }
+        if lhs.enabled != rhs.enabled {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+        hasher.combine(isRegex)
+        hasher.combine(pattern)
+        hasher.combine(placeholderTag)
+        hasher.combine(enabled)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiCustomScrubRule: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiCustomScrubRule {
+        return
+            try FfiCustomScrubRule(
+                id: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                isRegex: FfiConverterBool.read(from: &buf), 
+                pattern: FfiConverterString.read(from: &buf), 
+                placeholderTag: FfiConverterString.read(from: &buf), 
+                enabled: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiCustomScrubRule, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterBool.write(value.isRegex, into: &buf)
+        FfiConverterString.write(value.pattern, into: &buf)
+        FfiConverterString.write(value.placeholderTag, into: &buf)
+        FfiConverterBool.write(value.enabled, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiCustomScrubRule_lift(_ buf: RustBuffer) throws -> FfiCustomScrubRule {
+    return try FfiConverterTypeFfiCustomScrubRule.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiCustomScrubRule_lower(_ value: FfiCustomScrubRule) -> RustBuffer {
+    return FfiConverterTypeFfiCustomScrubRule.lower(value)
+}
+
+
+/**
+ * 外部 NLP 识别出的实体区间（UTF-8 字节偏移）。
+ */
+public struct FfiExternalEntitySpan {
+    public var startByte: UInt32
+    public var endByte: UInt32
+    /**
+     * "person_name" 或 "address"
+     */
+    public var ruleKey: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(startByte: UInt32, endByte: UInt32, 
+        /**
+         * "person_name" 或 "address"
+         */ruleKey: String) {
+        self.startByte = startByte
+        self.endByte = endByte
+        self.ruleKey = ruleKey
+    }
+}
+
+
+
+extension FfiExternalEntitySpan: Equatable, Hashable {
+    public static func ==(lhs: FfiExternalEntitySpan, rhs: FfiExternalEntitySpan) -> Bool {
+        if lhs.startByte != rhs.startByte {
+            return false
+        }
+        if lhs.endByte != rhs.endByte {
+            return false
+        }
+        if lhs.ruleKey != rhs.ruleKey {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(startByte)
+        hasher.combine(endByte)
+        hasher.combine(ruleKey)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiExternalEntitySpan: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiExternalEntitySpan {
+        return
+            try FfiExternalEntitySpan(
+                startByte: FfiConverterUInt32.read(from: &buf), 
+                endByte: FfiConverterUInt32.read(from: &buf), 
+                ruleKey: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiExternalEntitySpan, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.startByte, into: &buf)
+        FfiConverterUInt32.write(value.endByte, into: &buf)
+        FfiConverterString.write(value.ruleKey, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiExternalEntitySpan_lift(_ buf: RustBuffer) throws -> FfiExternalEntitySpan {
+    return try FfiConverterTypeFfiExternalEntitySpan.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiExternalEntitySpan_lower(_ value: FfiExternalEntitySpan) -> RustBuffer {
+    return FfiConverterTypeFfiExternalEntitySpan.lower(value)
+}
+
+
+/**
+ * 还原结果。
+ */
+public struct FfiRestoreResult {
+    public var restoredText: String
+    public var restoredCount: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(restoredText: String, restoredCount: UInt32) {
+        self.restoredText = restoredText
+        self.restoredCount = restoredCount
+    }
+}
+
+
+
+extension FfiRestoreResult: Equatable, Hashable {
+    public static func ==(lhs: FfiRestoreResult, rhs: FfiRestoreResult) -> Bool {
+        if lhs.restoredText != rhs.restoredText {
+            return false
+        }
+        if lhs.restoredCount != rhs.restoredCount {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(restoredText)
+        hasher.combine(restoredCount)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiRestoreResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiRestoreResult {
+        return
+            try FfiRestoreResult(
+                restoredText: FfiConverterString.read(from: &buf), 
+                restoredCount: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiRestoreResult, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.restoredText, into: &buf)
+        FfiConverterUInt32.write(value.restoredCount, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRestoreResult_lift(_ buf: RustBuffer) throws -> FfiRestoreResult {
+    return try FfiConverterTypeFfiRestoreResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiRestoreResult_lower(_ value: FfiRestoreResult) -> RustBuffer {
+    return FfiConverterTypeFfiRestoreResult.lower(value)
+}
+
+
+/**
+ * 脱敏引擎配置。
+ */
+public struct FfiScrubConfig {
+    /**
+     * 启用的内置规则 key 列表（严格白名单，空 = 全部停用；`default()` 给全集）
+     */
+    public var enabledBuiltinRules: [String]
+    public var customRules: [FfiCustomScrubRule]
+    /**
+     * 会话映射表闲置过期秒数（0 = 每次调用后立即销毁）
+     */
+    public var sessionTtlSeconds: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 启用的内置规则 key 列表（严格白名单，空 = 全部停用；`default()` 给全集）
+         */enabledBuiltinRules: [String], customRules: [FfiCustomScrubRule], 
+        /**
+         * 会话映射表闲置过期秒数（0 = 每次调用后立即销毁）
+         */sessionTtlSeconds: UInt64) {
+        self.enabledBuiltinRules = enabledBuiltinRules
+        self.customRules = customRules
+        self.sessionTtlSeconds = sessionTtlSeconds
+    }
+}
+
+
+
+extension FfiScrubConfig: Equatable, Hashable {
+    public static func ==(lhs: FfiScrubConfig, rhs: FfiScrubConfig) -> Bool {
+        if lhs.enabledBuiltinRules != rhs.enabledBuiltinRules {
+            return false
+        }
+        if lhs.customRules != rhs.customRules {
+            return false
+        }
+        if lhs.sessionTtlSeconds != rhs.sessionTtlSeconds {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(enabledBuiltinRules)
+        hasher.combine(customRules)
+        hasher.combine(sessionTtlSeconds)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiScrubConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiScrubConfig {
+        return
+            try FfiScrubConfig(
+                enabledBuiltinRules: FfiConverterSequenceString.read(from: &buf), 
+                customRules: FfiConverterSequenceTypeFfiCustomScrubRule.read(from: &buf), 
+                sessionTtlSeconds: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiScrubConfig, into buf: inout [UInt8]) {
+        FfiConverterSequenceString.write(value.enabledBuiltinRules, into: &buf)
+        FfiConverterSequenceTypeFfiCustomScrubRule.write(value.customRules, into: &buf)
+        FfiConverterUInt64.write(value.sessionTtlSeconds, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubConfig_lift(_ buf: RustBuffer) throws -> FfiScrubConfig {
+    return try FfiConverterTypeFfiScrubConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubConfig_lower(_ value: FfiScrubConfig) -> RustBuffer {
+    return FfiConverterTypeFfiScrubConfig.lower(value)
+}
+
+
+/**
+ * 单个占位符的替换统计。
+ */
+public struct FfiScrubReplacement {
+    public var placeholder: String
+    public var ruleKey: String
+    public var count: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(placeholder: String, ruleKey: String, count: UInt32) {
+        self.placeholder = placeholder
+        self.ruleKey = ruleKey
+        self.count = count
+    }
+}
+
+
+
+extension FfiScrubReplacement: Equatable, Hashable {
+    public static func ==(lhs: FfiScrubReplacement, rhs: FfiScrubReplacement) -> Bool {
+        if lhs.placeholder != rhs.placeholder {
+            return false
+        }
+        if lhs.ruleKey != rhs.ruleKey {
+            return false
+        }
+        if lhs.count != rhs.count {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(placeholder)
+        hasher.combine(ruleKey)
+        hasher.combine(count)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiScrubReplacement: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiScrubReplacement {
+        return
+            try FfiScrubReplacement(
+                placeholder: FfiConverterString.read(from: &buf), 
+                ruleKey: FfiConverterString.read(from: &buf), 
+                count: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiScrubReplacement, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.placeholder, into: &buf)
+        FfiConverterString.write(value.ruleKey, into: &buf)
+        FfiConverterUInt32.write(value.count, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubReplacement_lift(_ buf: RustBuffer) throws -> FfiScrubReplacement {
+    return try FfiConverterTypeFfiScrubReplacement.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubReplacement_lower(_ value: FfiScrubReplacement) -> RustBuffer {
+    return FfiConverterTypeFfiScrubReplacement.lower(value)
+}
+
+
+/**
+ * 脱敏结果。
+ */
+public struct FfiScrubResult {
+    public var scrubbedText: String
+    public var hasReplacements: Bool
+    public var replacements: [FfiScrubReplacement]
+    /**
+     * 当前会话池活跃映射数（用于设置页展示）
+     */
+    public var activeVaultCount: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(scrubbedText: String, hasReplacements: Bool, replacements: [FfiScrubReplacement], 
+        /**
+         * 当前会话池活跃映射数（用于设置页展示）
+         */activeVaultCount: UInt32) {
+        self.scrubbedText = scrubbedText
+        self.hasReplacements = hasReplacements
+        self.replacements = replacements
+        self.activeVaultCount = activeVaultCount
+    }
+}
+
+
+
+extension FfiScrubResult: Equatable, Hashable {
+    public static func ==(lhs: FfiScrubResult, rhs: FfiScrubResult) -> Bool {
+        if lhs.scrubbedText != rhs.scrubbedText {
+            return false
+        }
+        if lhs.hasReplacements != rhs.hasReplacements {
+            return false
+        }
+        if lhs.replacements != rhs.replacements {
+            return false
+        }
+        if lhs.activeVaultCount != rhs.activeVaultCount {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(scrubbedText)
+        hasher.combine(hasReplacements)
+        hasher.combine(replacements)
+        hasher.combine(activeVaultCount)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiScrubResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiScrubResult {
+        return
+            try FfiScrubResult(
+                scrubbedText: FfiConverterString.read(from: &buf), 
+                hasReplacements: FfiConverterBool.read(from: &buf), 
+                replacements: FfiConverterSequenceTypeFfiScrubReplacement.read(from: &buf), 
+                activeVaultCount: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiScrubResult, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.scrubbedText, into: &buf)
+        FfiConverterBool.write(value.hasReplacements, into: &buf)
+        FfiConverterSequenceTypeFfiScrubReplacement.write(value.replacements, into: &buf)
+        FfiConverterUInt32.write(value.activeVaultCount, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubResult_lift(_ buf: RustBuffer) throws -> FfiScrubResult {
+    return try FfiConverterTypeFfiScrubResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubResult_lower(_ value: FfiScrubResult) -> RustBuffer {
+    return FfiConverterTypeFfiScrubResult.lower(value)
+}
+
+
+/**
+ * 预检结果：命中处数与命中的规则 key。
+ */
+public struct FfiScrubScanResult {
+    public var hitCount: UInt32
+    public var ruleKeys: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(hitCount: UInt32, ruleKeys: [String]) {
+        self.hitCount = hitCount
+        self.ruleKeys = ruleKeys
+    }
+}
+
+
+
+extension FfiScrubScanResult: Equatable, Hashable {
+    public static func ==(lhs: FfiScrubScanResult, rhs: FfiScrubScanResult) -> Bool {
+        if lhs.hitCount != rhs.hitCount {
+            return false
+        }
+        if lhs.ruleKeys != rhs.ruleKeys {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(hitCount)
+        hasher.combine(ruleKeys)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiScrubScanResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiScrubScanResult {
+        return
+            try FfiScrubScanResult(
+                hitCount: FfiConverterUInt32.read(from: &buf), 
+                ruleKeys: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiScrubScanResult, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.hitCount, into: &buf)
+        FfiConverterSequenceString.write(value.ruleKeys, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubScanResult_lift(_ buf: RustBuffer) throws -> FfiScrubScanResult {
+    return try FfiConverterTypeFfiScrubScanResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiScrubScanResult_lower(_ value: FfiScrubScanResult) -> RustBuffer {
+    return FfiConverterTypeFfiScrubScanResult.lower(value)
+}
+
+
 public struct HighlightRange {
     public var startByte: UInt32
     public var endByte: UInt32
@@ -4748,6 +5339,81 @@ fileprivate struct FfiConverterSequenceTypeClipItemSummary: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeFfiCustomScrubRule: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiCustomScrubRule]
+
+    public static func write(_ value: [FfiCustomScrubRule], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiCustomScrubRule.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiCustomScrubRule] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiCustomScrubRule]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiCustomScrubRule.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiExternalEntitySpan: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiExternalEntitySpan]
+
+    public static func write(_ value: [FfiExternalEntitySpan], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiExternalEntitySpan.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiExternalEntitySpan] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiExternalEntitySpan]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiExternalEntitySpan.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiScrubReplacement: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiScrubReplacement]
+
+    public static func write(_ value: [FfiScrubReplacement], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiScrubReplacement.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiScrubReplacement] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiScrubReplacement]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiScrubReplacement.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeHighlightRange: FfiConverterRustBuffer {
     typealias SwiftType = [HighlightRange]
 
@@ -4894,10 +5560,46 @@ fileprivate struct FfiConverterSequenceTypeTimeGroupSummary: FfiConverterRustBuf
         return seq
     }
 }
+/**
+ * 当前映射表活跃条目数。
+ */
+public func activeScrubVaultCount() -> UInt32 {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_active_scrub_vault_count($0
+    )
+})
+}
 public func classifyTextContent(text: String) -> DetectionResult {
     return try!  FfiConverterTypeDetectionResult.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_func_classify_text_content(
         FfiConverterString.lower(text),$0
+    )
+})
+}
+/**
+ * 清空进程内存中的映射表（设置页「一键清空」）。
+ */
+public func clearScrubSessionVault() {try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_clear_scrub_session_vault($0
+    )
+}
+}
+/**
+ * 统计文本中当前仍可还原的占位符个数（会话池未过期）。
+ */
+public func countRestorablePlaceholders(text: String) -> UInt32 {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_count_restorable_placeholders(
+        FfiConverterString.lower(text),$0
+    )
+})
+}
+/**
+ * 默认启用的内置规则 key 列表（设置页初始化用）。
+ */
+public func defaultEnabledScrubRules() -> [String] {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_default_enabled_scrub_rules($0
     )
 })
 }
@@ -4956,12 +5658,50 @@ public func resolveOrCreateMasterKey(keyFilePath: String, legacyInitialized: Boo
     )
 })
 }
+/**
+ * 还原：把占位符换回真实值；池中不存在的占位符原样保留。
+ */
+public func restoreScrubbedText(text: String) -> FfiRestoreResult {
+    return try!  FfiConverterTypeFfiRestoreResult.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_restore_scrubbed_text(
+        FfiConverterString.lower(text),$0
+    )
+})
+}
 public func savePayloadAssetFile(storageDir: String, data: Data, preferredExtension: String)throws  -> String {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_func_save_payload_asset_file(
         FfiConverterString.lower(storageDir),
         FfiConverterData.lower(data),
         FfiConverterString.lower(preferredExtension),$0
+    )
+})
+}
+/**
+ * 预检：扫描文本里有多少处敏感片段，**不分配占位符、不写会话池**。
+ *
+ * 供预览区「这条含敏感信息，可按 ⌃⏎ 脱敏粘贴」的提示使用。
+ */
+public func scanScrubText(text: String, config: FfiScrubConfig, externalSpans: [FfiExternalEntitySpan]) -> FfiScrubScanResult {
+    return try!  FfiConverterTypeFfiScrubScanResult.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_scan_scrub_text(
+        FfiConverterString.lower(text),
+        FfiConverterTypeFfiScrubConfig.lower(config),
+        FfiConverterSequenceTypeFfiExternalEntitySpan.lower(externalSpans),$0
+    )
+})
+}
+/**
+ * 脱敏：把敏感片段替换为可逆占位符（如 `<EMAIL_1>`）。
+ *
+ * `external_spans` 由 Swift 侧 NLTagger 提供人名 / 地址区间。
+ */
+public func scrubSensitiveText(text: String, config: FfiScrubConfig, externalSpans: [FfiExternalEntitySpan]) -> FfiScrubResult {
+    return try!  FfiConverterTypeFfiScrubResult.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_scrub_sensitive_text(
+        FfiConverterString.lower(text),
+        FfiConverterTypeFfiScrubConfig.lower(config),
+        FfiConverterSequenceTypeFfiExternalEntitySpan.lower(externalSpans),$0
     )
 })
 }
@@ -5015,7 +5755,19 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_active_scrub_vault_count() != 39510) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_classify_text_content() != 34131) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_clear_scrub_session_vault() != 13661) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_count_restorable_placeholders() != 48619) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_default_enabled_scrub_rules() != 25075) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_format_ocr_layout_blocks() != 38903) {
@@ -5039,7 +5791,16 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_resolve_or_create_master_key() != 37743) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_restore_scrubbed_text() != 56639) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_save_payload_asset_file() != 2983) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_scan_scrub_text() != 57213) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_scrub_sensitive_text() != 16495) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_sweep_orphan_payload_assets() != 15341) {

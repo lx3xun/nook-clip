@@ -93,6 +93,15 @@ enum NookClipIcon {
         static let copy = "doc.on.doc"
         static let copied = "checkmark"
         static let ocr = "text.viewfinder"
+        /// 脱敏粘贴（⌃⏎）：盾牌 + 占位符遮罩，语义是「把敏感值换成令牌」
+        static let scrub = "shield.lefthalf.filled"
+        /// 钉在屏幕（⌘P）：贴条/便签语义
+        static let pin = "pin"
+        static let pinFilled = "pin.fill"
+        /// 顺序粘贴栈（⌥⏎）：层叠+向下箭头的流水意象
+        static let pasteStack = "square.stack.3d.down.right"
+        /// 标签（⌘L）：与预览工具栏同一个 `#` 符号，保持全应用一致
+        static let tag = "number"
     }
 
     enum Badge {
@@ -127,6 +136,8 @@ enum NookClipIcon {
         static let capture = "tray.and.arrow.down.fill"
         static let history = "externaldrive.fill"
         static let paste = "doc.on.clipboard.fill"
+        /// 隐私与脱敏（US1 设置页）
+        static let privacy = "hand.raised.fill"
     }
 
     enum Excluded {

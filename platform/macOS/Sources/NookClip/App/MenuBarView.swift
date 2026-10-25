@@ -18,6 +18,14 @@ struct MenuBarView: View {
             }
             .keyboardShortcut(",", modifiers: .command)
             Divider()
+            // 顺序粘贴栈录制（US2 的全局入口）：用户按顺序复制多条，
+            // 之后在目标应用里连按 ⌘V 一条条贴出；与面板内 ⌥⏎ 的多选直送互补
+            Button(L10n.tr("menu.paste_stack_record")) {
+                NotificationCenter.default.post(name: .startPasteStackRecording, object: nil)
+            }
+            // 右侧露出真实全局键位：这个入口不只在菜单里，⌃⌥V 在任何应用里都能触发
+            .modifier(MenuShortcut(shortcut: HotKeyShortcut.pasteStackRecordingShortcut))
+            Divider()
             Button("\(L10n.tr("menu.check_updates")) (v\(AppBranding.appVersion))") {
                 // Sparkle 应用内检查并安装更新（替代旧版跳转 GitHub Releases 页）
                 UpdateService.shared.checkForUpdates()

@@ -1447,3 +1447,212 @@ pub fn resolve_or_create_master_key(
     let key = manager.resolve_or_create_key(&adapter, legacy_initialized, has_encrypted_payloads)?;
     Ok(key.to_vec())
 }
+
+// ---------------------------------------------------------------------------
+// 隐私脱敏（Phase 1 / specs/012-scrub-stack-pin US1）
+// ---------------------------------------------------------------------------
+
+/// 用户自定义脱敏规则（与 Rust 侧 `CustomScrubRule` 一一对应）。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiCustomScrubRule {
+    pub id: String,
+    pub name: String,
+    /// false = 字面量关键词匹配，true = 正则表达式
+    pub is_regex: bool,
+    pub pattern: String,
+    /// 占位符标签前缀，如 "COMPANY" 生成 `<COMPANY_1>`
+    pub placeholder_tag: String,
+    pub enabled: bool,
+}
+
+/// 脱敏引擎配置。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiScrubConfig {
+    /// 启用的内置规则 key 列表（严格白名单，空 = 全部停用；`default()` 给全集）
+    pub enabled_builtin_rules: Vec<String>,
+    pub custom_rules: Vec<FfiCustomScrubRule>,
+    /// 会话映射表闲置过期秒数（0 = 每次调用后立即销毁）
+    pub session_ttl_seconds: u64,
+}
+
+impl Default for FfiScrubConfig {
+    fn default() -> Self {
+        Self {
+            enabled_builtin_rules: nookclip_core::algorithms::scrub::default_enabled_rule_keys()
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            custom_rules: Vec::new(),
+            session_ttl_seconds: nookclip_core::algorithms::scrub::DEFAULT_SESSION_TTL_SECONDS,
+        }
+    }
+}
+
+impl From<FfiCustomScrubRule> for algorithms::scrub::CustomScrubRule {
+    fn from(r: FfiCustomScrubRule) -> Self {
+        Self {
+            id: r.id,
+            name: r.name,
+            is_regex: r.is_regex,
+            pattern: r.pattern,
+            placeholder_tag: r.placeholder_tag,
+            enabled: r.enabled,
+        }
+    }
+}
+
+impl From<FfiScrubConfig> for algorithms::scrub::ScrubConfig {
+    fn from(c: FfiScrubConfig) -> Self {
+        Self {
+            enabled_builtin_rules: c.enabled_builtin_rules,
+            custom_rules: c.custom_rules.into_iter().map(Into::into).collect(),
+            session_ttl_seconds: c.session_ttl_seconds,
+        }
+    }
+}
+
+/// 外部 NLP 识别出的实体区间（UTF-8 字节偏移）。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiExternalEntitySpan {
+    pub start_byte: u32,
+    pub end_byte: u32,
+    /// "person_name" 或 "address"
+    pub rule_key: String,
+}
+
+/// 单个占位符的替换统计。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiScrubReplacement {
+    pub placeholder: String,
+    pub rule_key: String,
+    pub count: u32,
+}
+
+/// 脱敏结果。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiScrubResult {
+    pub scrubbed_text: String,
+    pub has_replacements: bool,
+    pub replacements: Vec<FfiScrubReplacement>,
+    /// 当前会话池活跃映射数（用于设置页展示）
+    pub active_vault_count: u32,
+}
+
+/// 还原结果。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiRestoreResult {
+    pub restored_text: String,
+    pub restored_count: u32,
+}
+
+impl From<algorithms::scrub::ScrubResult> for FfiScrubResult {
+    fn from(r: algorithms::scrub::ScrubResult) -> Self {
+        Self {
+            scrubbed_text: r.scrubbed_text,
+            has_replacements: r.has_replacements,
+            replacements: r
+                .replacements
+                .into_iter()
+                .map(|item| FfiScrubReplacement {
+                    placeholder: item.placeholder,
+                    rule_key: item.rule_key,
+                    count: item.count,
+                })
+                .collect(),
+            active_vault_count: r.active_vault_count,
+        }
+    }
+}
+
+impl From<algorithms::scrub::RestoreResult> for FfiRestoreResult {
+    fn from(r: algorithms::scrub::RestoreResult) -> Self {
+        Self {
+            restored_text: r.restored_text,
+            restored_count: r.restored_count,
+        }
+    }
+}
+
+/// 默认启用的内置规则 key 列表（设置页初始化用）。
+#[uniffi::export]
+pub fn default_enabled_scrub_rules() -> Vec<String> {
+    algorithms::scrub::default_enabled_rule_keys()
+        .into_iter()
+        .map(str::to_string)
+        .collect()
+}
+
+/// 脱敏：把敏感片段替换为可逆占位符（如 `<EMAIL_1>`）。
+///
+/// `external_spans` 由 Swift 侧 NLTagger 提供人名 / 地址区间。
+#[uniffi::export]
+pub fn scrub_sensitive_text(
+    text: String,
+    config: FfiScrubConfig,
+    external_spans: Vec<FfiExternalEntitySpan>,
+) -> FfiScrubResult {
+    let core_spans: Vec<algorithms::scrub::ExternalEntitySpan> = external_spans
+        .into_iter()
+        .map(|s| algorithms::scrub::ExternalEntitySpan {
+            start_byte: s.start_byte,
+            end_byte: s.end_byte,
+            rule_key: s.rule_key,
+        })
+        .collect();
+    algorithms::scrub::scrub_text(&text, &config.into(), &core_spans).into()
+}
+
+/// 预检结果：命中处数与命中的规则 key。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiScrubScanResult {
+    pub hit_count: u32,
+    pub rule_keys: Vec<String>,
+}
+
+/// 预检：扫描文本里有多少处敏感片段，**不分配占位符、不写会话池**。
+///
+/// 供预览区「这条含敏感信息，可按 ⌃⏎ 脱敏粘贴」的提示使用。
+#[uniffi::export]
+pub fn scan_scrub_text(
+    text: String,
+    config: FfiScrubConfig,
+    external_spans: Vec<FfiExternalEntitySpan>,
+) -> FfiScrubScanResult {
+    let core_spans: Vec<algorithms::scrub::ExternalEntitySpan> = external_spans
+        .into_iter()
+        .map(|s| algorithms::scrub::ExternalEntitySpan {
+            start_byte: s.start_byte,
+            end_byte: s.end_byte,
+            rule_key: s.rule_key,
+        })
+        .collect();
+    let result = algorithms::scrub::scan_text(&text, &config.into(), &core_spans);
+    FfiScrubScanResult {
+        hit_count: result.hit_count,
+        rule_keys: result.rule_keys,
+    }
+}
+
+/// 统计文本中当前仍可还原的占位符个数（会话池未过期）。
+#[uniffi::export]
+pub fn count_restorable_placeholders(text: String) -> u32 {
+    algorithms::scrub::count_restorable_placeholders(&text)
+}
+
+/// 还原：把占位符换回真实值；池中不存在的占位符原样保留。
+#[uniffi::export]
+pub fn restore_scrubbed_text(text: String) -> FfiRestoreResult {
+    algorithms::scrub::restore_text(&text).into()
+}
+
+/// 清空进程内存中的映射表（设置页「一键清空」）。
+#[uniffi::export]
+pub fn clear_scrub_session_vault() {
+    algorithms::scrub::clear_vault();
+}
+
+/// 当前映射表活跃条目数。
+#[uniffi::export]
+pub fn active_scrub_vault_count() -> u32 {
+    algorithms::scrub::active_vault_count()
+}

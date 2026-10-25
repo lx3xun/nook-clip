@@ -260,4 +260,156 @@ final class DraggablePanelKeyboardDispatchTests: XCTestCase {
         XCTAssertNotNil(typeToSearchEvent)
         XCTAssertEqual(typeToSearchEvent?.characters, "a")
     }
+
+    // MARK: - specs/012：⌃⏎ 脱敏 / ⌃⇧⏎ 还原 / ⌥⏎ 顺序粘贴 / ⌘P 钉住
+
+    /// ⌃⏎ 走脱敏粘贴，且不能误触发普通粘贴（⌃ 与 ⏎ 的组合必须与 ⏎ 正交）
+    func testControlReturnDispatchesScrubConfirm() {
+        let panel = makePanel()
+        var scrubCalled = false
+        var confirmCalled = false
+        let actions = PanelKeyActions(
+            arrow: { _, _ in },
+            toggleFilterPanel: {},
+            confirm: { _, _ in confirmCalled = true },
+            scrubConfirm: { scrubCalled = true },
+            escape: {},
+            cycleCategory: { _ in },
+            copySelection: {},
+            beginRename: {},
+            beginTagEdit: {},
+            toggleFavorite: {},
+            cycleTimeAnchor: {},
+            undoDelete: {},
+            deleteSelection: {},
+            focusSearch: {},
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
+        )
+
+        let event = makeKeyEvent(keyCode: kVK_Return, modifierFlags: [.control])
+        XCTAssertTrue(panel.dispatchKeyboardEvent(event, actions: actions))
+        XCTAssertTrue(scrubCalled)
+        XCTAssertFalse(confirmCalled)
+    }
+
+    /// ⌃⇧⏎ 走还原，且优先于 ⌃⏎（⇧ 是修饰里的增量维度）
+    func testControlShiftReturnDispatchesRestoreScrub() {
+        let panel = makePanel()
+        var scrubCalled = false
+        var restoreCalled = false
+        let actions = PanelKeyActions(
+            arrow: { _, _ in },
+            toggleFilterPanel: {},
+            confirm: { _, _ in },
+            scrubConfirm: { scrubCalled = true },
+            restoreScrubConfirm: { restoreCalled = true },
+            escape: {},
+            cycleCategory: { _ in },
+            copySelection: {},
+            beginRename: {},
+            beginTagEdit: {},
+            toggleFavorite: {},
+            cycleTimeAnchor: {},
+            undoDelete: {},
+            deleteSelection: {},
+            focusSearch: {},
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
+        )
+
+        let event = makeKeyEvent(keyCode: kVK_Return, modifierFlags: [.control, .shift])
+        XCTAssertTrue(panel.dispatchKeyboardEvent(event, actions: actions))
+        XCTAssertTrue(restoreCalled)
+        XCTAssertFalse(scrubCalled)
+    }
+
+    /// ⌥⏎ 在满足多选条件时启动粘贴栈并被消费
+    func testOptionReturnStartsPasteStackWhenConsumed() {
+        let panel = makePanel()
+        var confirmCalled = false
+        let actions = PanelKeyActions(
+            arrow: { _, _ in },
+            toggleFilterPanel: {},
+            confirm: { _, _ in confirmCalled = true },
+            startPasteStack: { true },
+            escape: {},
+            cycleCategory: { _ in },
+            copySelection: {},
+            beginRename: {},
+            beginTagEdit: {},
+            toggleFavorite: {},
+            cycleTimeAnchor: {},
+            undoDelete: {},
+            deleteSelection: {},
+            focusSearch: {},
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
+        )
+
+        let event = makeKeyEvent(keyCode: kVK_Return, modifierFlags: [.option])
+        XCTAssertTrue(panel.dispatchKeyboardEvent(event, actions: actions))
+        XCTAssertFalse(confirmCalled)
+    }
+
+    /// 单选态 ⌥⏎ 必须原样回落到普通纯文本粘贴（契约 C1 的兼容要求）
+    func testOptionReturnFallsBackToPlainTextPasteWhenNotConsumed() {
+        let panel = makePanel()
+        var confirmArgs: (keepOpen: Bool, plainTextOnly: Bool)?
+        let actions = PanelKeyActions(
+            arrow: { _, _ in },
+            toggleFilterPanel: {},
+            confirm: { keepOpen, plainTextOnly in
+                confirmArgs = (keepOpen: keepOpen, plainTextOnly: plainTextOnly)
+            },
+            startPasteStack: { false },
+            escape: {},
+            cycleCategory: { _ in },
+            copySelection: {},
+            beginRename: {},
+            beginTagEdit: {},
+            toggleFavorite: {},
+            cycleTimeAnchor: {},
+            undoDelete: {},
+            deleteSelection: {},
+            focusSearch: {},
+            typeToSearch: { _ in },
+            removeLastFilterChip: { false }
+        )
+
+        let event = makeKeyEvent(keyCode: kVK_Return, modifierFlags: [.option])
+        XCTAssertTrue(panel.dispatchKeyboardEvent(event, actions: actions))
+        XCTAssertEqual(confirmArgs?.plainTextOnly, true)
+        XCTAssertEqual(confirmArgs?.keepOpen, false)
+    }
+
+    /// ⌘P 钉在屏幕；且不能被 ⌘ 字母动作或打字即搜索抢走
+    func testCommandPDispatchesPinToScreen() {
+        let panel = makePanel()
+        var pinCalled = false
+        var typeToSearchCalled = false
+        let actions = PanelKeyActions(
+            arrow: { _, _ in },
+            toggleFilterPanel: {},
+            confirm: { _, _ in },
+            pinToScreen: { pinCalled = true },
+            escape: {},
+            cycleCategory: { _ in },
+            copySelection: {},
+            beginRename: {},
+            beginTagEdit: {},
+            toggleFavorite: {},
+            cycleTimeAnchor: {},
+            undoDelete: {},
+            deleteSelection: {},
+            focusSearch: {},
+            typeToSearch: { _ in typeToSearchCalled = true },
+            removeLastFilterChip: { false }
+        )
+
+        let event = makeKeyEvent(keyCode: kVK_ANSI_P, characters: "p", modifierFlags: [.command])
+        XCTAssertTrue(panel.dispatchKeyboardEvent(event, actions: actions))
+        XCTAssertTrue(pinCalled)
+        XCTAssertFalse(typeToSearchCalled)
+    }
 }

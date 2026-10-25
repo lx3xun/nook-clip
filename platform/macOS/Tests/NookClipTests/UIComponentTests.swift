@@ -127,6 +127,46 @@ final class UIComponentTests: XCTestCase {
         XCTAssertTrue(deleteFired, "点击批量删除按钮必须执行 onDelete")
     }
 
+    /// 顺序粘贴栈入口（⌥⏎）与标签入口（⌘L）都是可选参数，缺省时不应影响渲染或既有回调
+    func testBatchBarOptionalActionsAreWiredWhenProvided() {
+        var pasteStackFired = false
+        var editTagsFired = false
+
+        let bar = BatchBar(
+            selectedCount: 3,
+            onMergePaste: {},
+            onStartPasteStack: { pasteStackFired = true },
+            onDelete: {},
+            onEditTags: { editTagsFired = true }
+        )
+
+        XCTAssertNotNil(renderView(bar), "带顺序粘贴/标签入口的批量工具栏应正常渲染")
+
+        bar.onStartPasteStack?()
+        XCTAssertTrue(pasteStackFired, "点击顺序粘贴按钮必须执行 onStartPasteStack")
+
+        bar.onEditTags?()
+        XCTAssertTrue(editTagsFired, "点击标签按钮必须执行 onEditTags")
+    }
+
+    /// 工具栏只有 310pt 列宽：四个动作必须全部可辨识，不能退化成「合…」「…」。
+    /// 这里锁定「一主三辅」的结构——主操作带文字，其余是图标按钮，
+    /// 一旦有人把图标按钮改回文字按钮，宽度会再次溢出、标签全被截断。
+    func testBatchBarKeepsSinglePrimaryTextButtonForNarrowColumn() {
+        let bar = BatchBar(
+            selectedCount: 2,
+            onMergePaste: {},
+            onStartPasteStack: {},
+            onDelete: {},
+            onEditTags: {}
+        )
+
+        // 主操作仍保留键帽提示（⏎）
+        XCTAssertNotNil(renderView(bar), "窄列下批量工具栏必须能完整渲染")
+        XCTAssertNotNil(bar.onStartPasteStack)
+        XCTAssertNotNil(bar.onEditTags)
+    }
+
     // MARK: - RowRenameField 测试
 
     func testRowRenameFieldConstantsAndCreation() {

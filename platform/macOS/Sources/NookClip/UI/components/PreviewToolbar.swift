@@ -22,6 +22,12 @@ struct PreviewToolbar: View {
     /// 右键标签：全局重命名 / 删除
     var onRenameTag: ((String) -> Void)? = nil
     var onDeleteTag: ((String) -> Void)? = nil
+    /// ⌃⏎ 脱敏粘贴：把本条目做语义占位符脱敏后粘贴（US1）
+    var onScrubPaste: (() -> Void)? = nil
+    /// ⌘P 钉在屏幕：把本条目钉成置顶贴条（US3）
+    var onPinToScreen: (() -> Void)? = nil
+    /// 当前条目能否脱敏粘贴（图片/文件条目无可脱敏文本，按钮置灰不显示）
+    var canScrubPaste: Bool = false
 
 
     /// 磁盘派生元信息（trailingInfo 异步加载，body 内不做同步磁盘 IO · 契约 C8/FR-019）
@@ -57,6 +63,22 @@ struct PreviewToolbar: View {
                 tagChips
             }
             HStack(spacing: 4) {
+                // 脱敏粘贴：只在有可脱敏文本的条目上出现，避免图片/文件条目
+                // 挂一个永远点不动的按钮（控件可用性必须自解释）
+                if canScrubPaste, let onScrubPaste {
+                    ToolbarActionButton(
+                        title: L10n.tr("preview.scrub.button"),
+                        icon: NookClipIcon.Action.scrub,
+                        action: onScrubPaste
+                    )
+                }
+                if let onPinToScreen {
+                    ToolbarActionButton(
+                        title: L10n.tr("preview.pin.button"),
+                        icon: NookClipIcon.Action.pin,
+                        action: onPinToScreen
+                    )
+                }
                 ToolbarFavoriteButton(isFavorite: isFavorite) {
                     onFavorite?()
                 }

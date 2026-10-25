@@ -40,12 +40,23 @@ struct PreviewPane: View {
     /// 所以胶囊文案随本开关在「仅本机」与「端到端加密跨端同步」之间切换。
     var isSensitiveSyncActive: Bool = false
 
+    /// ⌃⏎ 脱敏粘贴（US1）：把本条目的敏感值换成语义占位符后粘贴
+    var onScrubPaste: (() -> Void)? = nil
+    /// ⌘P 钉在屏幕（US3）：把本条目钉成桌面置顶贴条
+    var onPinToScreen: (() -> Void)? = nil
+    /// 当前条目能否脱敏（仅文本/URL 条目有可脱敏文本，图片/文件不显示该按钮）
+    var canScrubPaste: Bool = false
+    /// ⌃⇧⏎ 还原粘贴：把当前条目里的占位符还原成真实值（US1 反向）
+    var onRestoreScrub: (() -> Void)? = nil
+
     // MARK: US3 脱敏状态（data-model §3.2：明文态持续 ≤30s，离开明文态必清剪贴板）
 
     @State private var isRevealed = false
     @State private var revealedPlainText: String?
     @State private var countdownSeconds = 0
     @State private var revealTask: Task<Void, Never>?
+    /// 脱敏预检的防抖任务（按住方向键连续换选中时只算最后一条）
+    @State private var scrubHintTask: Task<Void, Never>?
     @State private var revealFailure: ClipboardItem.RevealFailure?
     /// 链接二维码展示状态（切换选中条目时重置）
     @State private var showQRCode = false
@@ -59,6 +70,16 @@ struct PreviewPane: View {
     /// 避免 body 每次求值都跨 FFI 同步查库（单帧曾触发 2~4 次查询）。
     @State private var loadedEntity: ClipboardItem?
     @State private var loadedEntityID: UUID?
+    /// 当前条目的「含敏感信息」预检结果（nil = 无命中或尚未算完）。
+    /// 只做存在性判断，**零副作用**：不分配占位符、不写会话池。
+    @State private var scrubHint: ScrubScanOutcome?
+
+    /// 「粘贴前提醒」开关，与 `ScrubService.DefaultsKey.pasteHintEnabled` 是同一个键。
+    ///
+    /// 视图侧必须用 `@AppStorage` 观察它而不是每次直接问服务：服务不是
+    /// `@Observable`，用户在设置页关掉开关时，已经打开的预览区不会重新求值，
+    /// 提示会一直挂在那里——看起来就像开关失效。
+    @AppStorage(ScrubService.DefaultsKey.pasteHintEnabled) private var pasteHintEnabled = true
 
     private func entity(_ item: ClipboardRowModel) -> ClipboardItem? {
         guard loadedEntityID == item.id else { return nil }
@@ -105,6 +126,51 @@ struct PreviewPane: View {
         entity(item)?.summary ?? item.summary
     }
 
+    /// 当前条目文本里「本会话内仍可还原」的占位符个数。
+    /// 只有 > 0 才展示还原横幅；数量为 0 时整条横幅不存在，
+    /// 避免常规文本也被这行提示污染视觉。
+    private var restorablePlaceholderCount: Int {
+        guard let item else { return 0 }
+        let text = fullText(item)
+        guard text.contains("<") else { return 0 }
+        return ScrubService.shared.restorableCount(in: text)
+    }
+
+    /// 是否要显示「含敏感信息」提示。
+    ///
+    /// 三种情况不显示：开关关掉、当前条目不可脱敏（图片/文件/敏感条目）、
+    /// 已经有还原横幅（同一块区域同时挂两条提示太挤，且还原是更紧急的动作）。
+    private var shouldShowScrubHint: Bool {
+        guard pasteHintEnabled, canScrubPaste, restorablePlaceholderCount == 0 else { return false }
+        return scrubHint?.hasHits == true
+    }
+
+    /// 防抖后异步跑一次预检。
+    ///
+    /// 为什么需要防抖：`scan_text` 在 64KB 上约 1ms、256KB 约 4ms，单次可忽略，
+    /// 但按住方向键连续换选中时，一秒钟能扫十几条大文本，累积起来就是掉帧。
+    /// 延迟 120ms 足以滤掉连划，人眼又感觉不到。
+    private func scheduleScrubHintScan(for item: ClipboardRowModel, entityItem: ClipboardItem?) {
+        scrubHintTask?.cancel()
+        guard pasteHintEnabled, canScrubPaste else {
+            scrubHint = nil
+            return
+        }
+        // 与 fullText 同源：优先实体全文，降级到行模型的摘要
+        let text = entityItem?.summary ?? item.summary
+        guard !text.isEmpty else {
+            scrubHint = nil
+            return
+        }
+        scrubHintTask = Task {
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            let outcome = ScrubService.shared.scanForHint(text)
+            guard !Task.isCancelled else { return }
+            scrubHint = outcome
+        }
+    }
+
     var body: some View {
         if let item {
             VStack(spacing: 0) {
@@ -121,13 +187,42 @@ struct PreviewPane: View {
                     onSelectTag: { onSelectTag?($0) },
                     onRemoveTag: { tag in onRemoveTag?(item.id, tag) },
                     onRenameTag: onRenameTag,
-                    onDeleteTag: onDeleteTag
+                    onDeleteTag: onDeleteTag,
+                    onScrubPaste: onScrubPaste,
+                    onPinToScreen: onPinToScreen,
+                    canScrubPaste: canScrubPaste
                 )
                 // 顶栏必须绘制在其下方内容之上：工具栏按钮的即时微气泡会向下偏移
                 // 探入内容区（offset y≈25），若此栏与下方 ScrollView 同层，后者作为
                 // 后声明兄弟会把气泡整块盖住（左侧列表列与下方卡片亦会遮挡）。
                 // 仅抬升层级即可让气泡完整浮于所有内容之上。
                 .zIndex(1)
+                // 占位符还原横幅（US1）：当前条目含「本会话内仍可还原」的占位符时，
+                // 在顶栏下方插入一条窄横幅。文案必须带上按键提示，
+                // 否则用户不知道 ⌃⇧⏎ 的存在（发现性优先于界面纯净）
+                if restorablePlaceholderCount > 0 {
+                    RestorePlaceholderBanner(
+                        count: restorablePlaceholderCount,
+                        onRestore: onRestoreScrub
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .zIndex(1)
+                } else if shouldShowScrubHint, let hint = scrubHint {
+                    // 未脱敏但含敏感内容：给一行非阻断提示。
+                    // 放在还原横幅的同一位置（二者互斥），视觉规格也保持一致，
+                    // 避免同一块区域出现两种风格。
+                    ScrubHintBanner(
+                        hitCount: hint.hitCount,
+                        ruleList: hint.localizedRuleList,
+                        onScrubPaste: onScrubPaste
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .zIndex(1)
+                }
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         if !item.isSubtitleRedundant {
@@ -143,7 +238,10 @@ struct PreviewPane: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .onDisappear { maskSensitive(clearClipboard: true, releaseEntity: true) }
+            .onDisappear {
+                scrubHintTask?.cancel()
+                maskSensitive(clearClipboard: true, releaseEntity: true)
+            }
             .onChange(of: item.id) { _, _ in
                 // 切换选中：取消定时器并离开明文态（清剪贴板），收起二维码
                 maskSensitive(clearClipboard: true, releaseEntity: true)
@@ -152,11 +250,14 @@ struct PreviewPane: View {
                 urlCopied = false
                 asyncTotalSize = nil
                 asyncHasMissingPath = false
+                scrubHint = nil
+                scrubHintTask?.cancel()
             }
             .task(id: item.id) {
                 // 必须先 await 实体加载：此前的同步调用会让下方读到的 entity 恒为 nil，
                 // 导致文件大小/缺失路径检测成为死代码。
                 let entityItem = await loadEntityIfNeeded(for: item)
+                scheduleScrubHintScan(for: item, entityItem: entityItem)
                 if item.kind == .file, let entityItem {
                     let paths = entityItem.payloadPath?
                         .components(separatedBy: "\n").filter { !$0.isEmpty } ?? []
@@ -180,6 +281,12 @@ struct PreviewPane: View {
                     isScanningOCR = false
                     ocrProgressStage = nil
                 }
+            }
+            .onChange(of: pasteHintEnabled) { _, enabled in
+                // 关掉时 shouldShowScrubHint 会立刻为 false，不需要处理；
+                // 打开时要补扫一次，否则已打开的面板要等到下次换选中才出现提示
+                guard enabled else { return }
+                scheduleScrubHintScan(for: item, entityItem: entity(item))
             }
         } else {
             emptyState
@@ -586,5 +693,111 @@ struct PreviewPane: View {
                 .foregroundStyle(NookClip.textTertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - 占位符还原横幅（US1 · ⌃⇧⏎ 的发现性入口）
+
+/// 预览区顶栏下方的窄横幅：提示「当前文本含 N 个可还原占位符」。
+///
+/// 设计取舍：不做成弹窗、不自动展开、不用警告色——它是一个「机会提示」
+/// 而非「错误通知」。用低饱和的 `bgInset` 底 + 盾牌图标 + 一整行文案，
+/// 视觉重量刻意低于顶栏按钮，不抢正文注意力。
+private struct RestorePlaceholderBanner: View {
+    let count: Int
+    var onRestore: (() -> Void)?
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: NookClipIcon.Sensitive.shieldOk)
+                .font(.system(size: NookClipIconSize.compact, weight: .medium))
+                .foregroundStyle(NookClip.colorSensitive)
+            Text(L10n.tr("scrub.banner.detected", String(count)))
+                .font(.nookClipMeta)
+                .foregroundStyle(NookClip.textSecondary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Button {
+                onRestore?()
+            } label: {
+                HStack(spacing: 5) {
+                    KbdView(text: "⌃\u{200A}⇧\u{200A}⏎", fontSize: 9)
+                    Text(L10n.tr("scrub.banner.restore"))
+                        .font(.nookClipMetaMedium)
+                        .foregroundStyle(isHovered ? NookClip.accent : NookClip.textSecondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(NookClip.animHover) { isHovered = hovering }
+            }
+            .help(L10n.tr("scrub.banner.restore"))
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                .fill(NookClip.bgInset)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                .strokeBorder(NookClip.borderHairline, lineWidth: 0.5)
+        }
+    }
+}
+
+/// 粘贴前的「这条内容含敏感信息」提示条（方案 A：非阻断，不弹窗不拦键）。
+///
+/// 与 `RestorePlaceholderBanner` 同视觉、同位置、互斥显示：一个是「已经脱敏了、
+/// 可以还原」，一个是「还没脱敏、要不要脱敏」。对用户来说这是同一件事的两个阶段，
+/// 长得一样才不会让人以为是两个功能。
+private struct ScrubHintBanner: View {
+    let hitCount: Int
+    let ruleList: String
+    var onScrubPaste: (() -> Void)?
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: NookClipIcon.Sensitive.shieldOk)
+                .font(.system(size: NookClipIconSize.compact, weight: .medium))
+                .foregroundStyle(NookClip.colorSensitive)
+            Text(L10n.tr("scrub.hint.detected", String(hitCount), ruleList))
+                .font(.nookClipMeta)
+                .foregroundStyle(NookClip.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 8)
+            Button {
+                onScrubPaste?()
+            } label: {
+                HStack(spacing: 5) {
+                    KbdView(text: "⌃\u{200A}⏎", fontSize: 9)
+                    Text(L10n.tr("scrub.hint.action"))
+                        .font(.nookClipMetaMedium)
+                        .foregroundStyle(isHovered ? NookClip.accent : NookClip.textSecondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(NookClip.animHover) { isHovered = hovering }
+            }
+            .help(L10n.tr("scrub.hint.action"))
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                .fill(NookClip.bgInset)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                .strokeBorder(NookClip.borderHairline, lineWidth: 0.5)
+        }
     }
 }

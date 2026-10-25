@@ -22,6 +22,39 @@
 
 ## [Unreleased]
 
+### 🔒 隐私与安全 (Privacy & Security)
+
+- **全品类语义脱敏粘贴（⌃⏎）**：密钥、手机号、身份证、银行卡、IBAN、邮箱、IP、主机名与家目录路径等 19 类敏感信息，按 `⌃⏎` 粘贴时自动换成 `<API_KEY_1>`、`<EMAIL_1>` 这类语义占位符；同一段内容里的相同值共享编号，不同值依次递增。银行卡走 Luhn、身份证走 ISO 7064 MOD 11-2、IBAN 走 MOD-97 校验，`127.0.0.1`、`/Users/Shared`、ISO 时间戳等日常文本不会被误伤。
+  *Semantic redaction on paste (⌃⏎): 19 built-in rule types — keys, phone numbers, national IDs, bank cards, IBANs, emails, IPs, hostnames and home-directory paths — are replaced with readable placeholders such as `<API_KEY_1>` and `<EMAIL_1>`. Identical values share a number while distinct values increment. Bank cards use Luhn, national IDs use ISO 7064 MOD 11-2 and IBANs use MOD-97, so everyday text like `127.0.0.1`, `/Users/Shared` and ISO timestamps is left untouched.*
+- **一键还原真实值（⌃⇧⏎）**：把带占位符的文本交给 AI 或同事后，复制回来的内容若含活跃占位符，预览区顶部会提示「检测到 N 个脱敏占位符」，按 `⌃⇧⏎` 即还原成真实值再粘贴。
+  *One-key restore (⌃⇧⏎): after handing placeholder text to an AI or a colleague, any clipboard content still containing active placeholders triggers a "N redaction placeholders detected" banner in the preview pane — press ⌃⇧⏎ to restore the real values before pasting.*
+- **粘贴前提醒**：选中一条含密钥、邮箱、卡号等敏感内容的记录时，预览区顶部出现一行「检测到 N 处敏感信息（邮箱、API Key）」并给出 `⌃⏎` 脱敏粘贴入口，不必先按一次快捷键才发现自己贴出去了什么。提示不弹窗、不拦截粘贴，只在选中时出现；可在「设置 → 隐私」里关掉。
+  *Hint before pasting: selecting an item that contains keys, emails, card numbers or similar sensitive data shows a single line at the top of the preview pane — "N sensitive items found (email, API key)" — with a ⌃⏎ Scrubbed-paste shortcut right there, so you no longer have to paste once to find out what you leaked. No dialog, no blocked keystrokes: the hint only appears on selection and can be switched off in Settings → Privacy.*
+- **映射表只活在内存里**：占位符与真实值的对应关系仅驻留当前进程，不写数据库、不写日志；闲置默认 30 分钟自动销毁，设置页可随时一键清空。
+  *Mapping table lives only in RAM: placeholder-to-value pairs never reach SQLite or logs, expire after 30 minutes of inactivity by default, and can be wiped instantly from Settings.*
+- **离线识别人名与地址**：借助 macOS 自带语言模型在本机识别人名与地名，全程不联网、不上传任何内容，可在设置页关闭。
+  *Offline name and address detection: uses macOS's on-device language model locally. Nothing leaves the machine, and it can be switched off in Settings.*
+- **隐私与脱敏设置页**：按「凭据与密钥 / 网络与主机 / 个人隐私」三组独立开关 19 类规则，支持增删改自定义规则（关键词或正则 + 自定义占位符标签），并实时显示当前内存映射数。
+  *Privacy & redaction settings: the 19 rules are grouped into credentials, network & host, and personal PII with independent switches, complemented by custom rules by keyword or regex with your own placeholder tag and a live in-memory mapping count.*
+
+### ✨ 功能特性 (Added)
+
+- **顺序粘贴栈（⌥⏎）**：多选若干条后按 `⌥⏎`，它们会按**你复制的先后顺序**排队（最早复制的排第一，与列表里「最新在前」的显示顺序刻意相反），屏幕底部出现一张队列浮窗，完整列出待贴条目与「已贴 x / y」进度。在目标窗口连续按原生 `⌘V` 即可逐条粘出，也可以直接点某一行右侧的「粘贴」按钮立刻贴出那一条。高亮行就代表「下一条待粘贴」：贴完自动前移到下一条还没贴的条目（跳着贴时会绕回头部继续找），点任意一行可把高亮挪过去但不会直接粘贴，按 `⏎` 贴出高亮行。已贴过的行打绿色对勾并加删除线，全部贴完显示「✓ 已完成」后自动消失，队列超过 5 条时列表内部滚动。浮窗可以按住任意空白处拖动，位置会被记住，下次打开回到原处。录制模式新增全局快捷键 `⌃⌥V`（按一次开始、再按一次结束），在任何应用里都能边复制边攒队列。浮窗不抢焦点，因此 `Esc` 也能在任何应用里结束队列，不必先点浮窗。录制模式下每次复制，都会有一张小卡片从鼠标位置沿弧线飞进它在队列里的那一行，落地即显形——「刚复制的这句话」和「列表里多出来的这一行」之间不再需要用户自己连线。队列激活期间，系统剪贴板始终装着高亮的那一条，复制新内容不会把还没贴的旧条目挤掉，所以依次复制 1、2、3 之后连按三次 `⌘V` 一定按 1、2、3 的顺序贴出。
+  *Paste Stack (⌥⏎): select several items and press ⌥⏎ — they queue in the order you copied them (oldest first, deliberately opposite to the "newest first" list order), and a floating panel appears at the bottom of the screen listing every item with "x of y pasted" progress. Press native ⌘V repeatedly in the target app to paste them one by one, or click the "Paste" button on any row to paste that item right away. The highlighted row means "next up": after each paste it advances to the next item that has not been pasted yet (wrapping around when you paste out of order). Clicking a row moves the highlight without pasting; press ⏎ to paste the highlighted row. Pasted rows get a green check and strikethrough, and the panel shows "✓ Completed" before fading out; queues longer than five rows scroll inside the panel. The panel can be dragged from any empty spot and remembers where you left it. Recording mode now has a global shortcut, ⌃⌥V (press once to start, again to stop), so you can build a queue from any app as you copy. The panel never steals focus, so Esc ends the queue from any app too — no need to click it first. While recording, each copy sends a small card arcing from the pointer down into the exact row it lands in, which then fades in — "the line I just copied" and "the new row in the list" no longer need to be connected in your head. While the queue is active the system clipboard always holds the highlighted row, so copying new content never displaces items you have not pasted yet — copy 1, 2, 3 and three ⌘V presses paste exactly 1, 2, 3.*
+- **屏幕置顶贴条（⌘P）**：选中任意条目按 `⌘P`（或点预览栏图钉按钮）即可钉成一张悬浮小窗，最多 12 张。悬停出现控制条，可调透明度（`⌥` + 滚轮，20%~100%）、折叠成一行标题、锁定鼠标穿透、内联编辑文本、复制或存回历史；图片贴条等比缩放并可一键复制图中文字。
+  *Pin to Screen (⌘P): pin any item as a floating note — up to 12 at once. Hovering reveals a control strip for opacity (⌥ + scroll wheel, 20%–100%), collapsing to a single title line, click-through lock, inline editing, copying, or saving back to history; image notes scale proportionally and can copy their OCR text in one click.*
+
+### 🎨 细节打磨 (Polish)
+
+- **「下一条待粘贴」改用播放头样式，不再冒充选中**：原来高亮行铺一层强调底色加左侧竖条，那是 macOS 表达「用户选中」的语法，可这一行是 `⌘V` 自己往前跑的——用户并没有选它，套用选中样式等于每贴一条都替他改一次选择。现在只用行首一枚 `▶`（固定槽位，其余行留等宽空白保持标题整列对齐）+ 序号转强调色 + 标题升一级色并加半档字重来表达，整行不再铺色；行底色只留给「鼠标停在这行」。行内「粘贴」按钮也从常亮浅蓝块改为默认低对比文字、悬停才浮出底色，已贴过的行不再显示它——一屏五个蓝色块会把唯一该被看见的 `▶` 淹没。
+  *"Next up" now speaks the player's language instead of fake selection: the highlighted row used to get an accent fill plus a leading bar, which is how macOS renders **user selection** — but this row advances on its own with ⌘V, so the user never selected it. It is now a single `▶` at the row's leading edge (fixed slot, other rows keep an equal-width blank so titles stay column-aligned) plus an accent-colored index and a one-step-bolder, primary-colored title; the row itself stays unfilled. Row backgrounds now only mean "pointer is here". The per-row Paste button went from a permanent blue chip to low-contrast text that reveals its chip on hover, and pasted rows no longer show it — five blue chips on one screen drown out the single ▶ that matters.*
+- **多选工具栏重新排版**：列表列仅 310pt，四个「文字 + 键帽」按钮会互相挤压到只剩「合…」，现改为「合并粘贴」一个主按钮配三个图标按钮（顺序粘贴 / 标签 / 删除），完整名称走悬停提示。
+  *Batch toolbar re-laid out: with only 310pt of column width, four text-plus-keycap buttons squeezed one another down to "Me…". It is now one primary "Merge & Paste" button plus three icon buttons (paste stack, tags, delete), with full names in tooltips.*
+- **顺序粘贴胶囊的定位信息不再被挤压**：进度计数与正倒序徽标此前会被长摘要压成「1…」和「顺」，现在固定宽度，只让摘要正文尾部省略。
+  *Paste Stack pill keeps its anchors: the progress counter and the FIFO/LIFO badge used to collapse into "1…" and a single glyph next to long summaries. They now hold their width, and only the summary truncates.*
+- **设置页规则说明更准确**：三组的组级开关副标题由「启用脱敏」改为「全部启用」，占位符示例由 `<API_KEY_N>` 模板改为 `<API_KEY_1>` 实例。
+  *Clearer settings copy: group-level switches now read "Enable all" instead of "Enable redaction", and placeholder examples show `<API_KEY_1>` rather than the `<API_KEY_N>` template.*
+
 ---
 
 ## [0.4.0] - 2026-10-24

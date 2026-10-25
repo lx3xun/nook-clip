@@ -466,3 +466,115 @@
 "tag.rename_placeholder" = "新標籤名稱";
 "tag.delete" = "刪除該標籤";
 "common.cancel" = "取消";
+
+/* Settings · Privacy (US1) */
+"settings.tab.privacy" = "隱私";
+/* 脫敏規則 */
+"scrub.rule.api_keys" = "API 金鑰";
+"scrub.rule.private_key" = "私鑰檔案";
+"scrub.rule.conn_secret" = "資料庫連線字串";
+"scrub.rule.ip_address" = "IP 位址";
+"scrub.rule.mac_address" = "MAC 位址";
+"scrub.rule.home_username" = "本機使用者名稱";
+"scrub.rule.user_at_host" = "使用者@主機";
+"scrub.rule.cloud_bucket" = "雲端儲存桶";
+"scrub.rule.serial_number" = "序號";
+"scrub.rule.email" = "電子郵件";
+"scrub.rule.phone" = "手機號碼";
+"scrub.rule.id_card" = "身分證號";
+"scrub.rule.ssn" = "美國社會安全號";
+"scrub.rule.passport" = "護照號碼";
+"scrub.rule.bank_card" = "金融卡號";
+"scrub.rule.iban" = "IBAN 帳號";
+"scrub.rule.birth_date" = "出生日期";
+"scrub.rule.person_name" = "人名";
+"scrub.rule.address" = "地址";
+"scrub.rule.custom" = "自訂規則";
+/* 規則分組 */
+"scrub.group.credentials" = "憑證與金鑰";
+"scrub.group.network" = "網路與主機";
+"scrub.group.personal" = "個人資訊";
+"scrub.group.master" = "全部啟用";
+"scrub.group.enabled_count" = "已啟用 %@ / %@ 條規則";
+/* 脫敏結果 */
+"scrub.result.none" = "未發現需要脫敏的內容";
+"scrub.result.summary" = "已脫敏 %1$@ · 共 %2$@ 處";
+"scrub.restore.none" = "剪貼簿裡沒有可還原的預留位置";
+"scrub.restore.summary" = "已還原 %@ 處真實值";
+/* 面板提示 */
+"scrub.banner.detected" = "偵測到 %@ 個脫敏預留位置";
+"scrub.banner.restore" = "還原真實值貼上";
+"scrub.hint.separator" = "、";
+"scrub.hint.more_rules" = " 等";
+"scrub.hint.detected" = "偵測到 %@ 處敏感資訊（%@）";
+"scrub.hint.action" = "脫敏貼上";
+"scrub.hint.settings.title" = "貼上前提醒";
+"scrub.hint.settings.desc" = "項目含金鑰、電子郵件、卡號等敏感內容時，預覽區顯示一行提示。不會攔截正常貼上。";
+"scrub.action.single_only" = "請在單選狀態下使用脫敏貼上";
+"scrub.action.text_only" = "僅文字與連結支援脫敏貼上";
+"scrub.action.reveal_failed" = "無法讀取該項目，脫敏未執行";
+"preview.scrub.button" = "脫敏貼上";
+"preview.pin.button" = "釘在螢幕";
+/* 順序貼上堆疊 */
+"batch.paste_stack" = "順序貼上";
+"batch.paste_stack_help" = "順序貼上（⌥⏎）";
+"scrub.stack.hint" = "高亮即下一條 · ⌘V 貼出 · 點列跳轉 · Esc 結束";
+"scrub.stack.hint_done" = "全部貼完 · Esc 關閉";
+"scrub.stack.hint_recording" = "複製即入列 · ⌘V 貼下一條 · ⌃⌥V 或 Esc 結束";
+"scrub.stack.progress" = "已貼 %1$@ / %2$@";
+"scrub.stack.paste" = "貼上";
+"scrub.stack.paste_hint" = "貼上這一條：%@";
+"scrub.stack.next_up" = "下一條待貼上";
+"scrub.stack.order_hint" = "在正序與倒序之間切換";
+"scrub.stack.stop_hint" = "結束順序貼上";
+"scrub.stack.waiting" = "等待複製內容…";
+"scrub.stack.completed" = "已完成";
+"scrub.stack.order_fifo" = "順序";
+"scrub.stack.order_lifo" = "倒序";
+"scrub.stack.paused" = "已暫停";
+/* 設定 · 自訂規則 */
+"scrub.custom.title" = "自訂脫敏規則";
+"scrub.custom.add" = "新增規則";
+"scrub.custom.edit_title" = "編輯規則";
+"scrub.custom.empty" = "還沒有自訂規則。可把公司內部網域、員工編號等也變成預留位置。";
+"scrub.custom.name" = "名稱";
+"scrub.custom.is_regex" = "以正規表示式比對";
+"scrub.custom.pattern" = "比對內容";
+"scrub.custom.tag" = "預留位置標籤";
+"scrub.custom.save" = "儲存";
+"scrub.custom.cancel" = "取消";
+"scrub.custom.delete" = "刪除";
+"scrub.custom.delete_confirm" = "刪除這條規則？";
+"scrub.custom.invalid_regex" = "正規表示式寫法有誤，無法儲存";
+"scrub.custom.regex_badge" = "正規表示式";
+"scrub.session.section" = "本次工作階段";
+"scrub.vault.title" = "脫敏對照表";
+"scrub.vault.count" = "目前 %@ 筆對照，僅存於記憶體";
+"scrub.vault.ttl" = "閒置自動清除";
+"scrub.vault.clear" = "立即清空";
+"scrub.nlp.title" = "辨識人名與地址";
+"scrub.nlp.desc" = "使用 macOS 本機語言模型離線分析，不會上傳任何內容";
+"scrub.footer.privacy" = "對照表只駐留在記憶體，不寫入資料庫與日誌；閒置逾時後自動銷毀。";
+/* 螢幕置頂便利貼 */
+"pin.action.single_only" = "請先選取一筆內容";
+"pin.limit_reached" = "最多同時釘住 %@ 條";
+
+"menu.paste_stack_record" = "錄製順序貼上";
+"scrub.vault.ttl_5" = "5 分鐘";
+"scrub.vault.ttl_15" = "15 分鐘";
+"scrub.vault.ttl_30" = "30 分鐘";
+"scrub.vault.ttl_60" = "1 小時";
+"scrub.vault.ttl_off" = "立即失效";
+"pin.collapse" = "摺疊";
+"pin.expand" = "展開";
+"pin.opacity" = "不透明度";
+"pin.lock" = "點擊穿透";
+"pin.unlock" = "取消穿透";
+"pin.close" = "關閉";
+"pin.copy" = "複製";
+"pin.copy_ocr" = "複製 OCR 文字";
+"pin.save_to_history" = "儲存回歷史";
+"pin.saved_hint" = "已儲存";
+"pin.saved_source" = "置頂便條";
+"pin.locked_hint" = "按 ⌥⌘P 恢復點擊";
+"pin.empty_text" = "（空）";
