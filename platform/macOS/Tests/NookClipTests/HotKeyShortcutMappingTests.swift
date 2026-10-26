@@ -126,4 +126,35 @@ final class HotKeyShortcutMappingTests: XCTestCase {
         manager.resume()
         XCTAssertFalse(manager.isPaused, "调用 resume 后 isPaused 必须恢复为 false")
     }
+
+    // MARK: - 贴条救回键
+
+    func testPinnedRestoreShortcutIsCommandOptionP() {
+        let shortcut = HotKeyShortcut.pinnedRestoreShortcut
+        XCTAssertEqual(shortcut.keyCode, UInt32(kVK_ANSI_P), "救回键必须是 P，和界面提示文案一致")
+        XCTAssertEqual(
+            shortcut.carbonModifiers,
+            UInt32(cmdKey | optionKey),
+            "只按 P 会误触；加 ⌘⌥ 才不会和普通输入冲突"
+        )
+        XCTAssertEqual(shortcut.displayString, "⌘ ⌥ P")
+    }
+
+    func testPinnedRestoreShortcutDoesNotCollideWithOtherHotKeys() {
+        let restore = HotKeyShortcut.pinnedRestoreShortcut
+        XCTAssertNotEqual(restore.keyCode, HotKeyShortcut.pasteStackRecordingShortcut.keyCode)
+        for preset in HotKeyShortcut.presets {
+            XCTAssertFalse(
+                preset.keyCode == restore.keyCode && preset.carbonModifiers == restore.carbonModifiers,
+                "救回键不能和应用里任何可自定义快捷键撞车，否则用户改完就再也解不开贴条"
+            )
+        }
+        let recording = HotKeyShortcut.pasteStackRecordingShortcut
+        for preset in HotKeyShortcut.presets {
+            XCTAssertFalse(
+                preset.keyCode == recording.keyCode && preset.carbonModifiers == recording.carbonModifiers,
+                "顺序粘贴录制热键不能和推荐预设冲突"
+            )
+        }
+    }
 }

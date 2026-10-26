@@ -51,19 +51,23 @@ struct AppearanceOptionCard: View {
                         .frame(width: 100, height: 66)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .overlay {
+                            // 选中态用系统强调色：用户在这里挑的就是「界面用哪种颜色感」，
+                            // 选中标记本身若不着色，就没有任何参照物说明强调色长什么样。
+                            // 描边 + 右上角勾选圆是同一种颜色，避免两套「选中」语汇。
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .stroke(
-                                    isSelected ? NookClip.accent : (isHovered ? NookClip.separator : NookClip.borderHairline),
+                                    isSelected ? NookClip.accent : (isHovered ? NookClip.borderControl : NookClip.borderPanel),
                                     lineWidth: isSelected ? 2 : 1
                                 )
                         }
 
                     if isSelected {
-                        Image(systemName: NookClipIcon.Control.radioSelected)
-                            .font(.system(size: NookClipIconSize.regularMedium, weight: .bold))
-                            .foregroundStyle(NookClip.accent)
-                            .background(Circle().fill(NookClip.textOnAccent).padding(1))
-                            .offset(x: 4, y: -4)
+                        Image(systemName: NookClipIcon.Control.checkmark)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(NookClip.textOnAccent)
+                            .frame(width: 16, height: 16)
+                            .background(Circle().fill(NookClip.accent))
+                            .offset(x: 5, y: -5)
                     }
                 }
 
@@ -72,7 +76,7 @@ struct AppearanceOptionCard: View {
                         .fill(isSelected ? NookClip.accent : Color.clear)
                         .frame(width: 6, height: 6)
                         .overlay {
-                            Circle().stroke(isSelected ? NookClip.accent : NookClip.textTertiary, lineWidth: 1)
+                            Circle().stroke(isSelected ? NookClip.accent : NookClip.borderControl, lineWidth: 1)
                         }
                     Text(title)
                         .font(isSelected ? .nookClipMetaMedium : .nookClipMeta)
@@ -80,6 +84,10 @@ struct AppearanceOptionCard: View {
                 }
             }
         }
+        // 三张卡等分面板宽度：卡片自己是固定 100×66 的预览，
+        // 但点击热区要铺到面板三分之一，否则整行看起来是挤在中间的三个小方块
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(NookClip.animHover, value: isSelected)

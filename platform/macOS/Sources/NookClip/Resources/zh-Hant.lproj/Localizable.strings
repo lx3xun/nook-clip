@@ -1,6 +1,8 @@
 /* Menu */
 "menu.open" = "開啟 NookClip";
 "menu.settings" = "設定…";
+"menu.pinned_unlock" = "取消點擊穿透";
+"menu.pinned_close" = "關閉螢幕貼條";
 "menu.quit" = "結束";
 "menu.check_updates" = "檢查更新…";
 
@@ -297,6 +299,7 @@
 "hints.category_reverse" = "反向切換分類";
 "hints.multi" = "多選";
 "hints.multiselect_kbd" = "⌘點";
+"hints.drag_multi" = "滑鼠拖曳多選";
 "hints.paste_plain" = "純文字貼上";
 "hints.paste_keep" = "貼上並保持面板";
 "hints.time_jump" = "定位時間分組";
@@ -468,7 +471,7 @@
 "common.cancel" = "取消";
 
 /* Settings · Privacy (US1) */
-"settings.tab.privacy" = "隱私";
+"settings.tab.privacy" = "脫敏";
 /* 脫敏規則 */
 "scrub.rule.api_keys" = "API 金鑰";
 "scrub.rule.private_key" = "私鑰檔案";
@@ -532,6 +535,11 @@
 "scrub.stack.order_fifo" = "順序";
 "scrub.stack.order_lifo" = "倒序";
 "scrub.stack.paused" = "已暫停";
+"scrub.stack.keep_open_title" = "貼完保留";
+"scrub.stack.keep_open_hint" = "開啟後全部貼完也不關閉，可反覆挑著貼";
+"scrub.stack.repaste" = "重貼";
+"scrub.stack.move_hint" = "按住上下拖曳可調整順序";
+"scrub.stack.ordinal_hint" = "點列跳轉 · 按 ⌥1~⌥9 直接貼對應序號";
 /* 設定 · 自訂規則 */
 "scrub.custom.title" = "自訂脫敏規則";
 "scrub.custom.add" = "新增規則";
@@ -557,7 +565,6 @@
 "scrub.footer.privacy" = "對照表只駐留在記憶體，不寫入資料庫與日誌；閒置逾時後自動銷毀。";
 /* 螢幕置頂便利貼 */
 "pin.action.single_only" = "請先選取一筆內容";
-"pin.limit_reached" = "最多同時釘住 %@ 條";
 
 "menu.paste_stack_record" = "錄製順序貼上";
 "scrub.vault.ttl_5" = "5 分鐘";
@@ -576,5 +583,45 @@
 "pin.save_to_history" = "儲存回歷史";
 "pin.saved_hint" = "已儲存";
 "pin.saved_source" = "置頂便條";
-"pin.locked_hint" = "按 ⌥⌘P 恢復點擊";
+"pin.locked_hint" = "已鎖定：點右上角小鎖，或按 ⌘⌥P 恢復點擊";
+"pin.edit" = "編輯";
+"pin.finish_editing" = "完成編輯";
 "pin.empty_text" = "（空）";
+
+/* Settings - 通用狀態詞與設定頁骨架（方案 C） */
+"state.on" = "已開啟";
+"state.off" = "已關閉";
+"settings.fold.expanded" = "已展開";
+"settings.fold.collapsed" = "已收起";
+"settings.subtitle.general" = "啟動方式、外觀，以及 NookClip 自身的更新。";
+"settings.subtitle.appearance" = "主面板的配色、材質與列表樣式。";
+"settings.subtitle.capture" = "什麼內容會被記下來，以及哪些應用不該被記錄。";
+"settings.subtitle.history" = "歷史留存多久、佔用多少磁碟，以及多裝置如何同步。";
+"settings.subtitle.paste" = "喚起快速鍵、自動貼上權限，與常用鍵位速查。";
+"settings.subtitle.privacy" = "哪些內容會被自動識別並遮罩，再留存或同步。";
+
+/* Settings - 現狀帶儲存格標籤 */
+"settings.status.records" = "記錄";
+"settings.status.favorites" = "收藏";
+"settings.status.sync" = "同步";
+"settings.status.retention" = "保留";
+"settings.status.disk" = "磁碟上限";
+"settings.status.hotkey" = "喚起鍵";
+"settings.status.accessibility" = "自動貼上";
+"settings.status.scrub" = "脫敏規則";
+"settings.status.updates" = "自動檢查";
+"settings.status.version" = "版本";
+
+"settings.status.appearance" = "外觀";
+
+"settings.status.sensitive" = "敏感內容";
+"settings.status.sensitive_clear" = "剪貼簿清空";
+"settings.status.excluded" = "排除應用";
+"settings.status.trusted" = "已授權";
+"settings.status.untrusted" = "未授權";
+"settings.hotkey.cheatsheet" = "鍵位速查";
+"settings.hotkey.cheatsheet_sum" = "導覽 · 貼上 · 管理 · 面板";
+
+"scrub.custom.empty_short" = "暫無規則";
+
+"excluded.more_hint" = "共 %d 個 · 滾動檢視其餘 %d 個";

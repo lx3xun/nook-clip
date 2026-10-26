@@ -141,6 +141,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeyManager.onPasteStackRecordingPress = { [weak self] in
             self?.startPasteStackRecording(Notification(name: .startPasteStackRecording))
         }
+        // 第三热键：⌥⌘P 解除所有贴条的点击穿透。
+        // 走 Carbon 热键而不是贴条自己的 NSEvent 全局监听——后者要辅助功能权限，
+        // 没授权时静默失效，贴条一锁就再也点不回来（用户报的就是这个问题）。
+        hotKeyManager.onPinnedRestorePress = {
+            PinnedWindowManager.shared.restoreAllClickThrough()
+        }
         hotKeyManager.register()
 
         // Sparkle 自动更新：先探测更新源再启动（延迟检查周期默认 24h）
@@ -237,17 +243,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let historyStore: InMemoryHistoryStore
     private var lastSelectedTab: SettingsTab = .general
+    private var hasAppliedInitialSize = false
+
+    /// 设置窗口的默认尺寸与最小尺寸。
+    ///
+    /// 原先是锁死的 580×520：历史与同步一页的内容有 1125pt 高，在 520pt 的窗口里
+    /// 只能看到前三组，「导出备份 / 同步规则 / E2EE」永远在折叠线下，而那又是
+    /// 唯一能看到它们的尺寸。现在改成 900×720 且允许缩放，最小 760×560 保住
+    /// 侧栏 208pt + 画布双栏的下限。
+    private static let defaultSize = NSSize(width: 900, height: 720)
+    private static let minSize = NSSize(width: 760, height: 560)
 
     init(historyStore: InMemoryHistoryStore) {
         self.historyStore = historyStore
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 580, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(origin: .zero, size: Self.defaultSize),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = L10n.tr("settings.window_title")
-        window.setContentSize(NSSize(width: 580, height: 520))
+        window.setContentSize(Self.defaultSize)
+        window.contentMinSize = Self.minSize
         window.isReleasedWhenClosed = false
         window.level = .floating
         super.init(window: window)
@@ -288,7 +305,12 @@ private final class SettingsWindowController: NSWindowController, NSWindowDelega
             window?.contentViewController = NSHostingController(
                 rootView: SettingsView(historyStore: historyStore, initialTab: lastSelectedTab).nookClipLocalized()
             )
-            window?.setContentSize(NSSize(width: 580, height: 520))
+            // 只有第一次装配视图树时才设默认尺寸；之后由用户自己调过的窗口大小说了算，
+            // 否则每次打开设置都会把用户拉过的窗口弹回 900×720。
+            if !hasAppliedInitialSize {
+                window?.setContentSize(Self.defaultSize)
+                hasAppliedInitialSize = true
+            }
         }
         window?.center()
         NSApp.activate(ignoringOtherApps: true)

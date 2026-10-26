@@ -1,6 +1,8 @@
 /* Menu */
 "menu.open" = "Open NookClip";
 "menu.settings" = "Settings…";
+"menu.pinned_unlock" = "Allow Clicks on Pinned Note";
+"menu.pinned_close" = "Close Pinned Note";
 "menu.quit" = "Quit";
 "menu.check_updates" = "Check for Updates…";
 
@@ -297,6 +299,7 @@
 "hints.category_reverse" = "Cycle category backwards";
 "hints.multi" = "Multi-select";
 "hints.multiselect_kbd" = "⌘Click";
+"hints.drag_multi" = "Drag to multi-select";
 "hints.paste_plain" = "Paste as plain text";
 "hints.paste_keep" = "Paste and keep panel";
 "hints.time_jump" = "Jump to time group";
@@ -468,7 +471,7 @@
 "common.cancel" = "Cancel";
 
 /* Settings · Privacy (US1) */
-"settings.tab.privacy" = "Privacy";
+"settings.tab.privacy" = "Redaction";
 /* Scrub rules */
 "scrub.rule.api_keys" = "API Keys";
 "scrub.rule.private_key" = "Private Keys";
@@ -532,6 +535,11 @@
 "scrub.stack.order_fifo" = "FIFO";
 "scrub.stack.order_lifo" = "LIFO";
 "scrub.stack.paused" = "Paused";
+"scrub.stack.keep_open_title" = "Keep Open";
+"scrub.stack.keep_open_hint" = "Stay open after everything is pasted, so you can paste any item again";
+"scrub.stack.repaste" = "Again";
+"scrub.stack.move_hint" = "Drag up or down to reorder";
+"scrub.stack.ordinal_hint" = "Click a row to jump · press ⌥1–⌥9 to paste that item";
 /* Settings · Custom rules */
 "scrub.custom.title" = "Custom Scrub Rules";
 "scrub.custom.add" = "Add Rule";
@@ -557,7 +565,6 @@
 "scrub.footer.privacy" = "The map lives in memory only — never written to the database or logs, and destroyed after the idle timeout.";
 /* Pin to screen */
 "pin.action.single_only" = "Select an item first";
-"pin.limit_reached" = "Up to %@ items can be pinned";
 
 "menu.paste_stack_record" = "Record Paste Stack";
 "scrub.vault.ttl_5" = "5 min";
@@ -576,5 +583,45 @@
 "pin.save_to_history" = "Save to History";
 "pin.saved_hint" = "Saved";
 "pin.saved_source" = "Pinned note";
-"pin.locked_hint" = "Press ⌥⌘P to restore";
+"pin.locked_hint" = "Locked: click the small lock at the top-right, or press ⌘⌥P";
+"pin.edit" = "Edit";
+"pin.finish_editing" = "Done editing";
 "pin.empty_text" = "(Empty)";
+
+/* Settings - generic state words and settings shell (Plan C) */
+"state.on" = "On";
+"state.off" = "Off";
+"settings.fold.expanded" = "Expanded";
+"settings.fold.collapsed" = "Collapsed";
+"settings.subtitle.general" = "How NookClip starts, looks, and updates itself.";
+"settings.subtitle.appearance" = "Colours, material, and list styling for the main panel.";
+"settings.subtitle.capture" = "What gets recorded, and which apps must stay out of it.";
+"settings.subtitle.history" = "How long history is kept, how much disk it may use, and how devices sync.";
+"settings.subtitle.paste" = "The summoning shortcut, auto-paste permission, and a key reference.";
+"settings.subtitle.privacy" = "What gets identified and masked before anything is stored or synced.";
+
+/* Settings - status strip cell labels */
+"settings.status.records" = "Records";
+"settings.status.favorites" = "Favourites";
+"settings.status.sync" = "Sync";
+"settings.status.retention" = "Retention";
+"settings.status.disk" = "Disk cap";
+"settings.status.hotkey" = "Shortcut";
+"settings.status.accessibility" = "Auto-paste";
+"settings.status.scrub" = "Redaction";
+"settings.status.updates" = "Auto-check";
+"settings.status.version" = "Version";
+
+"settings.status.appearance" = "Theme";
+
+"settings.status.sensitive" = "Sensitive";
+"settings.status.sensitive_clear" = "Clipboard clears";
+"settings.status.excluded" = "Excluded";
+"settings.status.trusted" = "Granted";
+"settings.status.untrusted" = "Not granted";
+"settings.hotkey.cheatsheet" = "Keyboard reference";
+"settings.hotkey.cheatsheet_sum" = "Navigate · Paste · Manage · Panel";
+
+"scrub.custom.empty_short" = "None yet";
+
+"excluded.more_hint" = "%d total · scroll for %d more";

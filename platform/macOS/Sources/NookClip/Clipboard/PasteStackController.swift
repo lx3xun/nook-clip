@@ -91,6 +91,13 @@ final class PasteStackState {
     /// 用户需要一眼分清「这条贴过了」和「这条还没动」，而指针只能表达「现在到哪」。
     /// 用户用按钮跳着贴（贴第 4 条再回头贴第 2 条）时，指针和完成情况就分家了。
     private(set) var pastedIDs: Set<UUID> = []
+    /// 是否开启「🔒 粘完保留（固定托盘模式）」。
+    ///
+    /// 默认关闭：普通顺序粘贴讲究「贴完就走」，队列空了浮窗自己消失。
+    /// 开启后 `remaining == 0` 也不再自动收起——托盘常驻，用户可以反复挑任意一条
+    /// 重粘（复制一段地址、来回贴几次这种活，重开一次队列是纯浪费）。
+    /// 与 `order` 同属「用户选的模式」，`reset()` 不清它。
+    private(set) var keepOpen = false
 
     // MARK: 派生只读（供胶囊窗与测试读取，不额外存状态）
 
@@ -199,6 +206,45 @@ final class PasteStackState {
     /// 复位出栈方向（新队列起点一律正序，见 `PasteStackController.start(with:)`）
     func setOrder(_ value: PasteStackOrder) { order = value }
 
+    /// 开关「🔒 粘完保留」。
+    ///
+    /// 状态层只负责存这个开关；「关掉时要不要补一次收尾」属于生命周期决策，
+    /// 放在 `PasteStackController.toggleKeepOpen()` 里做。
+    func setKeepOpen(_ value: Bool) {
+        keepOpen = value
+    }
+
+    func toggleKeepOpen() {
+        keepOpen.toggle()
+    }
+
+    /// 列表内拖拽重排：把第 `from` 条挪到第 `to` 条的位置。
+    ///
+    /// **关键不变量：▶ 播放头必须继续跟着「同一条」待粘条目走。**
+    /// 拖拽改的是条目顺序，但用户心里正打算贴的那条没变——若只按老下标搬运
+    /// `currentIndex`，拖一次高亮就会跳到另一条上，⌘V 贴出来的东西也跟着变，
+    /// 是那种「什么都没提示但结果错了」的 bug。所以这里按 id 重新定位。
+    /// 越界或原位一律忽略（返回 false 供调用方决定要不要刷新）。
+    @discardableResult
+    func moveItem(from source: Int, to destination: Int) -> Bool {
+        guard items.indices.contains(source),
+              items.indices.contains(destination),
+              source != destination else { return false }
+        // 先记下当前高亮条的 id：重排之后下标全变了，只有 id 稳定
+        let highlightedID = currentItem?.id
+        let moved = items.remove(at: source)
+        items.insert(moved, at: destination)
+        if let highlightedID, let index = items.firstIndex(where: { $0.id == highlightedID }) {
+            currentIndex = index
+        } else {
+            // 高亮条理论上不可能消失（只是换了位置），兜底退回第一条未贴的
+            currentIndex = firstUnpastedIndex() ?? min(currentIndex, max(items.count - 1, 0))
+        }
+        return true
+    }
+
+    /// 复位状态。`keepOpen` 与 `order` 一样属于「用户选的模式」，跨队列保留——
+    /// 用户开了固定托盘，下一条队列不该悄悄变回粘完就消失。
     func reset() {
         items = []
         currentIndex = 0
@@ -308,8 +354,11 @@ final class PasteStackController {
     /// - 高亮停在更早的条目上：说明用户还没贴完前面的，必须把剪贴板换回高亮
     ///   那条，否则 ⌘V 会跳过还没贴的条目直接贴最新那条。
     func append(_ item: ClipboardItem) {
-        guard isActive, state.isRecording else { return }
-        // 一、先让这一行隐形占位。必须早于 state.append / syncSize：
+        guard isActive else { return }
+        guard state.isRecording else {
+            pause()
+            return
+        }
         //     窗口会随队列变长而长高，行若先画出来再等卡片飞过去，
         //     用户看到的是「凭空多一行 + 一张卡片飞来撞它」，因果是反的。
         pillPanel?.prepareArrival(for: item.id)
@@ -375,7 +424,7 @@ final class PasteStackController {
         let item = state.items[index]
         cancelPendingStop()
         state.setCompleted(false)
-        // 用户主动点的这一行就是这次要贴的：先把高亮挪过去，
+        state.setPaused(false)
         // 失败时（没权限）界面上也能看出他点的是哪条
         state.move(to: index)
         // 真实粘贴：写剪贴板 + 激活目标应用 + 模拟 ⌘V。
@@ -394,6 +443,9 @@ final class PasteStackController {
         state.markPasted(item.id)
         // 列表里每条都被点过 = 这一轮结束。录制模式例外：随时可能有新条目进来
         if !state.isRecording, state.remaining == 0 {
+            // 固定托盘模式：全部贴完也不收起，留在这儿让用户继续挑着重粘。
+            // 剪贴板里此刻就是这条内容，⌘V 自己也能再贴一遍，不用重新装填。
+            guard !state.keepOpen else { return }
             markCompleted()
             return
         }
@@ -417,6 +469,7 @@ final class PasteStackController {
         guard isActive, state.items.indices.contains(index) else { return }
         cancelPendingStop()
         state.setCompleted(false)
+        state.setPaused(false)
         state.move(to: index)
         loadCurrentItemToPasteboard()
     }
@@ -429,15 +482,20 @@ final class PasteStackController {
     /// 进入这里就说明当前条已经被原生 ⌘V 贴出去了（监听命中后才排队 150ms 调用），
     /// 所以先把当前条记为已贴，再移动指针——列表里的对勾由此而来。
     func advance() {
-        guard isActive, !state.isCompleted, !state.items.isEmpty else { return }
+        guard isActive, !state.isCompleted, !state.isPaused, !state.items.isEmpty else { return }
         if let current = state.currentItem {
             state.markPasted(current.id)
         }
-        // 找下一条「还没贴」的：用户可能已经用按钮把后面几条贴过了，
         // 机械 +1 会踩在已打勾的行上，高亮就失去意义
         guard let next = state.nextUnpastedIndex(after: state.currentIndex) else {
             // 录制模式没有「队列走完」的概念：新条目会继续追加，停在原处即可
             guard !state.isRecording else { return }
+            // 固定托盘模式同理：全部贴完也留着，用户还要反复重粘。
+            //
+            // 这里**刻意什么都不做**：若顺手「清掉对勾重开一轮」，用户只是多按了
+            // 一次 ⌘V，⌘V 就会突然贴出第一条而不是刚才那条——手还在键上时最危险。
+            // 想再来一遍，点某行的重粘、或按 ⌥1~⌥9 挑着贴，动作是明确的。
+            guard !state.keepOpen else { return }
             markCompleted()
             return
         }
@@ -470,6 +528,29 @@ final class PasteStackController {
         teardownRuntime()
         isActive = false
         state.reset()
+    }
+
+    /// 切换「🔒 粘完保留」。
+    ///
+    /// 打开时若队列已经全贴完（正处于「✓ 已完成」等待淡出），要立刻撤销那次
+    /// 自动退出——用户就是在说「别走」，再把浮窗收掉就成了点了按钮没反应。
+    /// 关掉时反过来：已经贴完的话补一次收尾，否则会永远挂着一个本该消失的浮窗。
+    func toggleKeepOpen() {
+        guard isActive else { return }
+        state.toggleKeepOpen()
+        guard !state.isRecording, state.remaining == 0 else { return }
+        if state.keepOpen {
+            cancelPendingStop()
+            state.setCompleted(false)
+        } else {
+            markCompleted()
+        }
+    }
+
+    /// 列表内拖拽重排（浮窗行视图回调）。
+    func moveItem(from source: Int, to destination: Int) {
+        guard isActive, state.moveItem(from: source, to: destination) else { return }
+        loadCurrentItemToPasteboard()
     }
 
     // MARK: - 内部：装填与完成
@@ -515,6 +596,10 @@ final class PasteStackController {
         // 「顺序乱了 / 漏了一条」。`PasteService.isSyntheticPasteEvent` 用事件
         // userData 标记 + 极短时间窗双重识别。
         guard globalMonitor == nil, localMonitor == nil else { return }
+        HotKeyManager.shared.onOrdinalPastePress = { [weak self] index in
+            self?.pasteItem(at: index)
+        }
+        HotKeyManager.shared.registerOrdinalPasteHotKeys()
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let isPaste = Self.isPasteShortcut(event)
             let isEscape = Self.isEscapeKey(event)
@@ -546,6 +631,18 @@ final class PasteStackController {
                 // 真吞掉：队列已经结束，这个 Esc 不该再顺带关掉面板或清掉筛选条件
                 return handled ? nil : event
             }
+            // ⌥1~⌥9：直接贴对应序号的条目，并且**必须吞掉按键**。
+            // 不吞的话这个组合还会继续落到目标应用里，在输入框打出 ¡ ™ £ 之类的
+            // 特殊符号——用户只想贴一条，结果多了一串垃圾字符。
+            if let ordinalIndex = Self.ordinalPasteIndex(event) {
+                var handled = false
+                MainActor.assumeIsolated {
+                    guard let self, self.isActive else { return }
+                    self.pasteItem(at: ordinalIndex)
+                    handled = true
+                }
+                return handled ? nil : event
+            }
             if Self.isPasteShortcut(event), !PasteService.isSyntheticPasteEvent(event) {
                 MainActor.assumeIsolated {
                     self?.scheduleAdvanceAfterPaste()
@@ -557,6 +654,8 @@ final class PasteStackController {
     }
 
     private func removeEventMonitors() {
+        HotKeyManager.shared.unregisterOrdinalPasteHotKeys()
+        HotKeyManager.shared.onOrdinalPastePress = nil
         if let globalMonitor {
             NSEvent.removeMonitor(globalMonitor)
         }
@@ -575,8 +674,7 @@ final class PasteStackController {
     /// `PasteService.paste` 自己在 +120ms 才发出 ⌘V，若我们在那之前换掉
     /// 剪贴板，目标应用读到的就是下一条——点第 3 条贴出第 1 条的错位。
     private func scheduleAdvance(after delay: TimeInterval) {
-        guard isActive, !state.isCompleted else { return }
-        // 连按 ⌘V 时只保留最后一次调度：否则窗口内按两下会连推两条
+        guard isActive, !state.isCompleted, !state.isPaused else { return }
         pendingAdvance?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
@@ -602,6 +700,32 @@ final class PasteStackController {
         }
         pendingAdvance = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// ⌥1 ~ ⌥9 判定：按序号直接贴出队列第 1~9 条，返回 0 基下标；不匹配返回 nil。
+    ///
+    /// 为什么用 ⌥（Option）而不是数字键本体：队列活跃期间用户还在目标应用里打字，
+    /// 裸数字必须原样落进去，绝不能吞。⌥+数字在 macOS 上本来就是打特殊符号
+    /// （¡ ™ £ …），用户几乎不会在正常输入里用到，代价最小。
+    ///
+    /// 只认主键盘区（ANSI）的 1–9：小键盘数字有独立的 keyCode，而笔记本用户
+    /// 基本只用主键盘区，多接一套只会让判定表变长。
+    nonisolated static func ordinalPasteIndex(_ event: NSEvent) -> Int? {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // 严格等于 ⌥：⌥⇧1 / ⌘⌥1 是别的东西（系统输入法、第三方快捷键）
+        guard flags == .option else { return nil }
+        switch Int(event.keyCode) {
+        case kVK_ANSI_1: return 0
+        case kVK_ANSI_2: return 1
+        case kVK_ANSI_3: return 2
+        case kVK_ANSI_4: return 3
+        case kVK_ANSI_5: return 4
+        case kVK_ANSI_6: return 5
+        case kVK_ANSI_7: return 6
+        case kVK_ANSI_8: return 7
+        case kVK_ANSI_9: return 8
+        default: return nil
+        }
     }
 
     /// ⌘V 判定：只认「⌘ + V」这一种形态（⌘⇧V / ⌘⌥V 是系统或第三方粘贴快捷键，
@@ -647,6 +771,10 @@ final class PasteStackController {
         panel.onPasteItem = { [weak self] index in self?.pasteItem(at: index) }
         panel.onJumpToItem = { [weak self] index in self?.jumpToItem(at: index) }
         panel.onPasteHighlighted = { [weak self] in self?.pasteHighlightedItem() }
+        panel.onToggleKeepOpen = { [weak self] in self?.toggleKeepOpen() }
+        panel.onMoveItem = { [weak self] source, destination in
+            self?.moveItem(from: source, to: destination)
+        }
         pillPanel = panel
         return panel
     }

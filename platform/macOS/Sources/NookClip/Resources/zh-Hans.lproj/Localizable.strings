@@ -1,6 +1,8 @@
 /* Menu */
 "menu.open" = "打开 NookClip";
 "menu.settings" = "设置…";
+"menu.pinned_unlock" = "取消点击穿透";
+"menu.pinned_close" = "关闭屏幕贴条";
 "menu.quit" = "退出";
 "menu.check_updates" = "检查更新…";
 
@@ -297,6 +299,7 @@
 "hints.category_reverse" = "反向切换分类";
 "hints.multi" = "多选";
 "hints.multiselect_kbd" = "⌘点";
+"hints.drag_multi" = "鼠标拖动多选";
 "hints.paste_plain" = "纯文本粘贴";
 "hints.paste_keep" = "粘贴且保持面板";
 "hints.time_jump" = "定位时间分组";
@@ -468,7 +471,7 @@
 "common.cancel" = "取消";
 
 /* Settings · Privacy (US1) */
-"settings.tab.privacy" = "隐私";
+"settings.tab.privacy" = "脱敏";
 /* 脱敏规则 */
 "scrub.rule.api_keys" = "API 密钥";
 "scrub.rule.private_key" = "私钥文件";
@@ -532,6 +535,11 @@
 "scrub.stack.order_fifo" = "顺序";
 "scrub.stack.order_lifo" = "倒序";
 "scrub.stack.paused" = "已暂停";
+"scrub.stack.keep_open_title" = "粘完保留";
+"scrub.stack.keep_open_hint" = "开启后全部贴完也不关闭，可反复挑着贴";
+"scrub.stack.repaste" = "重粘";
+"scrub.stack.move_hint" = "按住上下拖拽可调整顺序";
+"scrub.stack.ordinal_hint" = "点行跳转 · 按 ⌥1~⌥9 直接贴对应序号";
 /* 设置 · 自定义规则 */
 "scrub.custom.title" = "自定义脱敏规则";
 "scrub.custom.add" = "新增规则";
@@ -557,7 +565,6 @@
 "scrub.footer.privacy" = "映射表只驻留在内存，不写入数据库和日志；闲置超时后自动销毁。";
 /* 屏幕置顶贴条 */
 "pin.action.single_only" = "请先选中一条内容";
-"pin.limit_reached" = "最多同时钉住 %@ 条";
 
 "menu.paste_stack_record" = "录制顺序粘贴";
 "scrub.vault.ttl_5" = "5 分钟";
@@ -576,5 +583,45 @@
 "pin.save_to_history" = "保存回历史";
 "pin.saved_hint" = "已保存";
 "pin.saved_source" = "置顶贴条";
-"pin.locked_hint" = "按 ⌥⌘P 恢复点击";
+"pin.locked_hint" = "已锁定：点右上角小锁，或按 ⌘⌥P 恢复点击";
+"pin.edit" = "编辑";
+"pin.finish_editing" = "完成编辑";
 "pin.empty_text" = "（空）";
+
+/* Settings - 通用状态词与设置页骨架（方案 C） */
+"state.on" = "已开启";
+"state.off" = "已关闭";
+"settings.fold.expanded" = "已展开";
+"settings.fold.collapsed" = "已收起";
+"settings.subtitle.general" = "启动方式、外观，以及 NookClip 自身的更新。";
+"settings.subtitle.appearance" = "主面板的配色、材质与列表样式。";
+"settings.subtitle.capture" = "什么内容会被记下来，以及哪些应用不该被记录。";
+"settings.subtitle.history" = "历史留存多久、占用多少磁盘，以及多设备如何同步。";
+"settings.subtitle.paste" = "唤起快捷键、自动粘贴权限，与常用键位速查。";
+"settings.subtitle.privacy" = "哪些内容会被自动识别并遮罩，再留存或同步。";
+
+/* Settings - 现状带单元格标签 */
+"settings.status.records" = "记录";
+"settings.status.favorites" = "收藏";
+"settings.status.sync" = "同步";
+"settings.status.retention" = "保留";
+"settings.status.disk" = "磁盘上限";
+"settings.status.hotkey" = "唤起键";
+"settings.status.accessibility" = "自动粘贴";
+"settings.status.scrub" = "脱敏规则";
+"settings.status.updates" = "自动检查";
+"settings.status.version" = "版本";
+
+"settings.status.appearance" = "外观";
+
+"settings.status.sensitive" = "敏感内容";
+"settings.status.sensitive_clear" = "剪贴板清空";
+"settings.status.excluded" = "排除应用";
+"settings.status.trusted" = "已授权";
+"settings.status.untrusted" = "未授权";
+"settings.hotkey.cheatsheet" = "键位速查";
+"settings.hotkey.cheatsheet_sum" = "导航 · 粘贴 · 管理 · 面板";
+
+"scrub.custom.empty_short" = "暂无规则";
+
+"excluded.more_hint" = "共 %d 个 · 滚动查看其余 %d 个";

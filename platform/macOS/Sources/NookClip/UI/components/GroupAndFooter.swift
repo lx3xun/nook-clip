@@ -68,7 +68,7 @@ struct GroupHeaderView: View {
 
     /// 是否提供分组跳转入口（分组多于一个时由 MainView 注入）
     private var hasJumpMenu: Bool {
-        guard let allGroups, let onSelectGroup else { return false }
+        guard let allGroups, onSelectGroup != nil else { return false }
         return !allGroups.isEmpty
     }
 

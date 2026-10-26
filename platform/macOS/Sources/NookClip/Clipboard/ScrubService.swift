@@ -180,7 +180,8 @@ final class ScrubService {
 
     /// UserDefaults 键（与 `UserDefaultsKey` 分开：这是脱敏专属配置域）
     enum DefaultsKey {
-        static let enabledRules = "scrub.enabledBuiltinRules"
+        static let disabledRules = "scrub.disabledBuiltinRules"
+        static let legacyEnabledRules = "scrub.enabledBuiltinRules"
         static let customRules = "scrub.customRules"
         static let sessionTTL = "scrub.sessionTtlSeconds"
         static let nlpEntities = "scrub.nlpEntitiesEnabled"
@@ -224,7 +225,10 @@ final class ScrubService {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.disabledRuleIDs = Set(defaults.stringArray(forKey: DefaultsKey.enabledRules) ?? [])
+        let persistedDisabled = defaults.stringArray(forKey: DefaultsKey.disabledRules)
+            ?? defaults.stringArray(forKey: DefaultsKey.legacyEnabledRules)
+            ?? []
+        self.disabledRuleIDs = Set(persistedDisabled)
         self.sessionTTLSeconds = defaults.object(forKey: DefaultsKey.sessionTTL) as? Int
             ?? Self.defaultSessionTTLSeconds
         self.nlpEntitiesEnabled = defaults.object(forKey: DefaultsKey.nlpEntities) as? Bool ?? true
@@ -277,14 +281,14 @@ final class ScrubService {
     }
 
     private func persistDisabledRules() {
-        defaults.set(Array(disabledRuleIDs), forKey: DefaultsKey.enabledRules)
+        defaults.set(Array(disabledRuleIDs), forKey: DefaultsKey.disabledRules)
     }
 
-    /// 保存自定义规则（空 pattern 的草稿不入库，避免误伤全文）
+    /// 保存自定义规则（空 pattern 的草稿不入库，但已禁用的有效规则必须保留）
     func saveCustomRules(_ rules: [CustomScrubRule]) {
-        customRules = rules
-        let encodable = rules.filter { $0.isRunnable }
-        if let data = try? JSONEncoder().encode(encodable) {
+        let validRules = rules.filter { !$0.pattern.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        customRules = validRules
+        if let data = try? JSONEncoder().encode(validRules) {
             defaults.set(data, forKey: DefaultsKey.customRules)
         }
     }

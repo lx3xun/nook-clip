@@ -61,8 +61,14 @@ final class AppDelegateAndMenuBarTests: XCTestCase {
         XCTAssertNotNil(settingsWindow, "首次发送 .openSettings 时设置窗口必须立即创建并存在")
         XCTAssertTrue(settingsWindow?.isVisible == true, "设置窗口首次展示必须立即处于可见状态")
         XCTAssertNotNil(settingsWindow?.contentViewController, "展示期间应持有 SettingsView 宿主视图控制器")
-        XCTAssertEqual(settingsWindow?.contentView?.frame.width, 580, "设置窗口内容宽度必须为 580")
-        XCTAssertEqual(settingsWindow?.contentView?.frame.height, 520, "设置窗口内容高度必须为 520")
+        // 设置页改为方案 C 的外壳（侧栏 + 画布）后，580×520 装不下折叠分组与现状带，
+        // 窗口放宽到 900×720 并允许缩放（最小 760×560）
+        XCTAssertEqual(settingsWindow?.contentView?.frame.width, 900, "设置窗口内容宽度必须为 900")
+        XCTAssertEqual(settingsWindow?.contentView?.frame.height, 720, "设置窗口内容高度必须为 720")
+        XCTAssertTrue(
+            settingsWindow?.styleMask.contains(.resizable) == true,
+            "设置窗口应允许缩放，否则内容被固定高度裁切"
+        )
         XCTAssertFalse(settingsWindow?.isReleasedWhenClosed ?? true, "设置窗口关闭时不应被自动释放")
         XCTAssertEqual(settingsWindow?.level, .floating, "作为 LSUIElement 应用的设置窗口应为 floating 层级以防点击外部被覆盖消失")
 
@@ -99,7 +105,8 @@ final class AppDelegateAndMenuBarTests: XCTestCase {
             .quickPopoverPreserveWindow,
             .languageDidChange,
             .appearanceDidChange,
-            .restoreKeyboardFocus
+            .restoreKeyboardFocus,
+            .startPasteStackRecording
         ]
 
         let rawNames = names.map(\.rawValue)

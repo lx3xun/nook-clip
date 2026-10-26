@@ -26,6 +26,7 @@ struct MenuBarView: View {
             // 右侧露出真实全局键位：这个入口不只在菜单里，⌃⌥V 在任何应用里都能触发
             .modifier(MenuShortcut(shortcut: HotKeyShortcut.pasteStackRecordingShortcut))
             Divider()
+            pinnedNotesSection
             Button("\(L10n.tr("menu.check_updates")) (v\(AppBranding.appVersion))") {
                 // Sparkle 应用内检查并安装更新（替代旧版跳转 GitHub Releases 页）
                 UpdateService.shared.checkForUpdates()
@@ -37,6 +38,25 @@ struct MenuBarView: View {
         .nookClipLocalized()
         .onReceive(NotificationCenter.default.publisher(for: .hotKeyDidChange)) { _ in
             shortcut = HotKeyManager.shared.currentShortcut
+        }
+    }
+
+    /// 贴条管理：贴条一旦被压住、被穿透或落在屏幕角落，
+    /// 用户手上得有一个能一次收干净的入口，不必满屏幕去找那张纸。
+    /// 只在真的有贴条时才出现，菜单不会因为一个用不上的功能长期占位。
+    @ViewBuilder
+    private var pinnedNotesSection: some View {
+        let manager = PinnedWindowManager.shared
+        if manager.notes.contains(where: \.isClickThrough) {
+            Button(L10n.tr("menu.pinned_unlock")) {
+                manager.restoreAllClickThrough()
+            }
+        }
+        if manager.pinnedCount > 0 {
+            Button(L10n.tr("menu.pinned_close")) {
+                manager.closeAll()
+            }
+            Divider()
         }
     }
 }

@@ -5,18 +5,19 @@ import SwiftUI
 /// 批量模式底部工具栏：计数 + 操作提示 + 合并粘贴/顺序粘贴/标签/删除。
 ///
 /// 布局约束（踩过的坑）：列表列只有 `NookClip.widthListCol`（310pt），减去左右
-/// 各 12pt 内边距后仅 286pt 可用。若四个动作都做成「文字 + 键帽」的等宽按钮，
-/// 总宽会超出口径，SwiftUI 会把每个 `Text` 压成「合…」「…」「…」——
-/// 四个按钮全部失去可读性（真机截图确认过）。
+/// 各 12pt 内边距后仅 286pt 可用。
 ///
-/// 因此定为「一主三辅」：
-/// - 主操作（合并粘贴）保留文字 + 键帽，独占弹性宽度，一眼可见；
-/// - 次要操作（顺序粘贴 / 标签 / 删除）用 28pt 图标按钮，全称与键位靠悬停提示
-///   （`.help`）渐进披露 —— 与系统工具栏的图标按钮语义一致；
-/// - 上行提示只保留「扩展选择 / 退出」两条通用操作，不再往里加键位说明，
-///   否则两行文字会互相抢宽度，重蹈按钮被截断的覆辙。
+/// 这里刻意**不让任何内容随鼠标改变尺寸**。前面试过两版「悬停才展开完整标签」的写法，
+/// 功能上能把四个名字都显示出来，但代价是按钮宽度随指针移动而伸缩——鼠标扫过工具栏时
+/// 整排按钮都在挪位置，想点的那个会在指针底下换地方，非常烦躁。
 ///
-/// 图标按钮都保留了 `.accessibilityLabel`，VoiceOver 读得到完整动作名。
+/// 现在改为「常量布局」：
+/// - 四个动作全部常驻文字，谁都不用藏、谁都不用等悬停；
+/// - 主操作「合并粘贴」是唯一的填色块（图标 + 名称 + ⏎ 键帽），占满剩余宽度；
+/// - 三个次要动作是纯文字按钮，只有悬停时才浮出底色——macOS 工具栏的常见做法，
+///   既保持位置稳定，又比一排蓝块安静；
+/// - 次要动作的键帽（⌥⏎ / ⌘L / ⌘⌫）放进系统提示，不占行内宽度；
+/// - 宽度不足时只降字号（`minimumScaleFactor`），绝不省略成「合…」，位置也绝不动。
 struct BatchBar: View {
     /// 勾选条目数
     let selectedCount: Int
@@ -28,6 +29,9 @@ struct BatchBar: View {
     let onDelete: () -> Void
     /// 打开批量标签编辑器（⌘L）
     var onEditTags: (() -> Void)? = nil
+
+    /// 主按钮悬停态：只影响底色，不影响尺寸
+    @State private var isMergeHovered = false
 
     var body: some View {
         VStack(spacing: 4) {
@@ -49,31 +53,28 @@ struct BatchBar: View {
                     .minimumScaleFactor(0.85)
                 Spacer(minLength: 0)
             }
-            HStack(spacing: 6) {
-                Spacer(minLength: 0)
-                // 主操作：唯一带文字的按钮，占据剩余宽度
-                batchButton(text: L10n.tr("batch.merge_paste"), kbd: "⏎", role: .primary) {
-                    onMergePaste()
-                }
+            HStack(spacing: 4) {
+                // 主操作吃满剩余宽度：宽度只由列宽决定，悬停不会改变它
+                mergeButton
                 if let onStartPasteStack {
-                    iconButton(
-                        icon: NookClipIcon.Action.pasteStack,
-                        help: L10n.tr("batch.paste_stack_help"),
+                    BatchActionButton(
+                        title: L10n.tr("batch.paste_stack"),
+                        shortcut: "⌥⏎",
                         role: .primary,
                         action: onStartPasteStack
                     )
                 }
                 if let onEditTags {
-                    iconButton(
-                        icon: NookClipIcon.Action.tag,
-                        help: L10n.tr("tag.action"),
+                    BatchActionButton(
+                        title: L10n.tr("tag.action"),
+                        shortcut: "⌘L",
                         role: .primary,
                         action: onEditTags
                     )
                 }
-                iconButton(
-                    icon: NookClipIcon.Action.delete,
-                    help: L10n.tr("batch.delete"),
+                BatchActionButton(
+                    title: L10n.tr("batch.delete"),
+                    shortcut: "⌘⌫",
                     role: .danger,
                     action: onDelete
                 )
@@ -87,60 +88,80 @@ struct BatchBar: View {
 
     enum ButtonRole { case primary, danger }
 
-    /// 主操作按钮：文字 + 键帽，弹性宽度（`layoutPriority` 保证不被图标按钮挤压）
-    func batchButton(text: String, kbd: String, role: ButtonRole, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    /// 主操作「合并粘贴」：图标 + 名称 + ⏎ 键帽，吃掉整行剩余宽度
+    private var mergeButton: some View {
+        Button(action: onMergePaste) {
             HStack(spacing: 5) {
-                Text(text)
+                Image(systemName: NookClipIcon.Action.merge)
+                    .font(.system(size: NookClipIconSize.compactMedium, weight: .medium))
+                Text(L10n.tr("batch.merge_paste"))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                KbdView(text: kbd, fontSize: 10)
+                    .minimumScaleFactor(0.7)
+                KbdView(text: "⏎", fontSize: 9)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .font(.nookClipSubheadMedium)
-            .foregroundStyle(role == .primary ? NookClip.accent : NookClip.colorDanger)
-            .padding(.horizontal, 10)
+            .foregroundStyle(NookClip.accent)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
             .frame(height: 24)
-            .background { chipBackground(role: role) }
+            .background {
+                RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                    .fill(isMergeHovered ? NookClip.bgRowSelected : NookClip.bgChipSelected)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                            .strokeBorder(NookClip.borderRowSelectedSubtle, lineWidth: 0.5)
+                    }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .layoutPriority(1)
+        .onHover { hovering in
+            withAnimation(NookClip.animHover) { isMergeHovered = hovering }
+        }
+        .accessibilityLabel(L10n.tr("batch.merge_paste"))
     }
+}
 
-    /// 次要操作按钮：28×24 图标按钮，全称与键位走悬停提示
-    func iconButton(
-        icon: String,
-        help: String,
-        role: ButtonRole,
-        action: @escaping () -> Void
-    ) -> some View {
+/// 次要操作按钮（顺序粘贴 / 标签 / 删除）：常驻文字，宽度由文字决定，永不伸缩。
+///
+/// 刻意做成独立视图：`@State isHovered` 必须各自独立，否则悬停一个会把全排一起点亮。
+/// 键帽放进系统提示（`.help`），不占行内宽度——三个键帽并排要多吃 60 多 pt，
+/// 英文环境会直接把 286pt 撑爆。
+struct BatchActionButton: View {
+    let title: String
+    let shortcut: String
+    let role: BatchBar.ButtonRole
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: NookClipIconSize.compactMedium, weight: .medium))
+            Text(title)
+                .font(.nookClipMeta)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .foregroundStyle(role == .primary ? NookClip.accent : NookClip.colorDanger)
-                .frame(width: 28, height: 24)
-                .background { chipBackground(role: role) }
+                .padding(.horizontal, 6)
+                .frame(height: 24)
+                .background {
+                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                        .fill(
+                            isHovered
+                                ? (role == .primary ? NookClip.bgRowSelected : NookClip.bgDangerHover)
+                                : Color.clear
+                        )
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .help(help)
-        .accessibilityLabel(help)
-    }
-
-    @ViewBuilder
-    private func chipBackground(role: ButtonRole) -> some View {
-        // 主操作 = 系统蓝浅底强调；危险操作保持微底警示
-        RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
-            .fill(role == .primary ? NookClip.bgChipSelected : NookClip.bgDangerSubtle)
-            .overlay {
-                RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
-                    .strokeBorder(
-                        role == .primary ? NookClip.borderRowSelectedSubtle : NookClip.borderDangerHover,
-                        lineWidth: 0.5
-                    )
-            }
+        .onHover { hovering in
+            withAnimation(NookClip.animHover) { isHovered = hovering }
+        }
+        .help("\(title)（\(shortcut)）")
+        .accessibilityLabel(title)
     }
 }

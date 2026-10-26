@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NookClip · 核心功能动态演示</title>
+<style>
+  :root{
+    --bg:#0F172A; --card:#1B2334; --line:rgba(255,255,255,.10);
+    --t1:#F5F5F7; --t2:#A1A1A6; --t3:#6E6E73;
+    --accent:#388BFD;
+    --font:-apple-system,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(120% 70% at 50% 0%,#1b2438 0%,var(--bg) 55%);
+    color:var(--t1);font-family:var(--font);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:64px 28px 96px}
+  header{margin-bottom:44px}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  h1{font-size:38px;line-height:1.24;letter-spacing:-.02em;margin:12px 0 12px;font-weight:700}
+  .sub{font-size:15px;line-height:1.75;color:var(--t2);max-width:70ch;margin:0}
+  .grid{display:grid;gap:26px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+    box-shadow:0 18px 48px rgba(0,0,0,.42)}
+  .shot{display:block;width:100%;height:auto;background:#0b0f18;cursor:zoom-in;transition:filter .2s}
+  .shot:hover{filter:brightness(1.04)}
+  .lb{position:fixed;inset:0;background:rgba(8,11,18,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+  .lb[hidden]{display:none!important}
+  .lb-video{max-width:94vw;max-height:88vh;border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.75);cursor:default}
+  .lb-hint{margin-top:12px;font-size:12px;color:var(--t2);cursor:pointer}
+  .meta{padding:22px 24px 24px}
+  .k{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .num{font-family:var(--mono);font-size:11px;color:var(--t3)}
+  .k h2{font-size:19px;margin:0;font-weight:650;letter-spacing:-.01em}
+  .kb{display:inline-flex;gap:3px}
+  .kb span{height:20px;min-width:20px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;
+    border-radius:5px;background:rgba(255,255,255,.10);border:.5px solid rgba(255,255,255,.14);
+    font-family:var(--mono);font-size:11.5px;color:var(--t1)}
+  .meta p{margin:0;font-size:13.5px;line-height:1.78;color:var(--t2)}
+  .meta p+p{margin-top:8px}
+  .meta b{color:var(--t1);font-weight:600}
+  .tags{margin-top:12px}
+  .tag{display:inline-block;font-size:11px;padding:2.5px 9px;border-radius:99px;margin:0 6px 0 0;
+    background:rgba(56,139,253,.14);color:#79b8ff;border:.5px solid rgba(56,139,253,.28)}
+  .tag.w{background:rgba(255,159,10,.13);color:#ffbf5c;border-color:rgba(255,159,10,.28)}
+  .tag.g{background:rgba(48,209,88,.12);color:#6ee787;border-color:rgba(48,209,88,.26)}
+  footer{margin-top:52px;font-size:12.5px;color:var(--t3);line-height:1.85}
+  code{font-family:var(--mono);font-size:12px;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">NookClip · 核心功能演示</div>
+    <h1>五个让剪贴板更顺手的高效动作</h1>
+    <p class="sub">下面动画按真实界面的尺寸与配色复刻：多选顺序粘贴、粘贴前语义脱敏、屏幕置顶贴条、类型与标签筛选、离线图片文字识别与搜索。每段都标了快捷键。</p>
+
+  <div class="grid">
+    <section class="card">
+      <video class="shot" src="paste-stack.mp4" poster="poster-paste-stack.jpg"
+             autoplay loop muted playsinline preload="metadata"></video>
+      <div class="meta">
+        <div class="k"><span class="num">01</span><h2>顺序粘贴</h2>
+          <span class="kb"><span>⌥</span><span>⏎</span></span></div>
+        <p>一次框选多条，按复制顺序依次贴进任意应用。浮窗高亮“下一条”：<b>⏎ 贴出、点行跳转、Esc 结束</b>，全程不用来回切换窗口。</p>
+        <div class="tags"><span class="tag">多选</span><span class="tag">按序贴完</span><span class="tag">可跳转</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <video class="shot" src="scrub-paste.mp4" poster="poster-scrub-paste.jpg"
+             autoplay loop muted playsinline preload="metadata"></video>
+      <div class="meta">
+        <div class="k"><span class="num">02</span><h2>语义脱敏粘贴</h2>
+          <span class="kb"><span>⌃</span><span>⏎</span></span></div>
+        <p>发给别人的配置里总有密钥和手机号。NookClip 认出 <b>19 类敏感信息</b>并替换成 <span class="tag w">占位符</span>，明文<b>从不写进系统剪贴板</b>。</p>
+        <p>映射表只留在内存，闲置 30 分钟自动清除；要真实值时按 ⌃⇧⏎ 还原。</p>
+        <div class="tags"><span class="tag g">安全红线</span><span class="tag">19 类规则</span><span class="tag">可还原</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <video class="shot" src="pinned-note.mp4" poster="poster-pinned-note.jpg"
+             autoplay loop muted playsinline preload="metadata"></video>
+      <div class="meta">
+        <div class="k"><span class="num">03</span><h2>屏幕置顶贴条</h2>
+          <span class="kb"><span>⌘</span><span>P</span></span></div>
+        <p>把一段文字钉成浮在所有窗口之上的卡片，<b>跨桌面常驻</b>。浓度可调（⌥+滚轮，20%–100%），能折叠成一行，也能<b>点击穿透</b>，让鼠标直接点到底下的内容。</p>
+        <p>穿透后有三条路回来：⌥⌘P、卡片右上角小锁、菜单栏“全部取消点击穿透”。</p>
+        <div class="tags"><span class="tag">跨桌面</span><span class="tag">浓度可调</span><span class="tag">点击穿透</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <video class="shot" src="filter-tags.mp4" poster="poster-filter-tags.jpg"
+             autoplay loop muted playsinline preload="metadata"></video>
+      <div class="meta">
+        <div class="k"><span class="num">04</span><h2>类型与标签筛选</h2>
+          <span class="kb"><span>⌘</span><span>↓</span></span></div>
+        <p>按 <code>⌘↓</code> 展开 8 个固定槽位类型网格与标签流，点选即刻以搜索框内嵌胶囊生效。支持 <b>⌘L</b> 快速为条目打标，按 <b>⌫</b> 或 <b>Esc</b> 逐层优雅复位。</p>
+        <div class="tags"><span class="tag">8 槽位网格</span><span class="tag">标签横切</span><span class="tag">⌫ 逐层复位</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <video class="shot" src="ocr-search.mp4" poster="poster-ocr-search.jpg"
+             autoplay loop muted playsinline preload="metadata"></video>
+      <div class="meta">
+        <div class="k"><span class="num">05</span><h2>离线图片 OCR 识别与搜索</h2>
+          <span class="kb"><span>⏎</span></span></div>
+        <p>遇到报错截图点一下「识别文字」，系统自带 Vision 离线引擎毫秒级提取文本并<b>自动写入 SQLite FTS5 全文索引</b>。之后直接在搜索框敲报错关键词就能搜出截图并高亮命中。</p>
+        <div class="tags"><span class="tag g">离线 Vision</span><span class="tag">全文搜图</span><span class="tag">一键复制</span></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    每个功能提供 MP4（1240×860 / 30fps）、GIF（820px / 10fps）与封面图三种格式；另有 <code>all-three.mp4</code> 是按顺序拼接的三合一版本（约 27 秒）。<br>
+    界面按 <code>NookClipTheme.swift</code> 的主题令牌与真实控件尺寸复刻，不是真机录屏。
+  </footer>
+</div>
+
+<div class="lb" id="lightbox" hidden aria-hidden="true" role="dialog">
+  <video class="lb-video" id="lbVideo" controls autoplay loop playsinline></video>
+  <div class="lb-hint">点击空白处或按 Esc 关闭</div>
+</div>
+
+<script>
+  const lb = document.getElementById('lightbox');
+  const lbVideo = document.getElementById('lbVideo');
+  document.querySelectorAll('video.shot').forEach(v => {
+    v.addEventListener('click', () => {
+      lbVideo.src = v.src;
+      lbVideo.poster = v.poster || '';
+      lb.hidden = false;
+      lbVideo.play().catch(() => {});
+    });
+  });
+  function closeLb() {
+    if (lb.hidden) return;
+    lb.hidden = true;
+    lbVideo.pause();
+    lbVideo.removeAttribute('src');
+  }
+  lb.addEventListener('click', e => { if (e.target !== lbVideo) closeLb(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); });
+</script>
+</body>
+</html>

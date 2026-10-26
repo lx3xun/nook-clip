@@ -54,6 +54,25 @@ struct ListSelectionState<Row: Identifiable> where Row.ID: Hashable {
         }
     }
 
+    /// 鼠标拖拽多选：把选区改成「锚点行 … 终点行」的整段连续区间。
+    /// `addingTo` 非空时与之合并（⇧ 拖拽在既有选区上追加）；空集为覆盖式选区。
+    /// 每次拖拽移动都整段重算而非累加插入，因此把指针往回拖能自然收窄选区。
+    mutating func selectRange(
+        from anchorID: Row.ID,
+        to targetID: Row.ID,
+        rows: [Row],
+        addingTo baseline: Set<Row.ID> = []
+    ) {
+        guard let anchor = rows.firstIndex(where: { $0.id == anchorID }),
+              let target = rows.firstIndex(where: { $0.id == targetID }) else { return }
+        var next = baseline
+        for idx in min(anchor, target)...max(anchor, target) {
+            next.insert(rows[idx].id)
+        }
+        selectionIDs = next
+        selectedID = targetID
+    }
+
     mutating func handleTap(_ item: Row, rows: [Row], shiftHeld: Bool, commandHeld: Bool) {
         if shiftHeld, !commandHeld {
             insertRange(to: item.id, rows: rows)
@@ -586,6 +605,12 @@ final class MainViewListState {
     func insertRange(to targetID: UUID, rows: [ClipboardRowModel]) {
         let activeRows = rows.isEmpty ? flatRows : rows
         selection.insertRange(to: targetID, rows: activeRows)
+    }
+
+    /// 鼠标拖拽多选：把勾选改成「锚点行 … 终点行」整段区间（`addingTo` 为追加基线）
+    func selectRange(from anchorID: UUID, to targetID: UUID, addingTo baseline: Set<UUID> = []) {
+        selectedAppID = nil
+        selection.selectRange(from: anchorID, to: targetID, rows: flatRows, addingTo: baseline)
     }
 
     func handleTap(_ item: ClipboardRowModel, shiftHeld: Bool, commandHeld: Bool) {

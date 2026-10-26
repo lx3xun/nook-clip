@@ -40,31 +40,40 @@ struct HistorySettingsTab: View {
         return isE2EEEnabled && hasPass && syncSensitiveItems
     }
     var body: some View {
-        VStack(spacing: 16) {
-            // 历史记录保留与存储限制
-            SettingsSectionView(title: L10n.tr("settings.history.management")) {
+        SettingsPage(
+            title: L10n.tr("settings.tab.history"),
+            subtitle: L10n.tr("settings.subtitle.history"),
+            status: [
+                (L10n.tr("settings.status.records"), "\(historyStore?.totalCount ?? 0)"),
+                (L10n.tr("settings.status.favorites"), "\(historyStore?.favoriteCount ?? 0)"),
+                (L10n.tr("settings.status.sync"), L10n.stateWord(enableICloudSync)),
+            ]
+        ) {
+            // 1. 历史记录保留与存储限制
+            SettingsFoldGroup(
+                index: 0,
+                title: L10n.tr("settings.history.management"),
+                // 摘要要读起来像「这一组现在的状态」而不是一个标签：
+                // 条数上限 + 磁盘上限，两个都是会变的值，所以都放在这里
+                summary: L10n.tr("clipboard.items_count", HistoryMaxItemsPolicy.clamp(historyMaxItemCount))
+                    + " · " + Self.diskLimitLabel(historyDiskLimitMB)
+            ) {
                 if let store = historyStore {
-                    SettingsRowView(title: L10n.tr("settings.history.stats"), showDivider: true) {
-
+                    SettingsRow(title: L10n.tr("settings.history.stats"), showDivider: true) {
                         HStack(spacing: 8) {
                             statBadge(
                                 icon: NookClipIcon.Status.tray,
-                                text: L10n.tr("clipboard.items_count", store.totalCount),
-                                color: NookClip.accent,
-                                background: NookClip.bgAccentSubtle
+                                text: L10n.tr("clipboard.items_count", store.totalCount)
                             )
 
                             statBadge(
                                 icon: NookClipIcon.Action.favoriteFilled,
-                                text: L10n.tr("settings.history.favorite_count", store.favoriteCount),
-                                color: NookClip.colorFavorite,
-                                background: NookClip.bgFavoriteActive
+                                text: L10n.tr("settings.history.favorite_count", store.favoriteCount)
                             )
                         }
                     }
                 }
-                SettingsRowView(title: L10n.tr("settings.general.history_max_items"), showDivider: true) {
-
+                SettingsRow(title: L10n.tr("settings.general.history_max_items"), showDivider: true) {
                     Picker("", selection: $historyMaxItemCount) {
                         ForEach(HistoryMaxItemsPolicy.presets, id: \.self) { count in
                             Text(L10n.tr("clipboard.items_count", count)).tag(count)
@@ -81,8 +90,7 @@ struct HistorySettingsTab: View {
                     }
                 }
 
-                SettingsRowView(title: L10n.tr("settings.general.disk_limit"), showDivider: true) {
-
+                SettingsRow(title: L10n.tr("settings.general.disk_limit"), showDivider: true) {
                     Picker("", selection: $historyDiskLimitMB) {
                         ForEach(DiskLimitPolicy.presets, id: \.self) { mb in
                             Text(Self.diskLimitLabel(mb)).tag(mb)
@@ -99,11 +107,10 @@ struct HistorySettingsTab: View {
                     }
                 }
 
-                SettingsRowView(
+                SettingsRow(
                     title: L10n.tr("settings.history.clear_unflagged"),
                     subtitle: L10n.tr("settings.history.clear_unflagged_desc")
                 ) {
-
                     Button(role: .destructive) {
                         showClearConfirmation = true
                     } label: {
@@ -113,14 +120,17 @@ struct HistorySettingsTab: View {
                 }
             }
 
-            // iCloud Drive 同步
-            SettingsSectionView(title: L10n.tr("settings.sync.section")) {
-                SettingsRowView(
+            // 2. iCloud 同步
+            SettingsFoldGroup(
+                index: 1,
+                title: L10n.tr("settings.sync.section"),
+                summary: L10n.stateWord(enableICloudSync)
+            ) {
+                SettingsRow(
                     title: L10n.tr("settings.sync.enable"),
                     subtitle: L10n.tr("settings.sync.enable_desc"),
                     showDivider: enableICloudSync
                 ) {
-
                     Toggle("", isOn: $enableICloudSync)
                         .toggleStyle(.nookSwitch)
                         .labelsHidden()
@@ -133,13 +143,14 @@ struct HistorySettingsTab: View {
                             }
                         }
                 }
+
                 if enableICloudSync {
-                    // 1. 同步通道选择：当前只开放 iCloud（本地目录映射 / WebDAV 入口暂时关闭）。
-                    //    只剩一个可选通道时不再渲染下拉菜单（菜单里只有一项没有意义），
-                    //    改为只读展示当前通道；重新放开时把 case 加回
-                    //    CloudSyncMode.userSelectableModes，这里会自动恢复成 Picker。
+                    // 同步通道选择：当前只开放 iCloud（本地目录映射 / WebDAV 入口暂时关闭）。
+                    // 只剩一个可选通道时不再渲染下拉菜单（菜单里只有一项没有意义），
+                    // 改为只读展示当前通道；重新放开时把 case 加回
+                    // CloudSyncMode.userSelectableModes，这里会自动恢复成 Picker。
                     if CloudSyncMode.userSelectableModes.count > 1 {
-                        SettingsRowView(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
+                        SettingsRow(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
                             Picker("", selection: $syncMode) {
                                 ForEach(CloudSyncMode.userSelectableModes) { mode in
                                     Text(Self.syncModeLabel(mode)).tag(mode)
@@ -161,7 +172,7 @@ struct HistorySettingsTab: View {
                             }
                         }
                     } else {
-                        SettingsRowView(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
+                        SettingsRow(title: L10n.tr("settings.sync.mode_label"), showDivider: true) {
                             Text(Self.syncModeLabel(syncMode))
                                 .font(.nookClipBody)
                                 .foregroundStyle(NookClip.textSecondary)
@@ -169,12 +180,12 @@ struct HistorySettingsTab: View {
                         }
                     }
 
-                    // 2. 本地目录映射模式配置（仅本地目录映射需要指定与修改本地路径）。
-                    //    当前版本该通道不在 userSelectableModes 内，syncMode 恒为 iCloud，
-                    //    这段 UI 因此不可达；保留它是为了重新放开时无需重写（引擎侧能力与
-                    //    配置读写都还在），并且仍然参与编译检查，不会悄悄腐坏。
+                    // 本地目录映射模式配置（仅本地目录映射需要指定与修改本地路径）。
+                    // 当前版本该通道不在 userSelectableModes 内，syncMode 恒为 iCloud，
+                    // 这段 UI 因此不可达；保留它是为了重新放开时无需重写（引擎侧能力与
+                    // 配置读写都还在），并且仍然参与编译检查，不会悄悄腐坏。
                     if syncMode == .localDirectory {
-                        SettingsRowView(showDivider: true) {
+                        SettingsRow(showDivider: true) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(L10n.tr("settings.sync.dir_label"))
                                     .font(.nookClipBody)
@@ -193,11 +204,11 @@ struct HistorySettingsTab: View {
                         }
                     }
 
-                    // 3. WebDAV 模式配置（地址 / 用户名 / 口令 / 连通性测试）。
-                    //    与上一段同理：该通道当前不在 userSelectableModes 内，这段不可达，
-                    //    保留是为了重新放开时配置项与测试按钮都还在。
+                    // WebDAV 模式配置（地址 / 用户名 / 口令 / 连通性测试）。
+                    // 与上一段同理：该通道当前不在 userSelectableModes 内，这段不可达，
+                    // 保留是为了重新放开时配置项与测试按钮都还在。
                     if syncMode == .webdav {
-                        SettingsRowView(title: L10n.tr("settings.sync.webdav_url"), showDivider: true) {
+                        SettingsRow(title: L10n.tr("settings.sync.webdav_url"), showDivider: true) {
                             TextField("https://...", text: $webDavUrl)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 260)
@@ -209,7 +220,7 @@ struct HistorySettingsTab: View {
                                     }
                                 }
                         }
-                        SettingsRowView(title: L10n.tr("settings.sync.webdav_username"), showDivider: true) {
+                        SettingsRow(title: L10n.tr("settings.sync.webdav_username"), showDivider: true) {
                             TextField("Username", text: $webDavUsername)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 260)
@@ -218,7 +229,7 @@ struct HistorySettingsTab: View {
                                     historyStore?.syncEngine.webDavUsername = val
                                 }
                         }
-                        SettingsRowView(title: L10n.tr("settings.sync.webdav_password"), showDivider: true) {
+                        SettingsRow(title: L10n.tr("settings.sync.webdav_password"), showDivider: true) {
                             SettingsPasswordField(
                                 placeholder: "Password",
                                 text: $webDavPassword,
@@ -229,7 +240,7 @@ struct HistorySettingsTab: View {
                                 historyStore?.syncEngine.webDavPassword = val
                             }
                         }
-                        SettingsRowView(showDivider: true) {
+                        SettingsRow(showDivider: true) {
                             if let res = webDavTestResult {
                                 Text(res.message)
                                     .font(.nookClipMeta)
@@ -246,8 +257,8 @@ struct HistorySettingsTab: View {
                         }
                     }
 
-                    // 4. 端到端加密 (E2EE)
-                    SettingsRowView(
+                    // 端到端加密 (E2EE)
+                    SettingsRow(
                         title: L10n.tr("settings.sync.e2ee_title"),
                         subtitle: L10n.tr("settings.sync.e2ee_desc"),
                         showDivider: true
@@ -267,7 +278,7 @@ struct HistorySettingsTab: View {
                                     }
                                 }
                             }
-                        }
+                    }
                     .alert(
                         L10n.tr("settings.sync.sensitive_prompt_title"),
                         isPresented: $showSensitiveSyncPrompt
@@ -290,7 +301,7 @@ struct HistorySettingsTab: View {
                     }
 
                     if isE2EEEnabled {
-                        SettingsRowView(
+                        SettingsRow(
                             title: L10n.tr("settings.sync.e2ee_passphrase"),
                             subtitle: L10n.tr("settings.sync.e2ee_passphrase_desc"),
                             showDivider: true
@@ -305,7 +316,7 @@ struct HistorySettingsTab: View {
                             }
                         }
 
-                        SettingsRowView(
+                        SettingsRow(
                             title: L10n.tr("settings.sync.e2ee_reset_title"),
                             subtitle: L10n.tr("settings.sync.e2ee_reset_subtitle"),
                             showDivider: true
@@ -316,7 +327,7 @@ struct HistorySettingsTab: View {
                             .buttonStyle(.bordered)
                             .disabled(isResettingPassphrase || e2eePassphrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        SettingsRowView(
+                        SettingsRow(
                             title: L10n.tr("settings.sync.e2ee_sync_sensitive"),
                             subtitle: L10n.tr("settings.sync.e2ee_sync_sensitive_desc"),
                             showDivider: true
@@ -329,7 +340,7 @@ struct HistorySettingsTab: View {
                                 }
                         }
                     }
-                    SettingsRowView(showDivider: syncStatusMessage != nil) {
+                    SettingsRow(showDivider: syncStatusMessage != nil) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L10n.tr("settings.sync.status_label"))
                                 .font(.nookClipBody)
@@ -351,7 +362,7 @@ struct HistorySettingsTab: View {
                         .disabled(isSyncingManual)
                     }
                     if let message = syncStatusMessage {
-                        SettingsRowView(showDivider: true) {
+                        SettingsRow(showDivider: true) {
                             HStack {
                                 Text(message)
                                     .font(.nookClipMeta)
@@ -363,9 +374,13 @@ struct HistorySettingsTab: View {
                 }
             }
 
-            // 同步规则说明
+            // 3. 同步规则说明（仅在开启同步后出现）
             if enableICloudSync {
-                SettingsSectionView(title: L10n.tr("settings.sync.rules_section")) {
+                SettingsFoldGroup(
+                    index: 2,
+                    title: L10n.tr("settings.sync.rules_section"),
+                    summary: L10n.tr("settings.sync.e2ee_title") + " · " + L10n.stateWord(isE2EEEnabled)
+                ) {
                     VStack(alignment: .leading, spacing: 8) {
                         // 未开启 E2EE 时走的是 iCloud 自带加密（传输与存储均已加密），
                         // 属于正常的默认状态而非警告，因此两种状态都用中性色与锁图标。
@@ -394,9 +409,13 @@ struct HistorySettingsTab: View {
                 }
             }
 
-            // 本地数据备份与恢复
-            SettingsSectionView(title: L10n.tr("settings.general.backup_section")) {
-                SettingsRowView(title: L10n.tr("settings.export.mode_label"), showDivider: true) {
+            // 4. 本地数据备份与恢复
+            SettingsFoldGroup(
+                index: 3,
+                title: L10n.tr("settings.general.backup_section"),
+                summary: Self.exportModeLabel(exportMode)
+            ) {
+                SettingsRow(title: L10n.tr("settings.export.mode_label"), showDivider: true) {
                     Picker("", selection: $exportMode) {
                         Text(L10n.tr("settings.export.mode_exclude")).tag(SensitiveExportMode.exclude)
                         Text(L10n.tr("settings.export.mode_masked")).tag(SensitiveExportMode.masked)
@@ -406,8 +425,7 @@ struct HistorySettingsTab: View {
                     .labelsHidden()
                     .frame(width: 180)
                 }
-                SettingsRowView(title: L10n.tr("settings.general.export_backup"), showDivider: true) {
-
+                SettingsRow(title: L10n.tr("settings.general.export_backup"), showDivider: true) {
                     // T042⑤：按钮文案补三语 L10n（原先硬编码英文）
                     Menu(L10n.tr("settings.general.export_backup")) {
                         Button(L10n.tr("settings.general.export_json")) {
@@ -419,12 +437,12 @@ struct HistorySettingsTab: View {
                     }
                     .disabled((historyStore?.totalCount ?? 0) == 0)
                 }
-                SettingsRowView(title: L10n.tr("settings.general.import_backup"), showDivider: true) {
+                SettingsRow(title: L10n.tr("settings.general.import_backup"), showDivider: true) {
                     Button(L10n.tr("settings.general.import_backup")) {
                         importBackup()
                     }
                 }
-                SettingsRowView(title: L10n.tr("settings.general.restore_demo"), showDivider: backupStatusMessage != nil) {
+                SettingsRow(title: L10n.tr("settings.general.restore_demo"), showDivider: backupStatusMessage != nil) {
                     Button(L10n.tr("settings.general.restore_demo_button")) {
                         historyStore?.seedDemoItemsIfNeeded(force: true)
                         backupStatusMessage = L10n.tr("settings.general.restore_demo_success")
@@ -517,18 +535,21 @@ struct HistorySettingsTab: View {
     }
 
     @ViewBuilder
-    private func statBadge(icon: String, text: String, color: Color, background: Color) -> some View {
+    /// 计数徽标只做「这两个数字是同一行的补充信息」，不着色：
+    /// 设置页里唯一的颜色留给真正在变化的那一个数据，其余一律中性
+    private func statBadge(icon: String, text: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: NookClipIconSize.micro, weight: .semibold))
             Text(text)
-                .font(.nookClipRounded(11, .medium))
+                .font(.nookClipMono(11, .medium))
+                .monospacedDigit()
         }
-        .foregroundStyle(color)
+        .foregroundStyle(NookClip.textSecondary)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
-        .background(background, in: Capsule())
-        .overlay(Capsule().stroke(color.opacity(0.2), lineWidth: 0.5))
+        .background(NookClip.bgRaised, in: Capsule())
+        .overlay(Capsule().stroke(NookClip.borderPanel, lineWidth: 1))
     }
 
     private func testWebDav() {
@@ -559,6 +580,19 @@ struct HistorySettingsTab: View {
         mb % 1024 == 0 ? "\(mb / 1024) GB" : "\(mb) MB"
     }
 
+    /// 折叠摘要用：把「敏感内容处理」当前档位翻成一句短话。
+    /// 摘要读的是同一个枚举，所以改档位时摘要不会和面板里的选中项脱节。
+    private static func exportModeLabel(_ mode: SensitiveExportMode) -> String {
+        switch mode {
+        case .exclude:
+            return L10n.tr("settings.export.mode_exclude")
+        case .masked:
+            return L10n.tr("settings.export.mode_masked")
+        case .plaintext:
+            return L10n.tr("settings.export.mode_plaintext")
+        }
+    }
+
     private static func syncModeLabel(_ mode: CloudSyncMode) -> String {
         switch mode {
         case .iCloudDrive:
@@ -579,7 +613,7 @@ struct HistorySettingsTab: View {
             }
             return NookClip.textTertiary
         case .syncing:
-            return NookClip.accent
+            return NookClip.controlPrimary
         case .success:
             return NookClip.colorSuccess
         case .failed:

@@ -24,8 +24,7 @@
 
   <!-- 静态资源加版本戳：本地/预览站常开缓存，改完 CSS/JS 后若 URL 不变，
        浏览器会一直用旧副本（本次就踩到旧 style.scss 缓存导致改动"看不见"） -->
-  <link rel="stylesheet" href="style.css?v=20261023">
-  <link rel="stylesheet" href="prototype.css?v=20261023">
+  <link rel="stylesheet" href="style.css?v=20261026_1">
 </head>
 <body>
   <!-- 页面顶部导航栏 -->
@@ -40,6 +39,7 @@
       <!-- 桌面端导航项 -->
       <nav class="site-nav" aria-label="网站主要导航">
         <ul class="nav-list">
+          <li><a href="#demos" class="nav-link" data-i18n="nav_demos">动态演示</a></li>
           <li><a href="#features" class="nav-link" data-i18n="nav_features">功能介绍</a></li>
           <li><a href="#shortcuts" class="nav-link" data-i18n="nav_shortcuts">快捷键流</a></li>
           <li><a href="#comparison" class="nav-link" data-i18n="nav_comparison">工具对比</a></li>
@@ -138,6 +138,7 @@
       </div>
       <nav class="mobile-nav-inner" aria-label="移动端网站导航">
         <ul class="mobile-nav-list">
+          <li><a href="#demos" class="mobile-nav-link" data-i18n="nav_demos">动态演示</a></li>
           <li><a href="#features" class="mobile-nav-link" data-i18n="nav_features">功能介绍</a></li>
           <li><a href="#shortcuts" class="mobile-nav-link" data-i18n="nav_shortcuts">快捷键流</a></li>
           <li><a href="#comparison" class="mobile-nav-link" data-i18n="nav_comparison">工具对比</a></li>
@@ -169,7 +170,7 @@
         <!-- 标签指示条 -->
         <div class="hero-badge">
           <span class="badge-dot" aria-hidden="true"></span>
-          <span data-i18n="hero_badge">原生架构 · Rust 存储内核 · 常驻仅约 20MB · 开源免费 · 标签与类型筛选</span>
+          <span data-i18n="hero_badge">原生架构 · Rust 内核 · ~20MB 常驻 · 顺序粘贴 · 语义脱敏 · 屏幕贴条</span>
         </div>
 
         <h1 class="hero-title" data-i18n="hero_title">
@@ -178,7 +179,7 @@
         </h1>
 
         <p class="hero-desc" data-i18n="hero_desc">
-          随手复制旧内容不再丢失。按键呼出零等待，打字直接搜索历史，自动加密脱敏 API 凭据。<br class="desktop-only">
+          随手复制旧内容不再丢失。按键呼出零等待，支持多选顺序粘贴、19 类敏感信息语义脱敏与屏幕置顶贴条。<br class="desktop-only">
           没有账号、没有联网打点与崩溃上报，全部历史数据 100% 保存在你的本地设备上。
         </p>
 
@@ -222,12 +223,16 @@
                 浅色模式
               </button>
             </div>
+            <a href="playground.html" class="fullscreen-playground-link" target="_blank" rel="noopener noreferrer">
+              <span data-i18n="nav_playground">在线交互测试台</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
           </div>
 
-          <!-- 交互测试台容器 (默认直接呈现鲜活面板) -->
-          <div id="interactivePrototypeMount" class="mockup-interactive-container"></div>
-
-
+          <!-- 原生界面超清截图展示窗 -->
+          <div class="mockup-content">
+            <img id="productPreviewImg" class="product-preview-img" src="assets/nookclip-dark.png" alt="NookClip 深色模式界面真实截图" width="1578" height="1258" loading="eager" decoding="async">
+          </div>
           <!-- 界面关键能力注脚 -->
           <div class="mockup-highlights" aria-label="核心界面特性速览">
             <div class="highlight-chip">
@@ -283,6 +288,144 @@
       </div>
     </section>
 
+    <!-- 核心功能动态演示 Feature Demos Section -->
+    <section class="demos-section" id="demos">
+      <div class="container">
+        <div class="section-header">
+          <div class="section-kicker" data-i18n="demos_kicker">WORKFLOW BOOSTERS</div>
+          <h2 class="section-title" data-i18n="demos_title">五个让剪贴板更顺手的高效动作</h2>
+          <p class="section-desc" data-i18n="demos_desc">按真实界面的尺寸与配色复刻：顺序粘贴、语义脱敏、屏幕贴条、类型与标签筛选、离线 OCR 搜图。</p>
+        </div>
+
+        <div class="demos-grid">
+          <!-- Demo 1: 顺序粘贴 -->
+          <article class="demo-card">
+            <div class="demo-video-wrap" role="button" tabindex="0" aria-label="放大观看演示：顺序粘贴栈" data-demo-idx="0">
+              <video class="demo-video" src="assets/features/paste-stack.mp4" poster="assets/features/poster-paste-stack.jpg" autoplay loop muted playsinline preload="metadata"></video>
+              <div class="demo-zoom-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span data-i18n="demo_zoom_hint">点击放大</span></div>
+            </div>
+            <div class="demo-meta">
+              <div class="demo-head">
+                <span class="demo-num">01</span>
+                <h3 class="demo-title" data-i18n="demo1_title">顺序粘贴栈</h3>
+                <div class="demo-kbd">
+                  <kbd class="key-cap">⌥</kbd>
+                  <kbd class="key-cap">⏎</kbd>
+                </div>
+              </div>
+              <p class="demo-desc" data-i18n="demo1_desc">
+                多选几条后按 <code>⌥⏎</code>（或按 <code>⌃⌥V</code> 边复制边录制），按你复制的先后顺序排成底部队列浮窗。在目标窗口连续按原生 <code>⌘V</code> 即可逐条贴出，也能点行跳转、按 <code>Esc</code> 随时结束。
+              </p>
+              <div class="demo-tags">
+                <span class="demo-tag" data-i18n="demo1_tag1">按复制顺序排队的浮窗</span>
+                <span class="demo-tag" data-i18n="demo1_tag2">⌃⌥V 跨应用录制</span>
+                <span class="demo-tag" data-i18n="demo1_tag3">不抢焦点</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Demo 2: 语义脱敏粘贴 -->
+          <article class="demo-card">
+            <div class="demo-video-wrap" role="button" tabindex="0" aria-label="放大观看演示：语义脱敏粘贴" data-demo-idx="1">
+              <video class="demo-video" src="assets/features/scrub-paste.mp4" poster="assets/features/poster-scrub-paste.jpg" autoplay loop muted playsinline preload="metadata"></video>
+              <div class="demo-zoom-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span data-i18n="demo_zoom_hint">点击放大</span></div>
+            </div>
+            <div class="demo-meta">
+              <div class="demo-head">
+                <span class="demo-num">02</span>
+                <h3 class="demo-title" data-i18n="demo2_title">语义脱敏粘贴</h3>
+                <div class="demo-kbd">
+                  <kbd class="key-cap">⌃</kbd>
+                  <kbd class="key-cap">⏎</kbd>
+                </div>
+              </div>
+              <p class="demo-desc" data-i18n="demo2_desc">
+                选中含密钥、邮箱、卡号等记录时预览区主动提醒；按 <code>⌃⏎</code> 自动将 19 类敏感信息换成 <code>&lt;API_KEY_1&gt;</code> 等可读占位符安全交给 AI。映射表只驻留内存，AI 回复带回占位符时按 <code>⌃⇧⏎</code> 一键还原真值。
+              </p>
+              <div class="demo-tags">
+                <span class="demo-tag demo-tag-green" data-i18n="demo2_tag1">19 类规则校验</span>
+                <span class="demo-tag demo-tag-amber" data-i18n="demo2_tag2">映射表不落盘</span>
+                <span class="demo-tag" data-i18n="demo2_tag3">⌃⇧⏎ 一键还原</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Demo 3: 屏幕置顶贴条 -->
+          <article class="demo-card">
+            <div class="demo-video-wrap" role="button" tabindex="0" aria-label="放大观看演示：屏幕置顶贴条" data-demo-idx="2">
+              <video class="demo-video" src="assets/features/pinned-note.mp4" poster="assets/features/poster-pinned-note.jpg" autoplay loop muted playsinline preload="metadata"></video>
+              <div class="demo-zoom-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span data-i18n="demo_zoom_hint">点击放大</span></div>
+            </div>
+            <div class="demo-meta">
+              <div class="demo-head">
+                <span class="demo-num">03</span>
+                <h3 class="demo-title" data-i18n="demo3_title">屏幕置顶贴条</h3>
+                <div class="demo-kbd">
+                  <kbd class="key-cap">⌘</kbd>
+                  <kbd class="key-cap">P</kbd>
+                </div>
+              </div>
+              <p class="demo-desc" data-i18n="demo3_desc">
+                选中任意条目按 <code>⌘P</code> 钉成跨桌面常驻的悬浮小窗（再钉一条自动原位替换）。支持 <code>⌥+滚轮</code> 调节透明度、折叠成单行、开启鼠标点击穿透直接操作底层窗口，还能内联编辑或一键提取图片贴条里的 OCR 文字。
+              </p>
+              <div class="demo-tags">
+                <span class="demo-tag" data-i18n="demo3_tag1">跨桌面置顶</span>
+                <span class="demo-tag" data-i18n="demo3_tag2">透明度与折叠</span>
+                <span class="demo-tag" data-i18n="demo3_tag3">点击穿透</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Demo 4: 类型与标签筛选 -->
+          <article class="demo-card">
+            <div class="demo-video-wrap" role="button" tabindex="0" aria-label="放大观看演示：类型与标签筛选" data-demo-idx="3">
+              <video class="demo-video" src="assets/features/filter-tags.mp4" poster="assets/features/poster-filter-tags.jpg" autoplay loop muted playsinline preload="metadata"></video>
+              <div class="demo-zoom-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span data-i18n="demo_zoom_hint">点击放大</span></div>
+            </div>
+            <div class="demo-meta">
+              <div class="demo-head">
+                <span class="demo-num">04</span>
+                <h3 class="demo-title" data-i18n="demo4_title">类型与标签筛选</h3>
+                <div class="demo-kbd">
+                  <kbd class="key-cap">⌘</kbd>
+                  <kbd class="key-cap">↓</kbd>
+                </div>
+              </div>
+              <p class="demo-desc" data-i18n="demo4_desc">
+                按 <code>⌘↓</code> 展开 8 槽位固定类型网格与标签流，点选即刻以搜索框内嵌胶囊生效。支持 <code>⌘L</code> 快速打标，按 <code>⌫</code> 或 <code>Esc</code> 逐层优雅复位。
+              </p>
+              <div class="demo-tags">
+                <span class="demo-tag" data-i18n="demo4_tag1">8 槽位固定网格</span>
+                <span class="demo-tag" data-i18n="demo4_tag2">标签横切筛选</span>
+                <span class="demo-tag" data-i18n="demo4_tag3">⌫ 逐层复位</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Demo 5: 离线图片 OCR 识别与搜索 -->
+          <article class="demo-card">
+            <div class="demo-video-wrap" role="button" tabindex="0" aria-label="放大观看演示：离线图片 OCR 识别与搜索" data-demo-idx="4">
+              <video class="demo-video" src="assets/features/ocr-search.mp4" poster="assets/features/poster-ocr-search.jpg" autoplay loop muted playsinline preload="metadata"></video>
+              <div class="demo-zoom-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span data-i18n="demo_zoom_hint">点击放大</span></div>
+            </div>
+            <div class="demo-meta">
+              <div class="demo-head">
+                <span class="demo-num">05</span>
+                <h3 class="demo-title" data-i18n="demo5_title">离线图片 OCR 识别与搜索</h3>
+              </div>
+              <p class="demo-desc" data-i18n="demo5_desc">
+                遇到报错截图点一下「识别文字」，系统自带 Vision 离线引擎毫秒级提取文本并自动写入 SQLite FTS5 全文索引；之后直接在搜索框敲词即可命中截图。
+              </p>
+              <div class="demo-tags">
+                <span class="demo-tag demo-tag-green" data-i18n="demo5_tag1">原生 Vision 离线</span>
+                <span class="demo-tag" data-i18n="demo5_tag2">全文搜图内文字</span>
+                <span class="demo-tag" data-i18n="demo5_tag3">一键复制提取词</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
     <!-- 核心功能 Bento 网格 Features Section -->
     <section class="features-section" id="features">
       <div class="container">
@@ -324,18 +467,18 @@
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
               </svg>
             </div>
-            <h3 class="card-title" data-i18n="card2_title">敏感凭证自动脱敏与防护</h3>
+            <h3 class="card-title" data-i18n="card2_title">敏感凭证加密与语义脱敏</h3>
             <p class="card-desc" data-i18n="card2_desc">
-              自动识别复制的 OpenAI、AWS、GitHub Token、私钥与数据库连接串。存盘采用 AES-256-GCM 本地加密，列表中使用掩码遮罩显示，30 秒后自动重锁。
+              自动识别 API Key、Token、私钥、邮箱、银行卡等 19 类敏感信息。存盘采用 AES-256-GCM 加密与防窥掩码；按 <code>⌃⏎</code> 可将敏感词替换为 <code>&lt;API_KEY_1&gt;</code> 占位符安全发给 AI，按 <code>⌃⇧⏎</code> 一键还原真实值。
             </p>
             <ul class="feature-checklist">
               <li>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card2_check1">敏感条目绝不写入全文搜索索引，开启同步时自动排除</span>
+                <span data-i18n="card2_check1">敏感条目不进全文索引、不同步上云；脱敏映射表仅驻留内存，闲置自动销毁</span>
               </li>
               <li>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card2_check2">支持 1Password 等密码管理器黑名单，切到前台静默暂停记录</span>
+                <span data-i18n="card2_check2">粘贴前温和提醒敏感项数量；支持 1Password 等密码管理器黑名单静默暂停</span>
               </li>
             </ul>
           </article>
@@ -453,8 +596,42 @@
               <kbd class="key-cap">⏎</kbd>
             </div>
             <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc4_action">纯文本粘贴</div>
-              <div class="shortcut-desc" data-i18n="sc4_desc">自动剔除字体大小、颜色、背景等富格式，干净利落粘贴纯字</div>
+              <div class="shortcut-action" data-i18n="sc4_action">纯文本粘贴 / 顺序粘贴栈</div>
+              <div class="shortcut-desc" data-i18n="sc4_desc">单选时剔除富文本格式贴纯字；多选态下按复制先后顺序启动底部队列浮窗逐条粘贴</div>
+            </div>
+          </div>
+
+          <div class="shortcut-item">
+            <div class="shortcut-keys">
+              <kbd class="key-cap">⌃</kbd>
+              <kbd class="key-cap">⏎</kbd>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-action" data-i18n="sc5_action">语义脱敏粘贴</div>
+              <div class="shortcut-desc" data-i18n="sc5_desc">把 19 类敏感信息换成 &lt;API_KEY_1&gt; 等占位符再粘贴；按 ⌃⇧⏎ 可将占位符还原为真实值</div>
+            </div>
+          </div>
+
+          <div class="shortcut-item">
+            <div class="shortcut-keys">
+              <kbd class="key-cap">⌘</kbd>
+              <kbd class="key-cap">P</kbd>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-action" data-i18n="sc6_action">钉成屏幕置顶贴条</div>
+              <div class="shortcut-desc" data-i18n="sc6_desc">将选中项钉为悬浮小窗，支持调透明度、折叠、点击穿透、内联编辑与 OCR 提取</div>
+            </div>
+          </div>
+
+          <div class="shortcut-item">
+            <div class="shortcut-keys">
+              <kbd class="key-cap">⌃</kbd>
+              <kbd class="key-cap">⌥</kbd>
+              <kbd class="key-cap">V</kbd>
+            </div>
+            <div class="shortcut-info">
+              <div class="shortcut-action" data-i18n="sc7_action">跨应用录制粘贴队列</div>
+              <div class="shortcut-desc" data-i18n="sc7_desc">在任意应用里边复制边攒进顺序粘贴栈，小卡片沿弧线飞入队列，连续按 ⌘V 依次贴出</div>
             </div>
           </div>
 
@@ -464,8 +641,8 @@
               <kbd class="key-cap">⏎</kbd>
             </div>
             <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc5_action">连续粘贴（保持打开）</div>
-              <div class="shortcut-desc" data-i18n="sc5_desc">粘贴后浮层不收起，专为表单连续填报与多源信息录入优化</div>
+              <div class="shortcut-action" data-i18n="sc8_action">连续粘贴（保持打开）</div>
+              <div class="shortcut-desc" data-i18n="sc8_desc">粘贴后浮层不收起，专为表单连续填报与多源信息比对录入优化</div>
             </div>
           </div>
 
@@ -477,32 +654,22 @@
               <kbd class="key-cap">↓</kbd>
             </div>
             <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc6_action">批量多选合并</div>
-              <div class="shortcut-desc" data-i18n="sc6_desc">按住 Shift 多选连续历史条目，敲击回车一次性合并粘贴</div>
+              <div class="shortcut-action" data-i18n="sc9_action">多选与鼠标拖选</div>
+              <div class="shortcut-desc" data-i18n="sc9_desc">按住 Shift 或鼠标上下拖动整段勾选，回车合并粘贴，⌥⏎ 顺序粘贴，⌘⌫ 批量删除（⌘Z 撤销）</div>
             </div>
           </div>
 
           <div class="shortcut-item">
             <div class="shortcut-keys">
               <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">[</kbd>
+              <kbd class="key-cap">↓</kbd>
               <span class="key-sep">/</span>
-              <kbd class="key-cap">]</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc7_action">切换内容类型</div>
-              <div class="shortcut-desc" data-i18n="sc7_desc">在「全部」与收藏、图片、文本、链接、代码、文件、色值等类型之间左右循环，空类型自动跳过</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
               <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">Z</kbd>
+              <kbd class="key-cap">L</kbd>
             </div>
             <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc8_action">误删防呆撤销</div>
-              <div class="shortcut-desc" data-i18n="sc8_desc">误按删除后 10 秒内均可按 ⌘Z 立即挽回，避免重要记录遗失</div>
+              <div class="shortcut-action" data-i18n="sc10_action">类型与标签筛选</div>
+              <div class="shortcut-desc" data-i18n="sc10_desc">⌘↓ 展开 8 槽位类型网格与标签流，⌘[ / ⌘] 循环切类型，⌘L 快速为条目打标签</div>
             </div>
           </div>
         </div>
@@ -557,7 +724,7 @@
               </tr>
               <tr>
                 <th scope="row" data-i18n="row3_dim">敏感凭证安全防护</th>
-                <td class="highlight-cell" data-i18n="row3_nook"><span class="badge-good">AES-256 加密 / 掩码遮罩</span></td>
+                <td class="highlight-cell" data-i18n="row3_nook"><span class="badge-good">AES-256 加密 · ⌃⏎ 语义脱敏</span></td>
                 <td data-i18n="row3_el">通常明文存盘</td>
                 <td data-i18n="row3_mb">仅提供简单排除</td>
                 <td data-i18n="row3_la">需另装独立安全扩展</td>
@@ -577,11 +744,18 @@
                 <td data-i18n="row5_la">取决于插件实现质量</td>
               </tr>
               <tr>
-                <th scope="row" data-i18n="row6_dim">授权模式与使用费用</th>
-                <td class="highlight-cell" data-i18n="row6_nook"><span class="badge-good">开源免费 (GPLv3)</span></td>
-                <td data-i18n="row6_el">每月 / 每年订阅付费</td>
-                <td data-i18n="row6_mb">开源或少量买断</td>
-                <td data-i18n="row6_la">核心功能免费，高级订阅</td>
+                <th scope="row" data-i18n="row6_dim">进阶粘贴工作流</th>
+                <td class="highlight-cell" data-i18n="row6_nook"><span class="badge-good">顺序粘贴栈 · 屏幕置顶贴条</span></td>
+                <td data-i18n="row6_el">部分支持或需高价订阅</td>
+                <td data-i18n="row6_mb">不支持</td>
+                <td data-i18n="row6_la">无独立悬浮贴条</td>
+              </tr>
+              <tr>
+                <th scope="row" data-i18n="row7_dim">授权模式与使用费用</th>
+                <td class="highlight-cell" data-i18n="row7_nook"><span class="badge-good">开源免费 (GPLv3)</span></td>
+                <td data-i18n="row7_el">每月 / 每年订阅付费</td>
+                <td data-i18n="row7_mb">开源或少量买断</td>
+                <td data-i18n="row7_la">核心功能免费，高级订阅</td>
               </tr>
             </tbody>
           </table>
@@ -617,9 +791,9 @@
 
           <div class="privacy-card">
             <div class="privacy-num">03</div>
-            <h3 class="privacy-title" data-i18n="priv3_title">敏感内容索引隔离</h3>
+            <h3 class="privacy-title" data-i18n="priv3_title">敏感隔离与内存级脱敏映射</h3>
             <p class="privacy-desc" data-i18n="priv3_desc">
-              被标记为敏感的信息绝不写入 FTS5 全文搜索明文索引。如果你主动开启了个人的 iCloud Drive 同步，敏感内容也会被严格限制在本地设备内。
+              敏感信息绝不写入 FTS5 搜索索引，也不会上传 iCloud。使用 <code>⌃⏎</code> 语义脱敏粘贴时，占位符与真实值的映射表只驻留内存、绝不落盘，闲置 30 分钟自动销毁。
             </p>
           </div>
 
@@ -738,6 +912,7 @@
         <div class="footer-col">
           <div class="col-head" data-i18n="footer_nav_head">资源导航</div>
           <ul>
+            <li><a href="#demos" data-i18n="nav_demos">动态演示</a></li>
             <li><a href="#features" data-i18n="nav_features">功能介绍</a></li>
             <li><a href="#shortcuts" data-i18n="nav_shortcuts">快捷键指南</a></li>
             <li><a href="playground.html" data-i18n="nav_playground">在线交互测试台</a></li>
@@ -813,8 +988,42 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20261023"></script>
-  <script src="prototype.js?v=20261023"></script>
-  <script src="main.js?v=20261023"></script>
+  <!-- 动图与演示放大弹窗 (Demo Lightbox Modal) -->
+  <div id="demoLightbox" class="demo-lightbox-backdrop" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="动态演示放大">
+    <div class="demo-lightbox-card">
+      <div class="demo-lightbox-topbar">
+        <div class="demo-lightbox-title-wrap">
+          <span class="demo-lightbox-num" id="demoLightboxNum">01</span>
+          <h3 class="demo-lightbox-title" id="demoLightboxTitle">顺序粘贴栈</h3>
+          <div class="demo-lightbox-kbd" id="demoLightboxKbd"></div>
+        </div>
+        <div class="demo-lightbox-actions">
+          <button type="button" class="demo-lightbox-btn" id="demoLightboxPrevBtn" aria-label="上一个演示" title="上一个 (←)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <span class="demo-lightbox-counter" id="demoLightboxCounter">1 / 5</span>
+          <button type="button" class="demo-lightbox-btn" id="demoLightboxNextBtn" aria-label="下一个演示" title="下一个 (→)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+          <button type="button" class="demo-lightbox-close" id="demoLightboxCloseBtn" aria-label="关闭弹窗" title="关闭 (Esc)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="demo-lightbox-media-wrap">
+        <video class="demo-lightbox-video" id="demoLightboxVideo" controls autoplay loop playsinline preload="auto"></video>
+      </div>
+      <div class="demo-lightbox-footer">
+        <p class="demo-lightbox-desc" id="demoLightboxDesc"></p>
+        <div class="demo-lightbox-tags" id="demoLightboxTags"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="i18n.js?v=20261026_1"></script>
+  <script src="main.js?v=20261026_1"></script>
 </body>
 </html>

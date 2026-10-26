@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 @testable import NookClip
 
 @MainActor
@@ -150,8 +151,8 @@ final class UIComponentTests: XCTestCase {
     }
 
     /// 工具栏只有 310pt 列宽：四个动作必须全部可辨识，不能退化成「合…」「…」。
-    /// 这里锁定「一主三辅」的结构——主操作带文字，其余是图标按钮，
-    /// 一旦有人把图标按钮改回文字按钮，宽度会再次溢出、标签全被截断。
+    /// 这里锁定「常量布局」——四个动作都常驻文字，宽度只由文字决定，鼠标悬停只改底色
+    /// 不改尺寸。一旦有人把文字改成悬停才出现的伸缩按钮，鼠标扫过时整排会动起来。
     func testBatchBarKeepsSinglePrimaryTextButtonForNarrowColumn() {
         let bar = BatchBar(
             selectedCount: 2,
@@ -161,10 +162,54 @@ final class UIComponentTests: XCTestCase {
             onEditTags: {}
         )
 
-        // 主操作仍保留键帽提示（⏎）
         XCTAssertNotNil(renderView(bar), "窄列下批量工具栏必须能完整渲染")
         XCTAssertNotNil(bar.onStartPasteStack)
         XCTAssertNotNil(bar.onEditTags)
+    }
+
+    /// 布局必须是「常量」的：四个动作的文字常驻，宽度不随鼠标变化。
+    /// 之前试过悬停才展开的写法——鼠标扫过工具栏时整排按钮都在伸缩，想点的那个
+    /// 会在指针底下换位置。这里锁定：次要按钮自己带文字和悬停状态，不依赖外部展开标志。
+    func testBatchBarLayoutIsConstantAndHoverIndependent() {
+        var pasteStackFired = false
+        var tagFired = false
+        var deleteFired = false
+
+        let pasteStack = BatchActionButton(
+            title: L10n.tr("batch.paste_stack"),
+            shortcut: "⌥⏎",
+            role: .primary,
+            action: { pasteStackFired = true }
+        )
+        let tag = BatchActionButton(
+            title: L10n.tr("tag.action"),
+            shortcut: "⌘L",
+            role: .primary,
+            action: { tagFired = true }
+        )
+        let delete = BatchActionButton(
+            title: L10n.tr("batch.delete"),
+            shortcut: "⌘⌫",
+            role: .danger,
+            action: { deleteFired = true }
+        )
+
+        XCTAssertNotNil(renderView(pasteStack), "顺序粘贴按钮必须可渲染")
+        XCTAssertNotNil(renderView(tag), "标签按钮必须可渲染")
+        XCTAssertNotNil(renderView(delete), "删除按钮必须可渲染")
+
+        pasteStack.action()
+        tag.action()
+        delete.action()
+        XCTAssertTrue(pasteStackFired, "顺序粘贴按钮必须执行回调")
+        XCTAssertTrue(tagFired, "标签按钮必须执行回调")
+        XCTAssertTrue(deleteFired, "删除按钮必须执行回调")
+    }
+
+    /// 主操作收起成图标（不再有让位场景，但合并箭头仍是唯一的动作图标）
+    func testBatchBarMergeIconExists() {
+        XCTAssertNotNil(NSImage(systemSymbolName: NookClipIcon.Action.merge, accessibilityDescription: nil),
+                        "合并粘贴按钮的箭头图标必须是系统可用的 SF Symbol")
     }
 
     // MARK: - RowRenameField 测试

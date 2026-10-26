@@ -1,7 +1,7 @@
 import ServiceManagement
 import SwiftUI
 
-// MARK: - Tab 5: 通用 (General) —— 系统行为
+// MARK: - Tab: 通用 (General) —— 系统行为
 
 @MainActor
 struct GeneralSettingsTab: View {
@@ -10,15 +10,25 @@ struct GeneralSettingsTab: View {
     @AppStorage(UserDefaultsKey.updateSource.rawValue) private var updateSource = UpdateSource.auto.rawValue
 
     var body: some View {
-        VStack(spacing: 16) {
-            // 基础设置
-            SettingsSectionView(title: L10n.tr("settings.general.app_section")) {
-                SettingsRowView(
+        SettingsPage(
+            title: L10n.tr("settings.tab.general"),
+            subtitle: L10n.tr("settings.subtitle.general"),
+            status: [
+                (L10n.tr("settings.general.launch_at_login"), L10n.stateWord(launchAtLogin)),
+                (L10n.tr("settings.general.update_auto"), L10n.stateWord(autoCheckUpdates)),
+                (L10n.tr("settings.general.version"), AppBranding.appVersion),
+            ]
+        ) {
+            SettingsFoldGroup(
+                index: 0,
+                title: L10n.tr("settings.general.app_section"),
+                summary: L10n.tr("settings.general.launch_at_login")
+                    + " · " + L10n.stateWord(launchAtLogin)
+            ) {
+                SettingsRow(
                     title: L10n.tr("settings.general.launch_at_login"),
-                    subtitle: L10n.tr("settings.general.launch_desc"),
-                    showDivider: false
+                    subtitle: L10n.tr("settings.general.launch_desc")
                 ) {
-
                     Toggle("", isOn: $launchAtLogin)
                         .toggleStyle(.nookSwitch)
                         .labelsHidden()
@@ -28,9 +38,13 @@ struct GeneralSettingsTab: View {
                 }
             }
 
-            // 软件更新（Sparkle 应用内更新，替代旧版跳转 GitHub 页）
-            SettingsSectionView(title: L10n.tr("settings.general.update_section")) {
-                SettingsRowView(
+            SettingsFoldGroup(
+                index: 1,
+                title: L10n.tr("settings.general.update_section"),
+                summary: L10n.tr("settings.general.update_auto")
+                    + " · " + L10n.stateWord(autoCheckUpdates)
+            ) {
+                SettingsRow(
                     title: L10n.tr("settings.general.update_auto"),
                     subtitle: L10n.tr("settings.general.update_auto_desc"),
                     showDivider: true
@@ -40,7 +54,7 @@ struct GeneralSettingsTab: View {
                         .labelsHidden()
                 }
 
-                SettingsRowView(
+                SettingsRow(
                     title: L10n.tr("settings.general.update_source"),
                     subtitle: L10n.tr("settings.general.update_source_desc"),
                     showDivider: true
@@ -55,17 +69,29 @@ struct GeneralSettingsTab: View {
                     .frame(width: 140)
                 }
 
-                SettingsRowView(
+                SettingsRow(
                     title: L10n.tr("settings.general.version"),
                     subtitle: L10n.tr("settings.general.version_desc")
                 ) {
                     HStack(spacing: 10) {
                         Text(AppBranding.appVersion)
                             .font(.nookClipMono(12, .medium))
+                            .monospacedDigit()
                             .foregroundStyle(NookClip.textSecondary)
-                        Button(L10n.tr("menu.check_updates")) {
+                        Button {
                             UpdateService.shared.checkForUpdates()
+                        } label: {
+                            Text(L10n.tr("menu.check_updates"))
+                                .font(.nookClipSubheadMedium)
+                                .foregroundStyle(NookClip.textPrimary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background {
+                                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                                        .fill(NookClip.bgRaised)
+                                }
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }

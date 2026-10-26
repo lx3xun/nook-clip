@@ -249,7 +249,7 @@ struct VaultEntry {
 }
 
 /// 脱敏映射会话池：占位符 ↔ 真实值，只在进程堆内存存活。
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ScrubSessionVault {
     /// 插入序即 LRU 序（前端淘汰）
     entries: Vec<VaultEntry>,
@@ -260,6 +260,21 @@ pub struct ScrubSessionVault {
     /// 每标签已分配的最大编号（淘汰后也不回收，避免撞号）
     counters: HashMap<String, u32>,
     last_activity: u64,
+    /// 最近一次脱敏配置的会话 TTL（供还原与占位符计数沿用）
+    ttl_seconds: u64,
+}
+
+impl Default for ScrubSessionVault {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            by_value: HashMap::new(),
+            by_placeholder: HashMap::new(),
+            counters: HashMap::new(),
+            last_activity: 0,
+            ttl_seconds: DEFAULT_SESSION_TTL_SECONDS,
+        }
+    }
 }
 
 impl ScrubSessionVault {
@@ -274,6 +289,7 @@ impl ScrubSessionVault {
         self.by_placeholder.clear();
         self.counters.clear();
         self.last_activity = 0;
+        self.ttl_seconds = DEFAULT_SESSION_TTL_SECONDS;
     }
 
     pub fn len(&self) -> usize {
@@ -324,8 +340,10 @@ impl ScrubSessionVault {
 
         // 1. 已有映射：复用并刷新 LRU 位置
         if let Some(existing) = self.by_value.get(&key).cloned() {
-            if let Some(entry) = self.entries.iter_mut().find(|e| e.placeholder == existing) {
+            if let Some(idx) = self.entries.iter().position(|e| e.placeholder == existing) {
+                let mut entry = self.entries.remove(idx);
                 entry.last_touched = now;
+                self.entries.push(entry);
             } else {
                 // 映射表与条目表不一致（理论上不会发生）：以映射表为准补条
                 self.entries.push(VaultEntry {
@@ -373,8 +391,10 @@ impl ScrubSessionVault {
     /// 按占位符还原真实值；命中即刷新该条 LRU 时间。
     fn lookup_and_touch(&mut self, placeholder: &str, now: u64) -> Option<String> {
         let original = self.by_placeholder.get(placeholder).cloned()?;
-        if let Some(entry) = self.entries.iter_mut().find(|e| e.placeholder == placeholder) {
+        if let Some(idx) = self.entries.iter().position(|e| e.placeholder == placeholder) {
+            let mut entry = self.entries.remove(idx);
             entry.last_touched = now;
+            self.entries.push(entry);
         }
         self.last_activity = now;
         Some(original)
@@ -499,7 +519,7 @@ fn build_rules() -> Vec<CompiledRule> {
             rule: BuiltinScrubRule::Passport,
             priority: 80,
             regexes: rxs(&[
-                r"(?i)\bpassport(?:\s*(?:no\.?|number|#))?[\s]*[:#]?[\s]*([A-Z]{1,2}[0-9]{6,9})\b",
+                r"(?i)(?:\bpassport(?:\s*(?:no\.?|number|#))?|护照(?:号|号码)?)[\s]*[:：#]?[\s]*([A-Z]{1,2}[0-9]{6,9})\b",
             ]),
             capture_group: Some(1),
             validator: None,
@@ -650,12 +670,37 @@ fn bank_card_valid(s: &str) -> bool {
     luhn_valid(s)
 }
 
-/// 身份证 18 位 ISO 7064 MOD 11-2 校验
+/// 身份证 18 位出生日期 + ISO 7064 MOD 11-2 校验
 fn id_card_valid(s: &str) -> bool {
     let bytes: Vec<char> = s.chars().collect();
     if bytes.len() != 18 {
         return false;
     }
+    // 校验第 7~14 位出生日期（YYYYMMDD）是否合法
+    let year: u32 = match s.get(6..10).and_then(|v| v.parse().ok()) {
+        Some(y) if (1900..=2099).contains(&y) => y,
+        _ => return false,
+    };
+    let month: u32 = match s.get(10..12).and_then(|v| v.parse().ok()) {
+        Some(m) if (1..=12).contains(&m) => m,
+        _ => return false,
+    };
+    let day: u32 = match s.get(12..14).and_then(|v| v.parse().ok()) {
+        Some(d) if d >= 1 => d,
+        _ => return false,
+    };
+    let is_leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    let max_day = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    if day > max_day {
+        return false;
+    }
+
     let weights = [7u32, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
     let check_chars = ['1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'];
     let mut sum = 0u32;
@@ -1017,8 +1062,8 @@ pub fn scrub_text_at(
     now: u64,
 ) -> ScrubResult {
     let mut vault = VAULT.lock();
+    vault.ttl_seconds = config.session_ttl_seconds;
     vault.purge_expired(now, config.session_ttl_seconds);
-
     let mut candidates: Vec<Candidate> = Vec::new();
     collect_builtin_candidates(text, config, &mut candidates);
     collect_external_candidates(text, config, external_spans, &mut candidates);
@@ -1079,7 +1124,7 @@ pub fn scrub_text_at(
 // ---------------------------------------------------------------------------
 
 static PLACEHOLDER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"<([A-Z][A-Z0-9_]*_[0-9]{1,4})>").expect("placeholder regex must compile")
+    Regex::new(r"<([A-Z0-9][A-Z0-9_]*_[0-9]{1,4})>").expect("placeholder regex must compile")
 });
 
 // ---------------------------------------------------------------------------
@@ -1134,9 +1179,8 @@ pub fn restore_text(text: &str) -> RestoreResult {
 /// 还原（可注入时间）。
 pub fn restore_text_at(text: &str, now: u64) -> RestoreResult {
     let mut vault = VAULT.lock();
-    // 还原不携带配置，用默认 TTL 做惰性清理：过期条目视为已销毁（还原为原文占位符）
-    vault.purge_expired(now, DEFAULT_SESSION_TTL_SECONDS);
-
+    let ttl = vault.ttl_seconds;
+    vault.purge_expired(now, ttl);
     if !text.contains('<') {
         return RestoreResult {
             restored_text: text.to_string(),
@@ -1182,7 +1226,8 @@ pub fn count_restorable_placeholders(text: &str) -> u32 {
 
 pub fn count_restorable_placeholders_at(text: &str, now: u64) -> u32 {
     let mut vault = VAULT.lock();
-    vault.purge_expired(now, DEFAULT_SESSION_TTL_SECONDS);
+    let ttl = vault.ttl_seconds;
+    vault.purge_expired(now, ttl);
     if !text.contains('<') {
         return 0;
     }

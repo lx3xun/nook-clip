@@ -193,6 +193,13 @@ public enum L10n {
     public static func relativeTime(for date: Date) -> String {
         manager.relativeTime(for: date)
     }
+
+    /// 把开关状态翻成「已开启 / 已关闭」，供设置页的现状带与折叠摘要使用。
+    /// 抽成一个函数是因为同一句状态在页头和折叠摘要两处都要出现，
+    /// 分散拼接会让两处措辞悄悄跑偏。
+    public static func stateWord(_ isOn: Bool) -> String {
+        tr(isOn ? "state.on" : "state.off")
+    }
 }
 
 public struct LocalizedViewModifier: ViewModifier {

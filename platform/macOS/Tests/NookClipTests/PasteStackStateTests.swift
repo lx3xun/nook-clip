@@ -571,4 +571,260 @@ final class PasteStackStateTests: XCTestCase {
         let state = PasteStackState()
         XCTAssertFalse(state.isHighlighted(makeItems(1)[0]))
     }
+
+    // MARK: - 粘完保留（T017）
+
+    /// 默认必须是关的：这是「贴完就收」的老行为，不能因为新增开关就把默认语义改掉。
+    func testKeepOpenDefaultsOff() {
+        XCTAssertFalse(PasteStackState().keepOpen)
+    }
+
+    /// 开关要能来回切，且 `setKeepOpen` 与 `toggleKeepOpen` 两条入口等价。
+    func testKeepOpenTogglesBothWays() {
+        let state = PasteStackState()
+        state.toggleKeepOpen()
+        XCTAssertTrue(state.keepOpen)
+        state.toggleKeepOpen()
+        XCTAssertFalse(state.keepOpen)
+        state.setKeepOpen(true)
+        XCTAssertTrue(state.keepOpen)
+        state.setKeepOpen(false)
+        XCTAssertFalse(state.keepOpen)
+    }
+
+    /// `keepOpen` 属于「用户选的模式」，和 `order` 一样跨队列保留。
+    ///
+    /// 用户开了固定托盘，下一条队列不该悄悄变回「贴完就消失」——
+    /// 那种变化没有任何提示，用户只会觉得「这次怎么没留住」。
+    func testKeepOpenSurvivesReset() {
+        let state = PasteStackState()
+        state.setItems(makeItems(3), order: .fifo)
+        state.setKeepOpen(true)
+        state.reset()
+        XCTAssertTrue(state.keepOpen, "reset 只清队列，不该顺手改用户选的模式")
+        XCTAssertTrue(state.items.isEmpty)
+    }
+
+    /// 粘完保留状态下，队列全部贴完也不该被标记成「已完成」——
+    /// 一旦标记，`scheduleAdvance` 会直接 return，⌘V 就再也推不动了。
+    func testKeepOpenKeepsQueueAliveAfterAllPasted() {
+        let state = PasteStackState()
+        let items = makeItems(2)
+        state.setItems(items, order: .fifo)
+        state.setKeepOpen(true)
+        state.markPasted(items[0].id)
+        state.markPasted(items[1].id)
+        XCTAssertEqual(state.remaining, 0)
+        // 状态层只负责记录，不收尾；收尾与否由控制器看 keepOpen 决定
+        XCTAssertFalse(state.isCompleted)
+        XCTAssertTrue(state.hasPasted(items[1]))
+    }
+
+    // MARK: - 拖拽重排（T017）
+
+    /// **最核心的不变量**：拖拽改的是顺序，不是「用户打算贴哪条」。
+    /// 播放头必须继续跟着同一条走，否则拖完 ⌘V 贴出来的东西就变了。
+    func testMoveItemKeepsPlayheadOnSameItem() {
+        let state = PasteStackState()
+        let items = makeItems(4)
+        state.setItems(items, order: .fifo)
+        state.move(to: 2)
+        let highlighted = state.currentItem
+
+        XCTAssertTrue(state.moveItem(from: 2, to: 0))
+        XCTAssertEqual(state.items.map(\.title), ["条目2", "条目0", "条目1", "条目3"])
+        XCTAssertEqual(state.currentItem?.id, highlighted?.id, "播放头应继续指着同一条")
+        XCTAssertEqual(state.currentIndex, 0, "它的新位置就是落点")
+    }
+
+    /// 从前往后拖同样要跟住：落点在下标后面时，被拖的行插到目标位置。
+    func testMoveItemForwardKeepsPlayheadOnSameItem() {
+        let state = PasteStackState()
+        let items = makeItems(4)
+        state.setItems(items, order: .fifo)
+        state.move(to: 1)
+        let highlighted = state.currentItem
+
+        XCTAssertTrue(state.moveItem(from: 1, to: 3))
+        XCTAssertEqual(state.items.map(\.title), ["条目0", "条目2", "条目3", "条目1"])
+        XCTAssertEqual(state.currentItem?.id, highlighted?.id)
+        XCTAssertEqual(state.currentIndex, 3)
+    }
+
+    /// 拖一条**不是**当前高亮的行：高亮那条的绝对位置会平移一位，但依然指着同一条。
+    func testMoveItemKeepsPlayheadWhenDraggingAnotherRow() {
+        let state = PasteStackState()
+        let items = makeItems(4)
+        state.setItems(items, order: .fifo)
+        state.move(to: 2)
+        let highlighted = state.currentItem
+
+        // 把第 0 条拖到第 3 条：第 2 条被顶到下标 1
+        XCTAssertTrue(state.moveItem(from: 0, to: 3))
+        XCTAssertEqual(state.items.map(\.title), ["条目1", "条目2", "条目3", "条目0"])
+        XCTAssertEqual(state.currentItem?.id, highlighted?.id)
+        XCTAssertEqual(state.currentIndex, 1)
+    }
+
+    /// 倒序队列里同样成立：重排与出栈方向是两件事。
+    func testMoveItemKeepsPlayheadInLIFO() {
+        let state = PasteStackState()
+        let items = makeItems(3)
+        state.setItems(items, order: .lifo)
+        XCTAssertEqual(state.currentIndex, 2)
+        let highlighted = state.currentItem
+
+        XCTAssertTrue(state.moveItem(from: 2, to: 0))
+        XCTAssertEqual(state.items.map(\.title), ["条目2", "条目0", "条目1"])
+        XCTAssertEqual(state.currentItem?.id, highlighted?.id)
+        XCTAssertEqual(state.currentIndex, 0)
+    }
+
+    /// 拖拽只改顺序：已经打过的勾跟着条目走，不能因为换位置就失效。
+    func testMoveItemKeepsPastedMarks() {
+        let state = PasteStackState()
+        let items = makeItems(3)
+        state.setItems(items, order: .fifo)
+        state.markPasted(items[0].id)
+
+        XCTAssertTrue(state.moveItem(from: 0, to: 2))
+        XCTAssertEqual(state.items.map(\.title), ["条目1", "条目2", "条目0"])
+        XCTAssertTrue(state.hasPasted(state.items[2]), "对勾跟着条目一起挪")
+        XCTAssertFalse(state.hasPasted(state.items[0]))
+        XCTAssertEqual(state.remaining, 2)
+    }
+
+    /// 越界 / 原地不动一律拒绝，且不能把队列改坏（拖出手滑不该丢条目）。
+    func testMoveItemRejectsOutOfRangeAndSameIndex() {
+        let state = PasteStackState()
+        let items = makeItems(3)
+        state.setItems(items, order: .fifo)
+        let before = state.items.map(\.id)
+
+        XCTAssertFalse(state.moveItem(from: 0, to: 0), "同一位置无需移动")
+        XCTAssertFalse(state.moveItem(from: -1, to: 1), "负下标应忽略")
+        XCTAssertFalse(state.moveItem(from: 0, to: 3), "越界应忽略")
+        XCTAssertFalse(state.moveItem(from: 3, to: 0), "越界应忽略")
+        XCTAssertEqual(state.items.map(\.id), before, "拒绝后队列必须原样不动")
+    }
+
+    /// 空队列上拖拽必须安全返回 false（拖拽会话可能比队列活得久）。
+    func testMoveItemOnEmptyQueueIsSafe() {
+        let state = PasteStackState()
+        XCTAssertFalse(state.moveItem(from: 0, to: 0))
+        XCTAssertFalse(state.moveItem(from: 0, to: 1))
+    }
+
+    // MARK: - ⌥1~⌥9 序号直贴（T017）
+
+    /// ⌥1~⌥9 应映射到 0 基下标 0~8（界面上的序号是 1 起）。
+    func testOrdinalPasteIndexMapsOptionOneThroughNine() {
+        let keyCodes = [
+            kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+            kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9
+        ]
+        for (expected, keyCode) in keyCodes.enumerated() {
+            let event = makeKeyEvent(keyCode: UInt16(keyCode), flags: .option)
+            XCTAssertEqual(
+                PasteStackController.ordinalPasteIndex(event),
+                expected,
+                "⌥\(expected + 1) 应贴第 \(expected + 1) 条"
+            )
+        }
+    }
+
+    /// 裸数字必须放行：队列活跃期间用户还在目标应用里打数字，吞掉就是打字出错。
+    func testOrdinalPasteIndexRequiresOptionOnly() {
+        XCTAssertNil(PasteStackController.ordinalPasteIndex(
+            makeKeyEvent(keyCode: UInt16(kVK_ANSI_1), flags: [])
+        ), "裸数字不能被当成序号快捷键")
+        XCTAssertNil(PasteStackController.ordinalPasteIndex(
+            makeKeyEvent(keyCode: UInt16(kVK_ANSI_1), flags: [.option, .shift])
+        ), "多带修饰键不是本功能的语法")
+        XCTAssertNil(PasteStackController.ordinalPasteIndex(
+            makeKeyEvent(keyCode: UInt16(kVK_ANSI_1), flags: [.option, .command])
+        ))
+    }
+
+    /// 非数字键与 0 都不算：序号只有 1~9。
+    func testOrdinalPasteIndexRejectsNonDigitKeys() {
+        XCTAssertNil(PasteStackController.ordinalPasteIndex(
+            makeKeyEvent(keyCode: UInt16(kVK_ANSI_0), flags: .option)
+        ), "第 0 条不存在")
+        XCTAssertNil(PasteStackController.ordinalPasteIndex(
+            makeKeyEvent(keyCode: UInt16(kVK_ANSI_V), flags: .option)
+        ))
+        XCTAssertNil(PasteStackController.ordinalPasteIndex(
+            makeKeyEvent(keyCode: UInt16(kVK_Return), flags: .option)
+        ))
+    }
+
+    // MARK: - 新增文案三语齐备（T017）
+
+    /// 新增的托盘文案必须三语都有，否则英文/繁体界面会直接露出 key 原文。
+    func testPasteStackFollowUpStringsExistInAllLanguages() {
+        let keys = [
+            "scrub.stack.keep_open_title",
+            "scrub.stack.keep_open_hint",
+            "scrub.stack.repaste",
+            "scrub.stack.move_hint",
+            "scrub.stack.ordinal_hint"
+        ]
+        for language in ["zh-Hans", "zh-Hant", "en"] {
+            guard let path = Bundle.module.path(forResource: language, ofType: "lproj"),
+                  let bundle = Bundle(path: path) else {
+                XCTFail("缺少语言包: \(language)")
+                continue
+            }
+            for key in keys {
+                let value = bundle.localizedString(forKey: key, value: nil, table: nil)
+                XCTAssertNotEqual(value, key, "\(language) 缺少托盘新文案: \(key)")
+                XCTAssertFalse(value.isEmpty)
+            }
+        }
+    }
+
+    // MARK: - 拖拽进行态（T017）
+
+    /// 拖拽进行态必须能被「开始一次新拖拽」和「收尾」两个动作干净地来回切换。
+    ///
+    /// 这一层单测的价值在于：`draggingIndex` 一旦卡住，那一行会永远半透明、
+    /// 且后续拖拽都会被误判成「还在上一次会话里」——这种卡死不会抛异常，
+    /// 只能靠状态机本身的断言守住。
+    func testRowDragStateBeginsAndResets() {
+        let drag = PasteStackRowDragState()
+        XCTAssertNil(drag.draggingIndex, "初始没有进行中的拖拽")
+        XCTAssertNil(drag.dropIndex)
+
+        drag.beginDragging(3)
+        XCTAssertEqual(drag.draggingIndex, 3)
+        XCTAssertNil(drag.dropIndex, "刚起手还没有落点")
+
+        drag.dropIndex = 1
+        XCTAssertEqual(drag.dropIndex, 1)
+
+        drag.reset()
+        XCTAssertNil(drag.draggingIndex)
+        XCTAssertNil(drag.dropIndex, "收尾必须把落点一起清掉")
+    }
+
+    /// 上一次会话残留的落点不能带进下一次拖拽。
+    func testRowDragStateBeginClearsStaleDropIndex() {
+        let drag = PasteStackRowDragState()
+        drag.beginDragging(0)
+        drag.dropIndex = 2
+        drag.beginDragging(4)
+        XCTAssertEqual(drag.draggingIndex, 4)
+        XCTAssertNil(drag.dropIndex, "新会话不该继承上一轮悬停的落点")
+    }
+
+    /// 重复收尾必须安全：窗口内的 mouseUp、看门狗、drop 成功三条路径都会调它。
+    func testRowDragStateResetIsIdempotent() {
+        let drag = PasteStackRowDragState()
+        drag.beginDragging(1)
+        drag.reset()
+        drag.reset()
+        XCTAssertNil(drag.draggingIndex)
+        XCTAssertNil(drag.dropIndex)
+    }
 }

@@ -25,7 +25,10 @@ final class SettingsAndAppLifecycleTests: XCTestCase {
         for tab in SettingsTab.allCases {
             let settingsView = SettingsView(historyStore: store, initialTab: tab)
             let host = renderView(settingsView)
-            XCTAssertNotNil(host.viewWithTag(0))
+            // 方案 C 的外壳不再使用 tag 0 做锚点，改为断言视图树真的展开了：
+            // 每个 tab 都必须渲染出侧栏 + 画布两棵子树
+            XCTAssertFalse(host.subviews.isEmpty, "\(tab.rawValue) 页应渲染出视图树")
+            XCTAssertGreaterThan(host.fittingSize.width, 0, "\(tab.rawValue) 页应有可测量的宽度")
         }
     }
 

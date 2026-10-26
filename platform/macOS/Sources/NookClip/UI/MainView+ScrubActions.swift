@@ -62,23 +62,40 @@ extension MainView {
 
     // MARK: - ⌃⇧⏎ 还原粘贴（US1 反向）
 
-    /// 把当前剪贴板文本里的占位符还原成真实值再粘贴。
+    /// 把当前选中条目（或系统剪贴板）文本里的占位符还原成真实值再粘贴。
     ///
-    /// 典型场景：AI 聊天框返回了带 `<EMAIL_1>` 的代码/文案，用户按 ⌃⇧⏎
-    /// 直接粘贴还原后的版本，不需要手工逐个替换。
+    /// 典型场景：AI 聊天框返回了带 `<EMAIL_1>` 的代码/文案，用户在主面板选中该记录
+    /// （或刚复制到剪贴板）按 ⌃⇧⏎ 直接粘贴还原后的版本，不需要手工逐个替换。
     func restoreScrubPaste() {
-        let pasteboardText = PasteboardAccess.general.string(forType: .string) ?? ""
-        guard !pasteboardText.isEmpty else { return }
+        let candidateText: String
+        var targetItemID: UUID? = nil
 
-        let outcome = ScrubService.shared.restore(pasteboardText)
+        if !isBatchMode,
+           let id = selectionCoordinator.selectedID,
+           let item = store.item(withID: id),
+           (item.type == .text || item.type == .url),
+           case .success(let text) = item.revealPlainContentResult(),
+           !text.isEmpty {
+            candidateText = text
+            targetItemID = id
+        } else {
+            candidateText = PasteboardAccess.general.string(forType: .string) ?? ""
+        }
+
+        guard !candidateText.isEmpty else { return }
+
+        let outcome = ScrubService.shared.restore(candidateText)
 
         // 没有可还原的占位符：回退成普通粘贴（用户按错了不该毫无反应）
         guard outcome.restoredCount > 0 else {
             showScrubFeedback(L10n.tr("scrub.restore.none"))
-            pasteCurrentClipboard()
+            pasteTextDirectly(candidateText, containsSensitive: false)
             return
         }
 
+        if let id = targetItemID {
+            store.markUsed(id)
+        }
         // 还原后的文本含真实敏感值：必须以 containsSensitive 写入，
         // 让 PasteService 打上 transient/concealed 标记并调度 30s 自毁
         pasteTextDirectly(outcome.restoredText, containsSensitive: true)
@@ -135,17 +152,13 @@ extension MainView {
     // MARK: - ⌘P 钉在屏幕（US3）
 
     /// 把选中条目钉成屏幕贴条。
+    /// 全局只留一张：已经钉着旧的时，这一下直接把旧的换掉，所以这里不该拦。
     func pinSelectedToScreen() {
         guard !isBatchMode, let id = selectionCoordinator.selectedID else {
             showScrubFeedback(L10n.tr("pin.action.single_only"))
             return
         }
         guard let item = store.item(withID: id) else { return }
-
-        guard !PinnedWindowManager.shared.isAtCapacity else {
-            showScrubFeedback(L10n.tr("pin.limit_reached", String(PinnedWindowManager.maxPinnedNotes)))
-            return
-        }
 
         onClose()
         PinnedWindowManager.shared.pin(item: item)

@@ -187,6 +187,28 @@ enum NookClip {
     /// 底部操作指引栏：浅色 rgba(242,242,247,0.76) · 深色 rgba(30,30,34,0.84)
     static let bgFooter = dynamicRGBA(lr: 242, lg: 242, lb: 247, la: 0.76, dr: 30, dg: 30, db: 34, da: 0.84)
 
+    // MARK: 2.1c 设置页外壳（方案 C · 落地令牌）
+    //
+    // 设置是独立窗口，与主面板的毛玻璃/aurora 体系无关：整窗只有一个不透明
+    // 地面 + 白面板 + 一条 1px 描边，颜色不进 chrome（唯一的有色只落在数据与
+    // 状态胶囊上）。所以这批令牌一律用不透明色值、不掺 alpha —— 设置窗口不做
+    // 玻璃，也就没有「壁纸透过来影响文字对比度」这条隐患。
+
+    /// 设置窗口地面：浅色 #F8F8F8 · 深色 #111111（侧栏与画布同色，不靠明度分层）
+    static let bgGround = dynamicColor(light: nsColorHex(0xF8F8F8), dark: nsColorHex(0x111111))
+    /// 设置分组面板：浅色 #FFFFFF · 深色 #1A1A1A
+    static let bgSurface = dynamicColor(light: nsColorHex(0xFFFFFF), dark: nsColorHex(0x1A1A1A))
+    /// 抬高一级的中性底（悬停、胶囊、滑轨）：浅色 #EEEEEE · 深色 #242424
+    static let bgRaised = dynamicColor(light: nsColorHex(0xEEEEEE), dark: nsColorHex(0x242424))
+    /// 面板 1px 描边（分面靠它、不靠阴影）：浅色 #E6E6E6 · 深色 #2A2A2A
+    static let borderPanel = dynamicColor(light: nsColorHex(0xE6E6E6), dark: nsColorHex(0x2A2A2A))
+    /// 行与行、分组与分组之间的规则线：浅色 #F0F0F0 · 深色 #242424
+    static let ruleSubtle = dynamicColor(light: nsColorHex(0xF0F0F0), dark: nsColorHex(0x242424))
+    /// 输入/下拉/次要按钮描边，比面板描边深一档（说明「这个能点」）：浅色 #D4D4D4 · 深色 #444444
+    static let borderControl = dynamicColor(light: nsColorHex(0xD4D4D4), dark: nsColorHex(0x444444))
+    /// 设置页唯一的主动作（实心按钮、深色下的强调文字）：浅色 #141414 · 深色 #FFFFFF
+    static let controlPrimary = dynamicColor(light: nsColorHex(0x141414), dark: nsColorHex(0xFFFFFF))
+
     // MARK: 2.1b 面板环境光（Aurora · 唯一允许的结构性渐变，规范见 DESIGN.md §3.1b）
     //
     // 只做两件事，都服务于「这一层是玻璃、背后有光」的材质读感，不做装饰：

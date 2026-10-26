@@ -95,6 +95,16 @@ struct MainView: View {
     @State var stickyRefreshTask: Task<Void, Never>?
     /// 待定位的时间分组（组头尚未被分页加载时先扩页，结果应用后补滚动）
     @State var pendingScrollGroupID: String?
+    /// 鼠标拖拽多选的锚点行（nil = 未在拖拽）
+    @State var dragSelectionAnchorID: UUID?
+    /// 拖拽开始前的勾选基线（⇧ 拖拽追加用；普通拖拽为空集）
+    @State var dragSelectionBaseline: Set<UUID> = []
+    /// 拖拽结束时刻（用于吞掉松手瞬间仍会派发的那次单击）
+    @State var dragSelectionEndedAt: Date?
+    /// 拖拽期指针纵向位置（边缘自动滚动循环读最新值，引用容器不触发视图刷新）
+    @State var dragPointerBox = DragPointerBox()
+    /// 拖拽边缘自动滚动任务（指针越出列表上下边缘时持续滚动）
+    @State var dragAutoScrollTask: Task<Void, Never>?
     /// 方向键在末尾触底下翻时记录待推进步长，下一页结果应用后补推进选中项
     @State var pendingAdvanceOffset: Int?
     @State var pendingAdvanceExtend = false
@@ -507,6 +517,8 @@ struct MainView: View {
                         ],
                         moreHints: [
                             .init(kbds: ["⇧\u{200A}↓", "⇧\u{200A}v"], label: L10n.tr("hints.multi")),
+                            // 鼠标拖拽框选：与 ⇧↑↓ 同属「多选」，无键帽、纯文字说明手势
+                            .init(kbds: [], label: L10n.tr("hints.drag_multi")),
                             .init(kbds: ["⌘\u{200A}C"], label: L10n.tr("hints.copy")),
                             .init(kbds: ["⌘\u{200A}F"], label: L10n.tr("hints.search")),
                             .init(kbds: ["⌥\u{200A}⏎"], label: L10n.tr("hints.paste_plain")),
@@ -585,7 +597,7 @@ struct MainView: View {
                         isSensitiveSyncActive: store.syncEngine.isE2EESensitiveSyncActive,
                         onScrubPaste: { scrubPasteSelected() },
                         onPinToScreen: { pinSelectedToScreen() },
-                        canScrubPaste: selectedRow.map { $0.kind == .text || $0.kind == .url } ?? false,
+                        canScrubPaste: selectedRow.map { $0.kind != .image && $0.kind != .file } ?? false,
                         onRestoreScrub: { restoreScrubPaste() }
                     )
                 }

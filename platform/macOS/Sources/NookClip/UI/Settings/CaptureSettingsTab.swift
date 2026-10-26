@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Tab 1: 捕捉 (Capture) —— 什么内容进入历史
+// MARK: - Tab: 捕捉 (Capture) —— 记什么、不记什么
 
 @MainActor
 struct CaptureSettingsTab: View {
@@ -8,10 +8,23 @@ struct CaptureSettingsTab: View {
     @AppStorage("sensitiveClipboardTimeout") private var sensitiveClipboardTimeout = 30
 
     var body: some View {
-        VStack(spacing: 16) {
-            // 敏感数据保护
-            SettingsSectionView(title: L10n.tr("settings.general.privacy_ocr")) {
-                SettingsRowView(
+        SettingsPage(
+            title: L10n.tr("settings.tab.capture"),
+            subtitle: L10n.tr("settings.subtitle.capture"),
+            status: [
+                (L10n.tr("settings.status.sensitive"), L10n.stateWord(enableSensitiveProtection)),
+                (L10n.tr("settings.status.sensitive_clear"), sensitiveClipboardTimeout == 0
+                    ? L10n.tr("settings.retention.unlimited")
+                    : "\(sensitiveClipboardTimeout) " + L10n.tr("settings.general.seconds")),
+                (L10n.tr("settings.status.excluded"), "\(excludedCount)"),
+            ]
+        ) {
+            SettingsFoldGroup(
+                index: 0,
+                title: L10n.tr("settings.general.privacy_ocr"),
+                summary: L10n.stateWord(enableSensitiveProtection)
+            ) {
+                SettingsRow(
                     title: L10n.tr("settings.general.enable_sensitive"),
                     subtitle: L10n.tr("settings.general.sensitive_desc"),
                     showDivider: enableSensitiveProtection
@@ -20,8 +33,9 @@ struct CaptureSettingsTab: View {
                         .toggleStyle(.nookSwitch)
                         .labelsHidden()
                 }
+
                 if enableSensitiveProtection {
-                    SettingsRowView(title: L10n.tr("settings.general.sensitive_timeout")) {
+                    SettingsRow(title: L10n.tr("settings.general.sensitive_timeout")) {
                         Picker("", selection: $sensitiveClipboardTimeout) {
                             Text("10 " + L10n.tr("settings.general.seconds")).tag(10)
                             Text("30 " + L10n.tr("settings.general.seconds")).tag(30)
@@ -35,8 +49,19 @@ struct CaptureSettingsTab: View {
                 }
             }
 
-            // 排除应用列表
-            ExcludedAppsView()
+            SettingsFoldGroup(
+                index: 1,
+                title: L10n.tr("excluded.title"),
+                summary: "\(excludedCount)"
+            ) {
+                ExcludedAppsView()
+            }
         }
+    }
+
+    /// 现状带与折叠摘要都要显示「已排除几个应用」，
+    /// 值本身由 ExcludedAppsView 自己维护，这里只读它的 UserDefaults 镜像。
+    private var excludedCount: Int {
+        ExcludedAppsManager.shared.apps.count
     }
 }

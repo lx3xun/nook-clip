@@ -4,7 +4,6 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  let interactivePrototype = null;
 
   // 1. 多语言国际化系统 (i18n)
   initI18n();
@@ -83,20 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 3. 产品交互展示窗模式切换 (Mockup Mode Switcher - 与全局主题深度联动)
-  const prototypeMount = document.getElementById('interactivePrototypeMount');
-  if (prototypeMount && window.NookClipPrototype) {
-    const isDark = (root.getAttribute('data-theme') === 'dark') ||
-      (root.getAttribute('data-theme') === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    interactivePrototype = new window.NookClipPrototype(prototypeMount, {
-      theme: isDark ? 'dark' : 'light',
-      lang: document.documentElement.lang || 'zh-Hans',
-      onThemeChange: (newTheme) => {
-        setTheme(newTheme, true);
-      }
-    });
-  }
-
+  // 3. 原生界面超清截图展示联动 (Mockup Preview Switcher - 与全局主题深度联动)
   previewBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const mode = btn.getAttribute('data-preview-mode');
@@ -105,10 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function updateMockupPreview(mode) {
-    if (interactivePrototype) {
-      interactivePrototype.setTheme(mode);
-    }
-
     // 更新深色/浅色模式按钮激活态
     previewBtns.forEach((btn) => {
       const btnMode = btn.getAttribute('data-preview-mode');
@@ -119,12 +101,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!previewImg) return;
 
-    if (mode === 'light') {
-      previewImg.src = 'assets/nookclip-light.png';
-      previewImg.alt = 'NookClip 浅色模式界面真实截图';
-    } else {
-      previewImg.src = 'assets/nookclip-dark.png';
-      previewImg.alt = 'NookClip 深色模式界面真实截图';
+    const nextSrc = mode === 'light' ? 'assets/nookclip-light.png' : 'assets/nookclip-dark.png';
+    const nextAlt = mode === 'light' ? 'NookClip 浅色模式界面真实截图' : 'NookClip 深色模式界面真实截图';
+
+    if (!previewImg.src.endsWith(nextSrc)) {
+      previewImg.src = nextSrc;
+      previewImg.alt = nextAlt;
     }
   }
 
@@ -319,10 +301,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      // 同步测试台语言
-      if (interactivePrototype && typeof interactivePrototype.setLanguage === 'function') {
-        interactivePrototype.setLanguage(lang);
-      }
 
       // 同步所有选项按钮的 active 状态
       langOptions.forEach((btn) => {
@@ -423,6 +401,123 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !modal.hidden) {
         closeModal();
+      }
+    });
+  }
+  // 9. 动态演示放大弹窗逻辑 (Demo Video Lightbox Modal)
+  initDemoLightbox();
+
+  function initDemoLightbox() {
+    const lightbox = document.getElementById('demoLightbox');
+    if (!lightbox) return;
+
+    const card = lightbox.querySelector('.demo-lightbox-card');
+    const video = document.getElementById('demoLightboxVideo');
+    const numEl = document.getElementById('demoLightboxNum');
+    const titleEl = document.getElementById('demoLightboxTitle');
+    const kbdEl = document.getElementById('demoLightboxKbd');
+    const descEl = document.getElementById('demoLightboxDesc');
+    const tagsEl = document.getElementById('demoLightboxTags');
+    const counterEl = document.getElementById('demoLightboxCounter');
+    const closeBtn = document.getElementById('demoLightboxCloseBtn');
+    const prevBtn = document.getElementById('demoLightboxPrevBtn');
+    const nextBtn = document.getElementById('demoLightboxNextBtn');
+
+    const demoCards = Array.from(document.querySelectorAll('#demos .demo-card'));
+    if (!demoCards.length) return;
+
+    let currentIdx = 0;
+
+    function renderDemo(idx) {
+      if (idx < 0) idx = demoCards.length - 1;
+      if (idx >= demoCards.length) idx = 0;
+      currentIdx = idx;
+
+      const targetCard = demoCards[currentIdx];
+      if (!targetCard) return;
+
+      const srcVideo = targetCard.querySelector('.demo-video');
+      const srcNum = targetCard.querySelector('.demo-num');
+      const srcTitle = targetCard.querySelector('.demo-title');
+      const srcKbd = targetCard.querySelector('.demo-kbd');
+      const srcDesc = targetCard.querySelector('.demo-desc');
+      const srcTags = targetCard.querySelector('.demo-tags');
+
+      if (srcVideo && video) {
+        const videoSrc = srcVideo.getAttribute('src');
+        const posterSrc = srcVideo.getAttribute('poster');
+        if (video.getAttribute('src') !== videoSrc) {
+          video.src = videoSrc;
+          video.poster = posterSrc || '';
+        }
+        video.currentTime = 0;
+        video.play().catch(() => {});
+      }
+
+      if (numEl && srcNum) numEl.textContent = srcNum.textContent.trim();
+      if (titleEl && srcTitle) titleEl.innerHTML = srcTitle.innerHTML;
+      if (kbdEl) kbdEl.innerHTML = srcKbd ? srcKbd.innerHTML : '';
+      if (descEl && srcDesc) descEl.innerHTML = srcDesc.innerHTML;
+      if (tagsEl && srcTags) tagsEl.innerHTML = srcTags.innerHTML;
+      if (counterEl) counterEl.textContent = `${currentIdx + 1} / ${demoCards.length}`;
+    }
+
+    function openLightbox(idx) {
+      renderDemo(idx);
+      lightbox.hidden = false;
+      lightbox.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('demo-lightbox-locked');
+    }
+
+    function closeLightbox() {
+      if (lightbox.hidden) return;
+      lightbox.hidden = true;
+      lightbox.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('demo-lightbox-locked');
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+    }
+
+    // 点击视频区域或按下回车时触发放大
+    demoCards.forEach((demoCard, idx) => {
+      const wrap = demoCard.querySelector('.demo-video-wrap');
+      if (!wrap) return;
+
+      wrap.addEventListener('click', () => {
+        openLightbox(idx);
+      });
+
+      wrap.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openLightbox(idx);
+        }
+      });
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
+    if (prevBtn) prevBtn.addEventListener('click', () => renderDemo(currentIdx - 1));
+    if (nextBtn) nextBtn.addEventListener('click', () => renderDemo(currentIdx + 1));
+
+    // 点击卡片外层遮罩关闭
+    lightbox.addEventListener('click', (e) => {
+      if (card && !card.contains(e.target)) {
+        closeLightbox();
+      }
+    });
+
+    // 键盘全局快捷键：ESC 关闭、左右箭头切换
+    document.addEventListener('keydown', (e) => {
+      if (lightbox.hidden) return;
+      if (e.key === 'Escape') {
+        closeLightbox();
+      } else if (e.key === 'ArrowLeft') {
+        renderDemo(currentIdx - 1);
+      } else if (e.key === 'ArrowRight') {
+        renderDemo(currentIdx + 1);
       }
     });
   }

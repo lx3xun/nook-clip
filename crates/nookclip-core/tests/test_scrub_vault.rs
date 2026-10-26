@@ -9,9 +9,10 @@
 //! 让仓库里不出现可直接使用的密钥或真实证件号，也让样本更易审查。
 
 use nookclip_core::algorithms::scrub::{
-    active_vault_count, clear_vault, count_restorable_placeholders, default_enabled_rule_keys,
-    restore_text, scan_text, scrub_text, scrub_text_at, restore_text_at, CustomScrubRule,
-    ExternalEntitySpan, ScrubConfig, DEFAULT_SESSION_TTL_SECONDS, MAX_VAULT_ENTRIES,
+    active_vault_count, clear_vault, count_restorable_placeholders,
+    count_restorable_placeholders_at, default_enabled_rule_keys, restore_text, restore_text_at,
+    scan_text, scrub_text, scrub_text_at, CustomScrubRule, ExternalEntitySpan, ScrubConfig,
+    DEFAULT_SESSION_TTL_SECONDS, MAX_VAULT_ENTRIES,
 };
 use std::sync::Mutex;
 
@@ -919,4 +920,52 @@ fn real_world_log_sample_roundtrip() {
 
     let restored = restore_text(&scrubbed.scrubbed_text);
     assert_eq!(restored.restored_text, text);
+}
+
+#[test]
+fn passport_and_numeric_custom_tag_and_lru_and_ttl_work() {
+    let _guard = setup();
+    // 1. Passport 命中与还原
+    let passport_text = "Passport: E12345678 / 护照号：G87654321 请核对";
+    let res = scrub_text(passport_text, &config(), &[]);
+    assert!(res.scrubbed_text.contains("<PASSPORT_1>"), "got: {}", res.scrubbed_text);
+    assert_eq!(restore_text(&res.scrubbed_text).restored_text, passport_text);
+
+    // 2. 数字开头的自定义标签 (如 2FA) 能正常脱敏并还原
+    let mut cfg = config();
+    cfg.custom_rules.push(CustomScrubRule {
+        id: "r1".to_string(),
+        name: "2FA".to_string(),
+        is_regex: false,
+        pattern: "OTP-998877".to_string(),
+        placeholder_tag: "2FA".to_string(),
+        enabled: true,
+    });
+    cfg.session_ttl_seconds = 300;
+    let custom_res = scrub_text_at("code: OTP-998877", &cfg, &[], 1000);
+    assert_eq!(custom_res.scrubbed_text, "code: <2FA_1>");
+    assert_eq!(count_restorable_placeholders_at(&custom_res.scrubbed_text, 1100), 1);
+    assert_eq!(
+        restore_text_at(&custom_res.scrubbed_text, 1100).restored_text,
+        "code: OTP-998877"
+    );
+    // 超过自定义 300s TTL（小于默认 1800s）后应过期不可还原
+    assert_eq!(count_restorable_placeholders_at(&custom_res.scrubbed_text, 1500), 0);
+}
+
+#[test]
+fn id_card_with_invalid_birth_date_is_rejected() {
+    let _guard = setup();
+    // 11010519991345001X: 13月45日，计算末位校验码使其恰好通过 ISO 7064，但因生日非法必须被拒绝
+    let prefix = "11010519991345001";
+    let weights = [7u32, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+    let check_chars = ['1', '0', 'X', '9', '8', '7', '6', '5', '4', '3', '2'];
+    let sum: u32 = prefix
+        .chars()
+        .zip(weights.iter())
+        .map(|(c, w)| c.to_digit(10).unwrap() * w)
+        .sum();
+    let fake_id = format!("{}{}", prefix, check_chars[(sum % 11) as usize]);
+    let res = scrub_text(&format!("order {}", fake_id), &config(), &[]);
+    assert!(!res.scrubbed_text.contains("<ID_CARD_"), "got: {}", res.scrubbed_text);
 }

@@ -65,11 +65,33 @@
 ### 更多实用功能
 - **iCloud Drive 同步**：通过个人 iCloud 云盘在多台设备间同步文本与收藏（可选开启，无需第三方服务器）。
 - **备份与导出**：支持导出 JSON 或 Markdown 格式，导出时可选择排除或遮码敏感记录。
-- **批量操作与撤销**：支持按住 Shift 或 ⌘ 多选、合并粘贴与批量删除；删除后支持 10 秒内按 `⌘ Z` 撤销。
+- **批量操作与撤销**：支持按住 Shift 或 ⌘ 多选，也可以直接在列表里**按住鼠标上下拖动**整段勾选（按住 Shift 拖动则在已有勾选上追加，拖到列表上下边缘会自动滚动）；合并粘贴与批量删除；删除后支持 10 秒内按 `⌘ Z` 撤销。
 - **顺序粘贴栈（`⌥ ⏎`）**：多选几条后按 `⌥ ⏎`，按**你复制的先后顺序**排成队列（最早复制的排第一，与列表「最新在前」的显示顺序刻意相反），屏幕底部弹出队列浮窗，完整列出待贴条目与「已贴 x / y」进度；在目标窗口连续按原生 `⌘ V` 即可逐条粘出，也可以直接点某行右侧的「粘贴」按钮立刻贴出那一条。行首带 ▶ 的那条就是「下一条待粘贴」，贴完自动前移到下一条还没贴的条目，点行只挪高亮不粘贴，按 `⏎` 贴出高亮行，已贴过的打勾划线；浮窗可拖动并记住位置，录制模式另有全局快捷键 `⌃ ⌥ V`（再按一次结束）。浮窗不抢焦点，所以 `Esc` 在任何应用里都能结束队列，不必先点浮窗。录制模式下每次复制，还会有一张小卡片从鼠标位置沿弧线飞进它在队列里的那一行，落地即显形。队列激活期间剪贴板始终装着高亮那一条，复制新内容不会挤掉还没贴的旧条目。
-- **屏幕置顶贴条（`⌘ P`）**：选中任意条目按 `⌘ P` 钉成悬浮小窗（最多 12 张），可调透明度、折叠、鼠标穿透、内联编辑、复制或存回历史；图片贴条还能一键复制图中文字。
+- **屏幕置顶贴条（`⌘ P`）**：选中任意条目按 `⌘ P` 钉成悬浮小窗（再钉一条自动原位替换），可调透明度、折叠、鼠标穿透（按 `⌘ ⌥ P` 或点右上角小锁恢复点击）、内联编辑、复制或存回历史；代码贴条支持语法高亮，图片贴条还能一键复制图中文字。
 
 ---
+## 🎬 核心功能动态演示
+
+按真实界面的尺寸与配色复刻的演示（点缩略图看动图）：
+
+| 顺序粘贴栈（`⌥ ⏎`） | 语义脱敏粘贴（`⌃ ⏎`） | 屏幕置顶贴条（`⌘ P`） |
+|:---:|:---:|:---:|
+| [![顺序粘贴](site/assets/features/poster-paste-stack.jpg)](site/assets/features/paste-stack.gif) | [![语义脱敏粘贴](site/assets/features/poster-scrub-paste.jpg)](site/assets/features/scrub-paste.gif) | [![屏幕置顶贴条](site/assets/features/poster-pinned-note.jpg)](site/assets/features/pinned-note.gif) |
+
+| 类型与标签筛选（`⌘ ↓`） | 离线图片 OCR 识别与搜索 |
+|:---:|:---:|
+| [![类型与标签筛选](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![离线 OCR 搜图](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) |
+
+- 单功能 MP4：[顺序粘贴](site/assets/features/paste-stack.mp4) · [语义脱敏](site/assets/features/scrub-paste.mp4) · [贴条](site/assets/features/pinned-note.mp4) · [类型与标签筛选](site/assets/features/filter-tags.mp4) · [离线 OCR 搜图](site/assets/features/ocr-search.mp4)
+- 单功能 GIF：[顺序粘贴](site/assets/features/paste-stack.gif) · [语义脱敏](site/assets/features/scrub-paste.gif) · [贴条](site/assets/features/pinned-note.gif) · [类型与标签筛选](site/assets/features/filter-tags.gif) · [离线 OCR 搜图](site/assets/features/ocr-search.gif)
+- 粘贴三进阶三合一整片：[all-three.mp4](site/assets/features/all-three.mp4)（约 27 秒）
+- 带说明的展示页：[preview.html](site/assets/features/preview.html)（支持点击放大观看）
+
+> 💡 **提示**：点击上方任意动图可放大查看完整动图；在[介绍页动态演示](https://lx3xun.github.io/nook-clip/#demos)或[展示页](site/assets/features/preview.html)中点击视频可全屏放大播放。
+> 这些是界面复刻动画，不是真机录屏。
+
+---
+
 ## ⌨️ 快捷键指南
 
 | 快捷键 | 操作说明 |
@@ -77,11 +99,12 @@
 | **`⌘ ⇧ V`** | 全局呼出 / 隐藏面板（可在「设置 → 粘贴」中录制自定义或选预设） |
 | **`⌃ ⌥ V`** | 开始 / 结束录制顺序粘贴栈（在任何应用里都能边复制边攒队列） |
 | **`↑` / `↓`** | 上下移动选中项（长按连续移动，触底自动扩页） |
-| **`⇧ ↑` / `⇧ ↓` / `⌘ 点选`** | 扩展批量多选（多选后按 `⏎` 合并粘贴，按 `⌘ ⌫` 批量删除） |
+| **`⇧ ↑` / `⇧ ↓` / `⌘ 点选` / 鼠标拖动** | 扩展批量多选；在列表里按住鼠标上下拖动可整段勾选，拖到边缘自动滚动（多选后按 `⏎` 合并粘贴，按 `⌘ ⌫` 批量删除） |
 | **`⏎`** | 粘贴选中项到当前前台应用 / 启动选中的应用程序 |
 | **`⌃ ⏎`** | 脱敏粘贴：把敏感信息换成语义占位符（`<API_KEY_1>` 等）再粘贴 |
 | **`⌃ ⇧ ⏎`** | 还原真实值粘贴：把剪贴板里的占位符换回原文再粘贴 |
 | **`⌘ P`** | 把选中项钉成屏幕置顶贴条 |
+| **`⌘ ⌥ P`** | 恢复屏幕置顶贴条的鼠标点击（退出点击穿透锁定） |
 | **`⌥ ⏎`** | 纯文本粘贴（自动剔除字体、颜色、背景等富文本格式）；多选态下启动顺序粘贴栈 |
 | **`⌘ ⏎`** | 粘贴且保持面板打开（适合连续填表与比对） |
 | **`⌘ C`** | 重新复制选中项到系统剪贴板（列表态复制整条，预览区支持划词复制） |
@@ -163,8 +186,8 @@ NookClip 的设计原则是「默认本地、绝不上报」：
 ```text
 nook-clip/
 ├── crates/                        # Rust 核心工作区（跨平台存储、全文检索、同步与加密）
-│   ├── nook-core/                 # 核心业务引擎（SQLite WAL + FTS5、AES-256-GCM、Zstd 同步包、脱敏导出）
-│   └── nook-ffi/                  # UniFFI 0.28 绑定层（生成 Swift / C 桥接代码与静态库）
+│   ├── nookclip-core/             # 核心业务引擎（SQLite WAL + FTS5、AES-256-GCM、Zstd 同步包、脱敏导出）
+│   └── nookclip-ffi/              # UniFFI 0.28 绑定层（生成 Swift / C 桥接代码与静态库）
 ├── platform/macOS/                # macOS 原生客户端（Swift Package）
 │   ├── Package.swift              # SwiftPM 依赖配置（Sparkle 2）
 │   ├── Sources/NookClip/

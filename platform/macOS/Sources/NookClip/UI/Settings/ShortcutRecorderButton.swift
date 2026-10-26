@@ -39,14 +39,14 @@ struct ShortcutRecorderButton: View {
                     .padding(.vertical, 5)
                     .background(
                         model.isRecording
-                            ? NookClip.bgAccentSubtle
+                            ? NookClip.bgRaised
                             : NookClip.bgControlElevated,
                         in: RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .stroke(
-                                model.isRecording ? NookClip.accent.opacity(0.75) : NookClip.borderKbd,
+                                model.isRecording ? NookClip.accent : NookClip.borderKbd,
                                 lineWidth: model.isRecording ? 1.5 : 0.5
                             )
                     )

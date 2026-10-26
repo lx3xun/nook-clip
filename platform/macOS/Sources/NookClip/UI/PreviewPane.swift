@@ -44,7 +44,7 @@ struct PreviewPane: View {
     var onScrubPaste: (() -> Void)? = nil
     /// ⌘P 钉在屏幕（US3）：把本条目钉成桌面置顶贴条
     var onPinToScreen: (() -> Void)? = nil
-    /// 当前条目能否脱敏（仅文本/URL 条目有可脱敏文本，图片/文件不显示该按钮）
+    /// 当前条目能否脱敏（排除非文本的图片/文件条目）
     var canScrubPaste: Bool = false
     /// ⌃⇧⏎ 还原粘贴：把当前条目里的占位符还原成真实值（US1 反向）
     var onRestoreScrub: (() -> Void)? = nil

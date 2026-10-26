@@ -341,6 +341,8 @@ extension MainView {
                             }
                     }
                 }
+                // 鼠标拖拽多选：与行内点击手势并存（单击选中 / 双击粘贴不受影响）
+                .simultaneousGesture(rowDragSelectionGesture)
                 .onPreferenceChange(RowFramesPreferenceKey.self) { frames in
                     // 滚动期帧率高：行坐标写入引用容器，不触发整树重求值；
                     // 吸顶组经节流合并为一次性状态更新。
@@ -350,6 +352,9 @@ extension MainView {
                 .onAppear { scrollProxy = proxy }
                 .onChange(of: selectionCoordinator.selectedID) { oldID, id in
                     guard let id else { return }
+                    // 拖拽多选期间选中项会随指针逐行前移：此时不做「滚动到可见」，
+                    // 否则整段拖动会被滚动动画拖着走，选区跳来跳去
+                    guard dragSelectionAnchorID == nil else { return }
                     if let group = groups.first(where: { grp in grp.items.contains { $0.id == id } }) {
                         filterState.updateStickyGroup(group.id)
                     }
@@ -382,6 +387,10 @@ extension MainView {
     /// 勾选不包动画——与 extendSelection 同理，高频操作要即时反馈
     func handleRowTap(_ item: ClipboardRowModel) {
         searchFieldFocused = false
+        // 拖拽多选期间 / 松手瞬间系统仍会补发一次点击：放行会把刚拖出的整段选区
+        // 又收敛回单条，故两种情况下都直接忽略（onEnded 与行 onTap 的先后顺序
+        // 由 SwiftUI 决定，不能只依赖「刚结束」这一条时间条件）
+        guard dragSelectionAnchorID == nil, !didJustFinishDragSelection else { return }
         let modifiers = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
         withAnimation(NookClip.animSelection) {
             selectionCoordinator.handleTap(
@@ -395,6 +404,7 @@ extension MainView {
 
     /// 行双击 = 粘贴，与 ⏎ 一致：单选模式粘贴该项，批量模式合并粘贴勾选项
     func handleRowDoubleTap(_ item: ClipboardRowModel) {
+        guard dragSelectionAnchorID == nil, !didJustFinishDragSelection else { return }
         if !isBatchMode { selectionCoordinator.selectedID = item.id }
         if isBatchMode {
             pasteBatch(keepOpen: false, plainTextOnly: false)

@@ -39,4 +39,4 @@ swift test --package-path platform/macOS
 
 ## 目录速览
 
-见 [README.md](README.md#-开发) 的项目结构一节。
+见 [README.md](README.md#-项目结构) 的项目结构一节。

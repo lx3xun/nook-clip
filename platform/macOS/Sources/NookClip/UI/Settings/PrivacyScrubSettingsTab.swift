@@ -70,7 +70,15 @@ struct PrivacyScrubSettingsTab: View {
     // MARK: - body
 
     var body: some View {
-        VStack(spacing: 16) {
+        SettingsPage(
+            title: L10n.tr("settings.tab.privacy"),
+            subtitle: L10n.tr("settings.subtitle.privacy"),
+            status: [
+                (L10n.tr("settings.status.scrub"), "\(enabledRuleCount) / \(ScrubRuleDescriptor.all.count)"),
+                (L10n.tr("scrub.vault.title"), "\(vaultCount)"),
+                (L10n.tr("scrub.hint.settings.title"), L10n.stateWord(pasteHintEnabled)),
+            ]
+        ) {
             builtinRuleSections
             customRuleSection
             sessionSection
@@ -78,13 +86,23 @@ struct PrivacyScrubSettingsTab: View {
         .onAppear(perform: syncFromService)
     }
 
+    /// 现状带用：已启用的内置规则条数（自定义规则不计入，口径与折叠摘要一致）
+    private var enabledRuleCount: Int {
+        ScrubRuleDescriptor.all.filter { ruleEnabled[$0.id] ?? true }.count
+    }
+
     // MARK: - 分组一：内置脱敏规则（凭据 / 网络与设备 / 个人信息）
 
     private var builtinRuleSections: some View {
-        // 三个分组各占一张卡片：对齐其它 5 个 Tab「一主题一卡」的节奏，
-        // 卡片标题直接用分组名，卡片内首行是本组的批量开关
-        ForEach(ruleBuckets) { bucket in
-            SettingsSectionView(title: L10n.tr(bucket.group.titleKey)) {
+        // 三个分组各占一个折叠分组，标题直接用分组名，组内首行是本组的批量开关。
+        // 摘要显示「已启用 N / M 条」，折叠起来也能看到这一组的当前状态。
+        ForEach(Array(ruleBuckets.enumerated()), id: \.element.id) { bucketIndex, bucket in
+            let enabled = bucket.rules.filter { ruleEnabled[$0.id] ?? true }.count
+            SettingsFoldGroup(
+                index: bucketIndex,
+                title: L10n.tr(bucket.group.titleKey),
+                summary: "\(enabled) / \(bucket.rules.count)"
+            ) {
                 groupMasterRow(bucket)
                 ForEach(Array(bucket.rules.enumerated()), id: \.element.id) { index, descriptor in
                     ruleRow(descriptor, showDivider: index < bucket.rules.count - 1)
@@ -104,7 +122,7 @@ struct PrivacyScrubSettingsTab: View {
     private func groupMasterRow(_ bucket: ScrubRuleBucket) -> some View {
         let enabledCount = bucket.rules.filter { ruleEnabled[$0.id] ?? true }.count
         let allOn = enabledCount == bucket.rules.count
-        return SettingsRowView(
+        return SettingsRow(
             title: L10n.tr("scrub.group.master"),
             subtitle: L10n.tr("scrub.group.enabled_count", String(enabledCount), String(bucket.rules.count)),
             showDivider: true
@@ -125,7 +143,7 @@ struct PrivacyScrubSettingsTab: View {
     /// 给 `1` 就是一个真实产物，用户一眼能对上自己将看到的结果。
     /// 用等宽字体呈现，让它读起来像代码样例而不是被截断的正文。
     private func ruleRow(_ descriptor: ScrubRuleDescriptor, showDivider: Bool) -> some View {
-        SettingsRowView(showDivider: showDivider) {
+        SettingsRow(showDivider: showDivider) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.tr(descriptor.titleKey))
                     .font(.nookClipBody)
@@ -164,7 +182,11 @@ struct PrivacyScrubSettingsTab: View {
     // MARK: - 分组二：自定义规则
 
     private var customRuleSection: some View {
-        SettingsSectionView(title: L10n.tr("scrub.custom.title")) {
+        SettingsFoldGroup(
+            index: ruleBuckets.count,
+            title: L10n.tr("scrub.custom.title"),
+            summary: customRules.isEmpty ? L10n.tr("scrub.custom.empty_short") : "\(customRules.count)"
+        ) {
             VStack(spacing: 0) {
                 if customRules.isEmpty && editorMode == nil {
                     customEmptyRow
@@ -200,14 +222,14 @@ struct PrivacyScrubSettingsTab: View {
                 .padding(.vertical, 14)
 
             Rectangle()
-                .fill(NookClip.separator)
-                .frame(height: 0.5)
-                .padding(.leading, 16)
+                .fill(NookClip.ruleSubtle)
+                .frame(height: 1)
+                .padding(.leading, 14)
         }
     }
 
     private func customRuleRow(_ rule: CustomScrubRule) -> some View {
-        SettingsRowView(showDivider: true) {
+        SettingsRow(showDivider: true) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(displayName(for: rule))
@@ -253,10 +275,10 @@ struct PrivacyScrubSettingsTab: View {
     private var regexBadge: some View {
         Text(L10n.tr("scrub.custom.regex_badge"))
             .font(.nookClipBadge)
-            .foregroundStyle(NookClip.accent)
+            .foregroundStyle(NookClip.textSecondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(NookClip.bgChipSelected, in: Capsule())
+            .background(NookClip.bgRaised, in: Capsule())
     }
 
     /// 删除的二次确认做成「按钮就地变文案」而不是弹窗：
@@ -298,7 +320,7 @@ struct PrivacyScrubSettingsTab: View {
                     Text(L10n.tr("scrub.custom.add"))
                         .font(.nookClipMetaMedium)
                 }
-                .foregroundStyle(editorMode == nil ? NookClip.accent : NookClip.textDisabled)
+                .foregroundStyle(editorMode == nil ? NookClip.textPrimary : NookClip.textDisabled)
             }
             .buttonStyle(.plain)
             .disabled(editorMode != nil)
@@ -388,9 +410,9 @@ struct PrivacyScrubSettingsTab: View {
 
             if showDivider {
                 Rectangle()
-                    .fill(NookClip.separator)
-                    .frame(height: 0.5)
-                    .padding(.leading, 16)
+                    .fill(NookClip.ruleSubtle)
+                    .frame(height: 1)
+                    .padding(.leading, 14)
             }
         }
     }
@@ -546,15 +568,19 @@ struct PrivacyScrubSettingsTab: View {
     // MARK: - 分组三：会话安全（映射表 / 自动销毁 / 本地 NLP）
 
     private var sessionSection: some View {
-        SettingsSectionView(title: L10n.tr("scrub.session.section")) {
-            SettingsRowView(title: L10n.tr("scrub.vault.title"), showDivider: true) {
+        SettingsFoldGroup(
+            index: ruleBuckets.count + 1,
+            title: L10n.tr("scrub.session.section"),
+            summary: L10n.tr(Self.ttlPresets.first { $0.seconds == ttlSeconds }?.titleKey ?? "scrub.vault.ttl_off")
+        ) {
+            SettingsRow(title: L10n.tr("scrub.vault.title"), showDivider: true) {
                 HStack(spacing: 10) {
                     vaultCountBadge
                     clearVaultButton
                 }
             }
 
-            SettingsRowView(title: L10n.tr("scrub.vault.ttl"), showDivider: true) {
+            SettingsRow(title: L10n.tr("scrub.vault.ttl"), showDivider: true) {
                 HStack(spacing: 6) {
                     ForEach(Self.ttlPresets) { preset in
                         ttlPill(preset)
@@ -562,7 +588,7 @@ struct PrivacyScrubSettingsTab: View {
                 }
             }
 
-            SettingsRowView(
+            SettingsRow(
                 title: L10n.tr("scrub.nlp.title"),
                 subtitle: L10n.tr("scrub.nlp.desc"),
                 showDivider: true
@@ -580,7 +606,7 @@ struct PrivacyScrubSettingsTab: View {
 
             // 粘贴前提醒：默认开。关掉只影响预览区那行提示，
             // 不影响 ⌃⏎ 脱敏粘贴与 ⌃⇧⏎ 还原本身——功能不会被设置项阉割。
-            SettingsRowView(
+            SettingsRow(
                 title: L10n.tr("scrub.hint.settings.title"),
                 subtitle: L10n.tr("scrub.hint.settings.desc"),
                 showDivider: true
@@ -599,11 +625,11 @@ struct PrivacyScrubSettingsTab: View {
             .font(.nookClipRounded(11, .medium))
             // 徽标是单行计数，宽度随数字变；禁止换行，否则「N 条映射」会折成两行
             .lineLimit(1)
-            .foregroundStyle(vaultCount > 0 ? NookClip.accent : NookClip.textTertiary)
+            .foregroundStyle(vaultCount > 0 ? NookClip.textPrimary : NookClip.textTertiary)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(
-                vaultCount > 0 ? NookClip.bgAccentSubtle : NookClip.bgRowOn,
+                NookClip.bgRaised,
                 in: Capsule()
             )
     }
@@ -643,7 +669,7 @@ struct PrivacyScrubSettingsTab: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
-                        .stroke(selected ? NookClip.accent.opacity(0.4) : NookClip.separator, lineWidth: 0.5)
+                        .stroke(selected ? NookClip.accent.opacity(0.55) : NookClip.separator, lineWidth: 0.5)
                 )
                 .foregroundStyle(selected ? NookClip.accent : NookClip.textSecondary)
         }

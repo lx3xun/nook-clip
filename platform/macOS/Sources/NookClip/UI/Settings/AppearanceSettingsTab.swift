@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Tab 4: 外观 (Appearance)
+// MARK: - Tab: 外观 (Appearance)
 
 @MainActor
 struct AppearanceSettingsTab: View {
@@ -11,40 +11,57 @@ struct AppearanceSettingsTab: View {
     @AppStorage(UserDefaultsKey.rowSelectionStyle.rawValue) private var rowSelectionStyle = RowSelectionStyle.subtleAccent.rawValue
 
     var body: some View {
-        VStack(spacing: 16) {
-            // 外观模式可视化卡片选择
-            SettingsSectionView(title: L10n.tr("settings.general.appearance_section")) {
-                VStack(spacing: 12) {
-                    HStack(spacing: 18) {
-                        AppearanceOptionCard(
-                            mode: "system",
-                            title: L10n.tr("settings.general.appearance_system"),
-                            isSelected: appearance == "system"
-                        ) {
-                            setAppearance("system")
-                        }
-
-                        AppearanceOptionCard(
-                            mode: "light",
-                            title: L10n.tr("settings.general.appearance_light"),
-                            isSelected: appearance == "light"
-                        ) {
-                            setAppearance("light")
-                        }
-
-                        AppearanceOptionCard(
-                            mode: "dark",
-                            title: L10n.tr("settings.general.appearance_dark"),
-                            isSelected: appearance == "dark"
-                        ) {
-                            setAppearance("dark")
-                        }
+        SettingsPage(
+            title: L10n.tr("settings.tab.appearance"),
+            subtitle: L10n.tr("settings.subtitle.appearance"),
+            status: [
+                (L10n.tr("settings.status.appearance"), Self.appearanceLabel(appearance)),
+                (L10n.tr("settings.general.transparency"), "\(Int(round(backgroundTransparency * 100)))%"),
+                (L10n.tr("settings.general.language"), LocalizationManager.shared.selectedLanguage.title),
+            ]
+        ) {
+            SettingsFoldGroup(
+                index: 0,
+                title: L10n.tr("settings.general.appearance_section"),
+                summary: Self.appearanceLabel(appearance)
+            ) {
+                // 三张可视化卡片直接坐在面板里：它们本身就是「效果预览」，
+                // 再包一层行反而会把预览挤小。
+                HStack(spacing: 14) {
+                    AppearanceOptionCard(
+                        mode: "system",
+                        title: L10n.tr("settings.general.appearance_system"),
+                        isSelected: appearance == "system"
+                    ) {
+                        setAppearance("system")
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                }
 
-                SettingsRowView(
+                    AppearanceOptionCard(
+                        mode: "light",
+                        title: L10n.tr("settings.general.appearance_light"),
+                        isSelected: appearance == "light"
+                    ) {
+                        setAppearance("light")
+                    }
+
+                    AppearanceOptionCard(
+                        mode: "dark",
+                        title: L10n.tr("settings.general.appearance_dark"),
+                        isSelected: appearance == "dark"
+                    ) {
+                        setAppearance("dark")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+
+                Rectangle()
+                    .fill(NookClip.ruleSubtle)
+                    .frame(height: 1)
+                    .padding(.leading, 14)
+
+                SettingsRow(
                     title: L10n.tr("settings.general.translucency"),
                     subtitle: L10n.tr("settings.general.translucency_desc"),
                     showDivider: enableTranslucency
@@ -55,7 +72,7 @@ struct AppearanceSettingsTab: View {
                 }
 
                 if enableTranslucency {
-                    SettingsRowView(
+                    SettingsRow(
                         title: L10n.tr("settings.general.transparency"),
                         showDivider: true
                     ) {
@@ -64,13 +81,14 @@ struct AppearanceSettingsTab: View {
                                 .frame(width: 120)
                             Text("\(Int(round(backgroundTransparency * 100)))%")
                                 .font(.nookClipMono(12, .medium))
+                                .monospacedDigit()
                                 .foregroundStyle(NookClip.textSecondary)
                                 .frame(width: 40, alignment: .trailing)
                         }
                     }
                 }
 
-                SettingsRowView(title: L10n.tr("settings.general.language")) {
+                SettingsRow(title: L10n.tr("settings.general.language")) {
                     Picker("", selection: Binding(
                         get: { LocalizationManager.shared.selectedLanguage },
                         set: { LocalizationManager.shared.selectedLanguage = $0 }
@@ -86,11 +104,14 @@ struct AppearanceSettingsTab: View {
             }
 
             // 列表与导航风格定制（005-ui-ux-redesign）
-            SettingsSectionView(title: L10n.tr("settings.appearance.list_section")) {
-                SettingsRowView(
+            SettingsFoldGroup(
+                index: 1,
+                title: L10n.tr("settings.appearance.list_section"),
+                summary: Self.selectionStyleLabel(rowSelectionStyle)
+            ) {
+                SettingsRow(
                     title: L10n.tr("settings.appearance.selection_style"),
-                    subtitle: L10n.tr("settings.appearance.selection_style_desc"),
-                    showDivider: true
+                    subtitle: L10n.tr("settings.appearance.selection_style_desc")
                 ) {
                     Picker("", selection: $rowSelectionStyle) {
                         Text(L10n.tr("settings.appearance.selection_solid")).tag(RowSelectionStyle.solidAccent.rawValue)
@@ -100,7 +121,6 @@ struct AppearanceSettingsTab: View {
                     .labelsHidden()
                     .frame(width: 170)
                 }
-
             }
         }
         .onAppear {
@@ -112,5 +132,23 @@ struct AppearanceSettingsTab: View {
     private func setAppearance(_ mode: String) {
         appearance = mode
         NotificationCenter.default.post(name: .appearanceDidChange, object: nil)
+    }
+
+    /// 折叠摘要与现状带共用：改档位时标题旁那句摘要自动跟上
+    private static func appearanceLabel(_ mode: String) -> String {
+        switch mode {
+        case "light":
+            return L10n.tr("settings.general.appearance_light")
+        case "dark":
+            return L10n.tr("settings.general.appearance_dark")
+        default:
+            return L10n.tr("settings.general.appearance_system")
+        }
+    }
+
+    private static func selectionStyleLabel(_ style: String) -> String {
+        style == RowSelectionStyle.solidAccent.rawValue
+            ? L10n.tr("settings.appearance.selection_solid")
+            : L10n.tr("settings.appearance.selection_subtle")
     }
 }

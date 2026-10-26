@@ -2,6 +2,7 @@ import AppKit
 import Carbon.HIToolbox
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - 顺序粘贴栈浮窗（specs/012-scrub-stack-pin · US2 · T009）
 //
@@ -46,6 +47,65 @@ final class PasteStackPillPresenter {
     func completeArrival(_ id: UUID) { arrivingIDs.remove(id) }
 
     func clearArrivals() { arrivingIDs.removeAll() }
+}
+
+// MARK: - 拖拽重排的进行态
+
+/// 列表内拖拽重排的临时状态（面板持有，SwiftUI 消费）。
+///
+/// 为什么不像别的临时状态那样用 `@State`：拖拽会话有可能**在浮窗外松手**
+/// （用户拖到一半改主意，甩到屏幕上），此时 SwiftUI 不会给我们任何回调，
+/// `@State` 里的「正在拖第几行」就永远留着——那一行会一直保持半透明，
+/// 后面的拖拽也会被误判为「还在上一次会话里」。
+/// 交给面板持有后，面板的 `sendEvent` 和这里的看门狗都能统一收尾。
+@MainActor
+@Observable
+final class PasteStackRowDragState {
+    /// 正在被拖的行下标；nil 表示没有进行中的拖拽
+    private(set) var draggingIndex: Int?
+    /// 当前悬停的落点行下标（用来画那条预告细线）
+    var dropIndex: Int?
+    /// 松手检测定时器，见 `beginDragging(_:)` 的说明
+    private var releaseWatchdog: Timer?
+
+    func beginDragging(_ index: Int) {
+        draggingIndex = index
+        dropIndex = nil
+        startReleaseWatchdog()
+    }
+
+    /// 一次拖拽会话结束（无论有没有成功落位）
+    func reset() {
+        releaseWatchdog?.invalidate()
+        releaseWatchdog = nil
+        draggingIndex = nil
+        dropIndex = nil
+    }
+
+    /// 看门狗：盯着鼠标左键有没有松开。
+    ///
+    /// 为什么需要它：`.onDrag` 一旦开始，AppKit 就进入拖拽循环，**源窗口收不到
+    /// mouseUp**；SwiftUI 也没有「拖拽结束」回调。于是「拖到浮窗外松手」这种最
+    /// 常见的放弃方式会让状态永远卡在「正在拖第 3 行」——那一行半透明不走，
+    /// 之后每次拖拽都被当成同一次会话。
+    /// 落位成功时 `performDrop` 会先 `reset()`，窗口内的松手由 `sendEvent` 兜，
+    /// 这里专门补「在窗外或拖到别的 App 上松手」这一档。
+    private func startReleaseWatchdog() {
+        releaseWatchdog?.invalidate()
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                // pressedMouseButtons 为 0 = 左键已经松开了，会话实际已结束
+                if NSEvent.pressedMouseButtons == 0 {
+                    self.reset()
+                }
+            }
+        }
+        // `.common` 而不是默认 mode：拖拽期间主 run loop 处于 eventTracking mode，
+        // 只挂默认 mode 的定时器在拖拽中途根本不会触发
+        RunLoop.main.add(timer, forMode: .common)
+        releaseWatchdog = timer
+    }
 }
 
 // MARK: - 面板
@@ -94,9 +154,15 @@ final class PasteStackPillPanel: NSPanel {
     var onJumpToItem: ((Int) -> Void)?
     /// ⏎ 贴出高亮那条（即「下一条待粘贴」）
     var onPasteHighlighted: (() -> Void)?
+    /// 🔒「粘完保留」开关：开 = 全部贴完也不收起浮窗，可反复挑着重粘
+    var onToggleKeepOpen: (() -> Void)?
+    /// 列表内拖拽重排：参数是「从第几条」搬到「第几条」（均为当前队列下标）
+    var onMoveItem: ((Int, Int) -> Void)?
 
     private let stackState: PasteStackState
     private let presenter = PasteStackPillPresenter()
+    /// 列表内拖拽重排的进行态（面板持有，见 `PasteStackRowDragState` 的说明）
+    private let rowDragState = PasteStackRowDragState()
     /// 浮窗内键盘手控监听（仅可见期间安装）
     private var keyMonitor: Any?
     /// 用户是否已经自己摆过位置（拖过就不再自动贴底居中）
@@ -151,7 +217,11 @@ final class PasteStackPillPanel: NSPanel {
             // 记下可能是一次拖动的起点。此时还不移动窗口——用户很可能只是
             // 想点某行的「粘贴」按钮，位移超过阈值才升级成拖动（见
             // `.leftMouseDragged`），否则按钮会变得特别难点。
-            dragAnchor = NSEvent.mouseLocation
+            //
+            // 列表区里**不启动整窗拖动**：那块区域已经被「上下拖拽重排条目」占用，
+            // 两套拖动抢同一段手势必然有一套失灵。窗口本身还能从进度行、底部键帽行
+            // 和左右留白处拖，够用。
+            dragAnchor = isInListArea(NSEvent.mouseLocation) ? nil : NSEvent.mouseLocation
             dragStartOrigin = frame.origin
         case .leftMouseDragged:
             if let anchor = dragAnchor {
@@ -175,6 +245,9 @@ final class PasteStackPillPanel: NSPanel {
                 }
             }
             dragAnchor = nil
+            // 拖行重排可能在外面松手：SwiftUI 的 DropDelegate 只在「落在别的行上」
+            // 时才回调，落空时没有任何通知。这里统一收尾，避免那一行永远半透明。
+            rowDragState.reset()
         default:
             break
         }
@@ -235,6 +308,8 @@ final class PasteStackPillPanel: NSPanel {
     func hide() {
         removeKeyMonitor()
         presenter.clearArrivals()
+        // 浮窗收起时可能正拖着一行：不留残留状态，下次显示不该有行是半透明的
+        rowDragState.reset()
         guard isVisible else {
             presenter.isVisible = false
             return
@@ -291,6 +366,13 @@ final class PasteStackPillPanel: NSPanel {
         return NSRect(x: frame.minX + 10, y: listTop - listHeight, width: frame.width - 20, height: listHeight)
     }
 
+    /// 某个屏幕坐标是否落在列表区里（用来把「拖行重排」和「拖窗」分开）
+    private func isInListArea(_ point: NSPoint) -> Bool {
+        guard let list = screenRectForListArea() else { return false }
+        // 列表只有 1~5 行、高度很矮，上下各放宽一点，避免边缘一像素就落到「拖窗」
+        return list.insetBy(dx: 0, dy: -Self.rowSpacing).contains(point)
+    }
+
     /// 新条目入队：先让对应行隐形，等飞行卡片落地再显形。
     ///
     /// 调用顺序有讲究——必须在 `syncSize()` **之前**登记隐形，否则窗口先长高、
@@ -340,7 +422,12 @@ final class PasteStackPillPanel: NSPanel {
                 onStop: { [weak self] in self?.onStop?() },
                 onPasteItem: { [weak self] index in self?.onPasteItem?(index) },
                 onJumpToItem: { [weak self] index in self?.onJumpToItem?(index) },
-                onPasteHighlighted: { [weak self] in self?.onPasteHighlighted?() }
+                onPasteHighlighted: { [weak self] in self?.onPasteHighlighted?() },
+                onToggleKeepOpen: { [weak self] in self?.onToggleKeepOpen?() },
+                onMoveItem: { [weak self] source, destination in
+                    self?.onMoveItem?(source, destination)
+                },
+                dragState: rowDragState
             )
             .nookClipLocalized()
         )
@@ -468,6 +555,11 @@ private struct PasteStackListContent: View {
     let onPasteItem: (Int) -> Void
     let onJumpToItem: (Int) -> Void
     let onPasteHighlighted: () -> Void
+    let onToggleKeepOpen: () -> Void
+    let onMoveItem: (Int, Int) -> Void
+    /// 拖拽重排的进行态。由面板（NSPanel 子类）持有而不是这里的 `@State`：
+    /// 拖到浮窗外松手时 SwiftUI 不会回调，只有面板能靠 mouseUp 统一收尾。
+    let dragState: PasteStackRowDragState
 
     /// 录制红点的呼吸相位（onAppear 置 true，靠 repeatForever 动画循环）
     @State private var recordDotPulse = false
@@ -545,6 +637,7 @@ private struct PasteStackListContent: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
+            keepOpenBadge
             orderBadge
             closeButton
         }
@@ -586,6 +679,43 @@ private struct PasteStackListContent: View {
         .fixedSize()
     }
 
+    /// 「🔒 粘完保留」小胶囊：开启后全部贴完也不收起浮窗。
+    ///
+    /// 为什么需要它：顺序粘贴最常见的用法是「贴完一轮就结束」，但也有一类活是
+    /// 「来回挑着贴」——比如把几条地址分别填进多个输入框，中途还要回头改上一格。
+    /// 没有这个开关时，贴完最后一条浮窗 0.8 秒就自动淡出，用户只能重新 ⌥⏎ 起队列。
+    ///
+    /// 视觉上刻意做成**开/关两种形态**而不是一个静态按钮：状态必须一眼可见，
+    /// 否则用户不知道「为什么这次贴完浮窗没走」，反而像卡住了。
+    private var keepOpenBadge: some View {
+        Button(action: onToggleKeepOpen) {
+            HStack(spacing: 2) {
+                Image(systemName: state.keepOpen ? "lock.fill" : "lock.open")
+                    .font(.system(size: 8, weight: .semibold))
+                // 默认（关闭）状态不写文字：常态下每行都是一个字，头上再挂四个字
+                // 会把这个 340pt 宽的顶栏挤爆。开启后必须显形，让「异常」有解释。
+                if state.keepOpen {
+                    Text(L10n.tr("scrub.stack.keep_open_title"))
+                        .font(.nookClipBadge)
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(state.keepOpen ? NookClip.accent : NookClip.textTertiary)
+            .padding(.horizontal, 5)
+            .frame(height: 16)
+            .background {
+                RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
+                    .fill(state.keepOpen ? NookClip.bgAccentSubtle : .clear)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(L10n.tr("scrub.stack.keep_open_hint"))
+        .accessibilityLabel(L10n.tr("scrub.stack.keep_open_title"))
+        .fixedSize()
+    }
+
     private var closeButton: some View {
         Button(action: onStop) {
             Image(systemName: "xmark")
@@ -618,23 +748,9 @@ private struct PasteStackListContent: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: PasteStackPillPanel.rowSpacing) {
                         ForEach(Array(state.items.enumerated()), id: \.element.id) { index, item in
-                            // 飞行途中的行先隐形占位：卡片落点那刻才显形，
-                            // 视觉上才是「这张卡片变成了这一行」，而不是「行先冒出来、卡片飞来撞它」。
-                            // `scaleEffect` 从 0.92 起跳，落地时像被轻轻按进槽位。
-                            let isArriving = presenter.isArriving(item.id)
-                            PasteStackRow(
-                                index: index,
-                                item: item,
-                                isHighlighted: index == state.currentIndex,
-                                isPasted: state.hasPasted(item),
-                                onJump: { onJumpToItem(index) },
-                                onPaste: { onPasteItem(index) }
-                            )
-                            .opacity(isArriving ? 0 : 1)
-                            .scaleEffect(isArriving ? 0.92 : 1, anchor: .center)
-                            .animation(isArriving ? nil : Self.rowArrivalAnimation, value: isArriving)
-                            .animation(Self.stepAnimation, value: state.currentIndex)
+                            rowView(index: index, item: item)
                         }
+                        .animation(Self.stepAnimation, value: state.items.map(\.id))
                     }
                 }
                 .frame(height: rowsHeight)
@@ -664,6 +780,50 @@ private struct PasteStackListContent: View {
                 }
             }
         }
+    }
+
+    /// 单行（含入场补间、拖拽发起与落位）。
+    ///
+    /// 从 `ForEach` 里抽出来单独一个方法：整段修饰符链挤在闭包里时，类型检查器
+    /// 会在 `onDrag` 的 `NSItemProvider` 与 `onDrop` 的 delegate 上反复推导，
+    /// 编译时间从秒级涨到分钟级（实测直接超时）。拆开后每段都是短表达式。
+    private func rowView(index: Int, item: ClipboardItem) -> some View {
+        // 飞行途中的行先隐形占位：卡片落点那刻才显形，
+        // 视觉上才是「这张卡片变成了这一行」，而不是「行先冒出来、卡片飞来撞它」。
+        let isArriving = presenter.isArriving(item.id)
+        let draggingIndex = dragState.draggingIndex
+        let isDropTarget = draggingIndex != nil
+            && dragState.dropIndex == index
+            && draggingIndex != index
+        let dropDelegate = RowDropDelegate(
+            index: index,
+            isEnabled: draggingIndex != nil,
+            dragState: dragState,
+            onMove: onMoveItem
+        )
+        return PasteStackRow(
+            index: index,
+            item: item,
+            isHighlighted: index == state.currentIndex,
+            isPasted: state.hasPasted(item),
+            isDragging: draggingIndex == index,
+            isDropTarget: isDropTarget,
+            onJump: { onJumpToItem(index) },
+            onPaste: { onPasteItem(index) }
+        )
+        .opacity(isArriving ? 0 : 1)
+        .scaleEffect(isArriving ? 0.92 : 1, anchor: .center)
+        .animation(isArriving ? nil : Self.rowArrivalAnimation, value: isArriving)
+        .animation(Self.stepAnimation, value: state.currentIndex)
+        // 拖动起来：载荷带的是「起始行号」，松手由落点行自己读回来。
+        // 不用 item.id 是因为落点行要算的是「从第几条搬到第几条」，
+        // 拿到 id 还得反查下标——中途队列若变了，反查结果可能已经偏了。
+        .onDrag {
+            dragState.beginDragging(index)
+            return NSItemProvider(object: String(index) as NSString)
+        }
+        // 落位目标：每条都接受，实际顺序由 onMoveItem 统一算
+        .onDrop(of: [.text], delegate: dropDelegate)
     }
 
     private var listHeight: CGFloat {
@@ -697,13 +857,19 @@ private struct PasteStackListContent: View {
     // MARK: 文案派生
 
     /// 底部提示随状态切换：完成态不该再说「按 ⌘V 贴下一条」，
-    /// 录制空态要告诉用户「去复制吧」——静态文案在这两种状态下都是错的
+    /// 录制空态要告诉用户「去复制吧」——静态文案在这两种状态下都是错的。
+    ///
+    /// 「粘完保留」且已全部贴完时也不说「按 ⌘V」：此刻 ⌘V 只会把剪贴板里
+    /// 最后一条再贴一遍，真正的下一步是「挑一条重粘」，得把 ⌥1~⌥9 教出来。
     private var footerHint: String {
         if state.isCompleted {
             return L10n.tr("scrub.stack.hint_done")
         }
         if state.isRecording, state.items.isEmpty {
             return L10n.tr("scrub.stack.hint_recording")
+        }
+        if state.keepOpen, !state.isRecording, state.remaining == 0, !state.items.isEmpty {
+            return L10n.tr("scrub.stack.ordinal_hint")
         }
         return L10n.tr("scrub.stack.hint")
     }
@@ -715,6 +881,57 @@ private struct PasteStackListContent: View {
 
     private var orderLabel: String {
         L10n.tr(state.order == .fifo ? "scrub.stack.order_fifo" : "scrub.stack.order_lifo")
+    }
+}
+
+// MARK: - 拖拽重排的落位判定
+
+/// 行的落位代理：把「拖着第 A 行松手在第 B 行上」翻译成一次 `onMove(A, B)`。
+///
+/// 为什么不用「拖到哪就直接换位」（`dropEntered` 里立刻 move）：那样每次穿过一行
+/// 都会重排一次，列表在手底下不断变形，用户很难判断最终会落在哪。这里只在
+/// **松手那一刻**提交一次移动，过程中只用一条细线预告落点，行为可预期得多。
+private struct RowDropDelegate: DropDelegate {
+    /// 本行在队列里的下标（也就是落点）
+    let index: Int
+    /// 没有正在进行的拖动时，别把外面拖进来的文本当成重排
+    let isEnabled: Bool
+    /// 进行态归面板所有：落空松手时只有面板能收到 mouseUp 收尾
+    let dragState: PasteStackRowDragState
+    let onMove: (Int, Int) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool { isEnabled }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        isEnabled ? DropProposal(operation: .move) : nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        if isEnabled { dragState.dropIndex = index }
+    }
+
+    func dropExited(info: DropInfo) {
+        if dragState.dropIndex == index { dragState.dropIndex = nil }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        // 重置放在同步代码里：如果等异步取完载荷再清，拖动中的半透明态和落位
+        // 细线会多留一拍，看起来像拖拽没结束
+        defer { dragState.reset() }
+        guard isEnabled else { return false }
+        guard let provider = info.itemProviders(for: [.text]).first else { return false }
+        // 起始行号随载荷一起搬运，而不是读状态：拖拽是一次跨视图的会话，
+        // 中途状态更新未必能立刻反映到已经在路上的这一次拖拽上
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let payload = object as? NSString, let from = Int(payload as String) else { return }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard from != index else { return }
+                    onMove(from, index)
+                }
+            }
+        }
+        return true
     }
 }
 
@@ -740,6 +957,10 @@ private struct PasteStackRow: View {
     let item: ClipboardItem
     let isHighlighted: Bool
     let isPasted: Bool
+    /// 这一行正被拖着走
+    let isDragging: Bool
+    /// 拖动中的行正悬停在这一行上（松手会插到这里）
+    let isDropTarget: Bool
     let onJump: () -> Void
     let onPaste: () -> Void
 
@@ -758,12 +979,24 @@ private struct PasteStackRow: View {
                 .truncationMode(.tail)
                 .strikethrough(isPasted, color: NookClip.textTertiary)
             Spacer(minLength: 6)
+            dragGrip
             pasteButton
         }
         .padding(.leading, 4)
         .padding(.trailing, 3)
         .frame(height: PasteStackPillPanel.rowHeight)
         .background(rowBackground)
+        // 拖动中的行整体退成半透明，被压住的那一行在顶部描一条强调色细线，
+        // 一起回答「我拎着哪条、要插到哪」
+        .opacity(isDragging ? 0.45 : 1)
+        .overlay(alignment: .top) {
+            if isDropTarget {
+                Rectangle()
+                    .fill(NookClip.accent)
+                    .frame(height: 2)
+                    .allowsHitTesting(false)
+            }
+        }
         .contentShape(Rectangle())
         // 点行本身只挪高亮，不粘：用户常要先看一眼再决定，误触不该直接往输入框里灌内容
         .onTapGesture { onJump() }
@@ -803,35 +1036,59 @@ private struct PasteStackRow: View {
         }
     }
 
+    /// 拖拽把手：悬停时才浮出的一道浅灰短线。
+    ///
+    /// 为什么需要它：`.onDrag` 挂在整个 HStack 上，用户没有任何视觉线索知道
+    /// 「这里能拖」，只能靠误打误撞。一根把手把可拖性说清楚，又不占常驻空间。
+    /// 挂 `.onDrag` 的行本身负责发起拖拽，把手只是提示，不需要自己再带手势。
+    @ViewBuilder
+    private var dragGrip: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 8, weight: .semibold))
+            .foregroundStyle(NookClip.textTertiary)
+            .frame(width: 10, height: 18)
+            .opacity(isHovering || isDragging ? 1 : 0)
+            .accessibilityLabel(L10n.tr("scrub.stack.move_hint"))
+            .accessibilityHidden(true)
+    }
+
     /// 行内「粘贴」按钮。
     ///
     /// **默认是纯文字，只有悬停该行时才浮出浅色底**：一屏五行就有五个强调色块，
     /// 强调色的稀缺性被自己消耗掉了——眼睛会先看到五块蓝，而不是「▶ 那一条」。
     /// 让按钮退成低对比文字，把唯一的蓝色留给播放头，扫描路径才唯一。
-    /// 已贴过的行不再提供这个按钮：再贴一次是可能的诉求，但用 ⌘V 或点行跳转即可，
-    /// 让它留在原地只会和删除线、对勾挤在一起。
+    ///
+    /// **已贴过的行在悬停时仍给出「重粘」**：这正是「粘完保留」要服务的场景——
+    /// 用户回头改上一格地址时，最自然的动作就是把鼠标放到那一行点一下。以前这里
+    /// 直接不渲染按钮，等于逼用户先按 ⌥1~⌥9 或者先把高亮挪过去再按 ⏎。
     @ViewBuilder
     private var pasteButton: some View {
         if !isPasted {
-            Button(action: onPaste) {
-                Text(L10n.tr("scrub.stack.paste"))
-                    .font(.nookClipBadge)
-                    .foregroundStyle(isHovering ? NookClip.accent : NookClip.textTertiary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 7)
-                    .frame(height: 18)
-                    .background {
-                        RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
-                            .fill(isHovering ? NookClip.bgAccentSubtle : .clear)
-                    }
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .focusable(false)
-            .help(L10n.tr("scrub.stack.paste_hint"))
-            .accessibilityLabel(L10n.tr("scrub.stack.paste_hint", item.fallbackDisplayTitle))
-            .fixedSize()
+            pasteButtonLabel(L10n.tr("scrub.stack.paste"))
+        } else if isHovering {
+            pasteButtonLabel(L10n.tr("scrub.stack.repaste"))
         }
+    }
+
+    private func pasteButtonLabel(_ title: String) -> some View {
+        Button(action: onPaste) {
+            Text(title)
+                .font(.nookClipBadge)
+                .foregroundStyle(isHovering ? NookClip.accent : NookClip.textTertiary)
+                .lineLimit(1)
+                .padding(.horizontal, 7)
+                .frame(height: 18)
+                .background {
+                    RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
+                        .fill(isHovering ? NookClip.bgAccentSubtle : .clear)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(L10n.tr("scrub.stack.paste_hint", item.fallbackDisplayTitle))
+        .accessibilityLabel(L10n.tr("scrub.stack.paste_hint", item.fallbackDisplayTitle))
+        .fixedSize()
     }
 
     private var titleColor: Color {

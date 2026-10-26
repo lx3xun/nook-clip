@@ -65,11 +65,33 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 ### More Capabilities
 - **iCloud Drive Sync**: Optional sync across your own devices using your personal iCloud Drive (no third-party servers).
 - **Backup & Export**: Export to JSON or Markdown, with options to exclude or mask sensitive items.
-- **Batch Actions & Undo**: Select multiple items with Shift or ⌘ to merge-paste or delete; undo deletions within 10 seconds with `⌘ Z`.
+- **Batch Actions & Undo**: Select multiple items with Shift, ⌘, or by **dragging the mouse down the list** (hold Shift while dragging to add to the existing selection; drag past the top or bottom edge to auto-scroll) to merge-paste or delete; undo deletions within 10 seconds with `⌘ Z`.
 - **Paste Stack (`⌥ ⏎`)**: select several items and press `⌥ ⏎` to queue them **in the order you copied them** (oldest first — deliberately the reverse of the "newest first" list order); a panel appears at the bottom of the screen listing every queued item with "x of y pasted" progress. Pressing native `⌘ V` repeatedly in the target app pastes them one by one, or click the "Paste" button on any row to paste that item right away. The row marked ▶ is "next up" and advances automatically to the next item not yet pasted; clicking a row only moves the highlight (press `⏎` to paste it), and pasted rows get a check and strikethrough. The panel can be dragged and remembers its position, and recording mode has its own global shortcut `⌃ ⌥ V` (press again to stop). The panel never steals focus, so `Esc` ends the queue from any app without clicking it first. While recording, each copy also sends a small card arcing from the pointer into the row it just landed in. While the queue is active the clipboard always holds the highlighted row, so copying something new never displaces items you have not pasted yet.
-- **Pin to Screen (`⌘ P`)**: pin any item as a floating note (up to 12 at once) with adjustable opacity, collapse, click-through, inline editing, copy, or save back to history; image notes can copy their OCR text in one click.
+- **Pin to Screen (`⌘ P`)**: pin any item as a floating note (pinning another replaces it in place) with adjustable opacity, collapse, click-through (press `⌘ ⌥ P` or click the corner lock chip to restore clicks), inline editing, copy, or save back to history; code notes support syntax highlighting and image notes can copy their OCR text in one click.
 
 ---
+## 🎬 Core Features, Animated
+
+Clips reconstructed at the real interface's size and colors (click a thumbnail for the GIF):
+
+| Paste Stack (`⌥ ⏎`) | Semantic Redaction (`⌃ ⏎`) | Pin to Screen (`⌘ P`) |
+|:---:|:---:|:---:|
+| [![Paste Stack](site/assets/features/poster-paste-stack.jpg)](site/assets/features/paste-stack.gif) | [![Semantic Redaction](site/assets/features/poster-scrub-paste.jpg)](site/assets/features/scrub-paste.gif) | [![Pin to Screen](site/assets/features/poster-pinned-note.jpg)](site/assets/features/pinned-note.gif) |
+
+| Type & Tag Filtering (`⌘ ↓`) | Offline Image OCR Recognition & Search |
+|:---:|:---:|
+| [![Type & Tag Filtering](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![Offline OCR Search](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) |
+
+- Per-feature MP4: [Paste Stack](site/assets/features/paste-stack.mp4) · [Redaction](site/assets/features/scrub-paste.mp4) · [Pin to Screen](site/assets/features/pinned-note.mp4) · [Type & Tag Filtering](site/assets/features/filter-tags.mp4) · [Offline OCR Search](site/assets/features/ocr-search.mp4)
+- Per-feature GIF: [Paste Stack](site/assets/features/paste-stack.gif) · [Redaction](site/assets/features/scrub-paste.gif) · [Pin to Screen](site/assets/features/pinned-note.gif) · [Type & Tag Filtering](site/assets/features/filter-tags.gif) · [Offline OCR Search](site/assets/features/ocr-search.gif)
+- Three advanced paste actions in one clip: [all-three.mp4](site/assets/features/all-three.mp4) (~27 s)
+- Annotated gallery page: [preview.html](site/assets/features/preview.html) (click any video to enlarge)
+
+> 💡 **Tip**: Click any gif above to view it in full resolution; on the [Product Page Demos](https://lx3xun.github.io/nook-clip/#demos) or [Gallery Page](site/assets/features/preview.html), click any video to expand it in an interactive lightbox.
+> These are reconstructed interface animations, not real screen recordings.
+
+---
+
 ## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -77,11 +99,12 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 | **`⌘ ⇧ V`** | Show / hide quick panel (re-recordable in **Settings → Paste**) |
 | **`⌃ ⌥ V`** | Start / stop recording a Paste Stack (build a queue by copying from any app) |
 | **`↑` / `↓`** | Move selection up or down (hold to repeat; auto-paginates at the bottom) |
-| **`⇧ ↑` / `⇧ ↓` / `⌘ Click`** | Extend multi-selection (`⏎` to merge & paste, `⌘ ⌫` to bulk delete) |
+| **`⇧ ↑` / `⇧ ↓` / `⌘ Click` / Drag** | Extend multi-selection; drag the mouse up or down the list to select a whole range (drag past the edges to auto-scroll) — `⏎` to merge & paste, `⌘ ⌫` to bulk delete |
 | **`⏎`** | Paste selection into the frontmost app / Launch selected application |
 | **`⌃ ⏎`** | Redacted paste: replace sensitive data with semantic placeholders (`<API_KEY_1>` etc.) |
 | **`⌃ ⇧ ⏎`** | Restore-and-paste: swap placeholders on the clipboard back for their real values |
 | **`⌘ P`** | Pin the selected item as a floating on-screen note |
+| **`⌘ ⌥ P`** | Restore mouse clicks on a click-through pinned note |
 | **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting); starts Paste Stack in multi-select mode |
 | **`⌘ ⏎`** | Paste and keep panel open (great for filling multi-field forms) |
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
@@ -163,8 +186,8 @@ NookClip follows a strict "local-first, zero tracking" policy:
 ```text
 nook-clip/
 ├── crates/                        # Rust core workspace (cross-platform storage, FTS5 search, sync & crypto)
-│   ├── nook-core/                 # Core engine (SQLite WAL + FTS5, AES-256-GCM, Zstd sync packs, redacted export)
-│   └── nook-ffi/                  # UniFFI 0.28 bindings (generates Swift / C bridge & static library)
+│   ├── nookclip-core/             # Core engine (SQLite WAL + FTS5, AES-256-GCM, Zstd sync packs, redacted export)
+│   └── nookclip-ffi/              # UniFFI 0.28 bindings (generates Swift / C bridge & static library)
 ├── platform/macOS/                # Native macOS client (Swift Package)
 │   ├── Package.swift              # SwiftPM manifest (Sparkle 2)
 │   ├── Sources/NookClip/

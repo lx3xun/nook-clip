@@ -43,13 +43,6 @@ extension MainView {
         .onReceive(NotificationCenter.default.publisher(for: .languageDidChange)) { _ in
             listState.refreshLocalizedOutput()
         }
-        // 贴条达到上限时由 PinnedWindowManager 广播（面板侧的 pre-check 之外的第二道兜底：
-        // 预检到广播之间仍可能因其它入口钉满）。收到即用 toast 告知，绝不弹窗打断。
-        .onReceive(NotificationCenter.default.publisher(for: .pinnedNoteLimitReached)) { _ in
-            showScrubFeedback(
-                L10n.tr("pin.limit_reached", String(PinnedWindowManager.maxPinnedNotes))
-            )
-        }
         .onReceive(NotificationCenter.default.publisher(for: NSColor.systemColorsDidChangeNotification)) { _ in
             systemColorUpdateTrigger += 1
         }

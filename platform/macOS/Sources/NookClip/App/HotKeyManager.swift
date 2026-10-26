@@ -24,11 +24,22 @@ struct HotKeyShortcut: Equatable {
         displayString: "⌃ ⌥ V"
     )
 
+    /// 屏幕贴条「解除点击穿透」的全局救回键。
+    ///
+    /// 以前贴条靠 `NSEvent.addGlobalMonitorForEvents` 自己监听 ⌥⌘P，但那个 API
+    /// **需要辅助功能权限**，没授权时系统静默不投递——结果就是贴条一旦被点穿透，
+    /// 用户再也点不回来。改走 Carbon `RegisterEventHotKey`（和应用主快捷键同一条
+    /// 通路）就不需要任何权限，这是唯一能保证「锁得住也救得回」的机制。
+    static let pinnedRestoreShortcut = HotKeyShortcut(
+        keyCode: UInt32(kVK_ANSI_P),
+        carbonModifiers: UInt32(cmdKey | optionKey),
+        displayString: "⌘ ⌥ P"
+    )
+
     static let presets: [HotKeyShortcut] = [
         HotKeyShortcut(keyCode: UInt32(kVK_ANSI_V), carbonModifiers: UInt32(cmdKey | shiftKey), displayString: "⌘ ⇧ V"),
         HotKeyShortcut(keyCode: UInt32(kVK_Space), carbonModifiers: UInt32(optionKey), displayString: "⌥ Space"),
         HotKeyShortcut(keyCode: UInt32(kVK_ANSI_V), carbonModifiers: UInt32(cmdKey | optionKey), displayString: "⌘ ⌥ V"),
-        HotKeyShortcut(keyCode: UInt32(kVK_ANSI_V), carbonModifiers: UInt32(controlKey | optionKey), displayString: "⌃ ⌥ V"),
         HotKeyShortcut(keyCode: UInt32(kVK_ANSI_C), carbonModifiers: UInt32(cmdKey | shiftKey), displayString: "⌘ ⇧ C")
     ]
 
@@ -150,10 +161,20 @@ final class HotKeyManager {
     /// 单独一个回调而不是复用 `onPress`：两个键位的语义完全不同，共用一个
     /// 闭包就成了「按 ⌃⌥V 却打开了面板」。事件处理器靠 `EventHotKeyID` 分派。
     var onPasteStackRecordingPress: (() -> Void)?
+    /// 第三个全局热键（⌥⌘P，解除贴条点击穿透）的触发回调。
+    ///
+    /// 同样单独开一个回调：这个键是「救命键」，绝不能和「打开面板」混在一起，
+    /// 否则用户按它只想解锁贴条，结果弹出了主面板。
+    var onPinnedRestorePress: (() -> Void)?
+    /// 顺序粘贴栈激活期间按序号直贴（⌥1~⌥9）的触发回调
+    var onOrdinalPastePress: ((Int) -> Void)?
     private var hotKeyRef: EventHotKeyRef?
     private var recordingHotKeyRef: EventHotKeyRef?
+    private var pinnedRestoreHotKeyRef: EventHotKeyRef?
+    private var ordinalHotKeyRefs: [EventHotKeyRef] = []
     private var handlerRef: EventHandlerRef?
     private(set) var isPaused = false
+    private(set) var isPinnedRestoreHotKeyActive = false
     /// 仅供测试注入：模拟快捷键注册冲突/失败场景
     var simulatedRegistrationFailure = false
     private(set) var currentKeyCode: UInt32
@@ -180,6 +201,9 @@ final class HotKeyManager {
         installHandlerIfNeeded()
         registerHotKeyOnly()
         registerRecordingHotKey()
+        if isPinnedRestoreHotKeyActive {
+            registerPinnedRestoreHotKey()
+        }
     }
 
     @discardableResult
@@ -223,6 +247,8 @@ final class HotKeyManager {
     func unregister() {
         unregisterHotKeyOnly()
         unregisterRecordingHotKey()
+        unregisterPinnedRestoreHotKey()
+        unregisterOrdinalPasteHotKeys()
         if let handlerRef {
             RemoveEventHandler(handlerRef)
             self.handlerRef = nil
@@ -251,11 +277,16 @@ final class HotKeyManager {
         }
         unregisterHotKeyOnly()
         unregisterRecordingHotKey()
+        let shouldReRegisterPinnedRestore = isPinnedRestoreHotKeyActive
+        unregisterPinnedRestoreHotKey()
         installHandlerIfNeeded()
         if !registerHotKeyOnly() {
             NSLog("[NookClip] Hotkey re-registration failed for \(currentDisplayString)")
         }
         registerRecordingHotKey()
+        if shouldReRegisterPinnedRestore {
+            registerPinnedRestoreHotKey()
+        }
     }
 
     private func installHandlerIfNeeded() {
@@ -286,9 +317,19 @@ final class HotKeyManager {
             // 这里不能用 `Self.`：C 函数指针不允许捕获动态 Self 类型，
             // 直接写具体类型名把常量当静态量取，不产生捕获
             let isRecordingHotKey = status == noErr && hotKeyID.id == HotKeyManager.recordingHotKeyID
+            let isPinnedRestoreHotKey = status == noErr && hotKeyID.id == HotKeyManager.pinnedRestoreHotKeyID
+            let ordinalIndex: Int? = (status == noErr
+                && hotKeyID.id >= HotKeyManager.ordinalHotKeyBaseID
+                && hotKeyID.id < HotKeyManager.ordinalHotKeyBaseID + 9)
+                ? Int(hotKeyID.id - HotKeyManager.ordinalHotKeyBaseID)
+                : nil
             DispatchQueue.main.async {
-                if isRecordingHotKey {
+                if let ordinalIndex {
+                    manager.onOrdinalPastePress?(ordinalIndex)
+                } else if isRecordingHotKey {
                     manager.onPasteStackRecordingPress?()
+                } else if isPinnedRestoreHotKey {
+                    manager.onPinnedRestorePress?()
                 } else {
                     manager.onPress?()
                 }
@@ -339,7 +380,10 @@ final class HotKeyManager {
     private static let primaryHotKeyID: UInt32 = 1
     /// 顺序粘贴栈录制热键的 id
     private static let recordingHotKeyID: UInt32 = 2
-
+    /// 贴条「解除点击穿透」救回热键的 id
+    private static let pinnedRestoreHotKeyID: UInt32 = 3
+    /// 粘贴托盘 ⌥1~⌥9 序号直粘热键起始 id（101 ~ 109）
+    private static let ordinalHotKeyBaseID: UInt32 = 101
     // MARK: 第二个热键：顺序粘贴栈录制
 
     /// 注册录制热键。失败只记日志不抛错——主面板快捷键才是必需品，
@@ -382,5 +426,79 @@ final class HotKeyManager {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
         }
+    }
+
+    // MARK: 第三个热键：贴条解除穿透
+
+    /// 注册 ⌥⌘P。失败同样只记日志——它只影响「贴条锁住后能否用快捷键救回」，
+    /// 菜单栏的「全部取消点击穿透」始终可用，不该因为抢不到键位就让整个应用报错。
+    @discardableResult
+    func registerPinnedRestoreHotKey() -> Bool {
+        installHandlerIfNeeded()
+        isPinnedRestoreHotKeyActive = true
+        guard pinnedRestoreHotKeyRef == nil else { return true }
+        let shortcut = HotKeyShortcut.pinnedRestoreShortcut
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: Self.pinnedRestoreHotKeyID)
+        let status = RegisterEventHotKey(
+            shortcut.keyCode,
+            shortcut.carbonModifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &pinnedRestoreHotKeyRef
+        )
+        if status != noErr {
+            pinnedRestoreHotKeyRef = nil
+            NSLog(
+                "[NookClip] Failed to register pinned-restore hotkey %@, error: %d",
+                shortcut.displayString,
+                status
+            )
+            return false
+        }
+        return true
+    }
+
+    func unregisterPinnedRestoreHotKey() {
+        isPinnedRestoreHotKeyActive = false
+        if let pinnedRestoreHotKeyRef {
+            UnregisterEventHotKey(pinnedRestoreHotKeyRef)
+            self.pinnedRestoreHotKeyRef = nil
+        }
+    }
+
+    // MARK: 粘贴托盘 ⌥1~⌥9 动态全局热键（防外部应用打出 ¡ ™ £ 特殊符号）
+
+    private static let ordinalKeyCodes: [UInt32] = [
+        UInt32(kVK_ANSI_1), UInt32(kVK_ANSI_2), UInt32(kVK_ANSI_3),
+        UInt32(kVK_ANSI_4), UInt32(kVK_ANSI_5), UInt32(kVK_ANSI_6),
+        UInt32(kVK_ANSI_7), UInt32(kVK_ANSI_8), UInt32(kVK_ANSI_9)
+    ]
+
+    func registerOrdinalPasteHotKeys() {
+        guard ordinalHotKeyRefs.isEmpty else { return }
+        installHandlerIfNeeded()
+        for (offset, keyCode) in Self.ordinalKeyCodes.enumerated() {
+            var ref: EventHotKeyRef?
+            let hotKeyID = EventHotKeyID(signature: Self.signature, id: Self.ordinalHotKeyBaseID + UInt32(offset))
+            let status = RegisterEventHotKey(
+                keyCode,
+                UInt32(optionKey),
+                hotKeyID,
+                GetApplicationEventTarget(),
+                0,
+                &ref
+            )
+            if status == noErr, let ref {
+                ordinalHotKeyRefs.append(ref)
+            }
+        }
+    }
+
+    func unregisterOrdinalPasteHotKeys() {
+        for ref in ordinalHotKeyRefs {
+            UnregisterEventHotKey(ref)
+        }
+        ordinalHotKeyRefs.removeAll()
     }
 }

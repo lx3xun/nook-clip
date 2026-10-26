@@ -102,6 +102,8 @@ enum NookClipIcon {
         static let pasteStack = "square.stack.3d.down.right"
         /// 标签（⌘L）：与预览工具栏同一个 `#` 符号，保持全应用一致
         static let tag = "number"
+        /// 合并粘贴（⏎）：多选工具栏让位收起时的图标形态
+        static let merge = "arrow.triangle.merge"
     }
 
     enum Badge {
@@ -130,14 +132,22 @@ enum NookClipIcon {
     }
 
     // MARK: - 模块五：偏好设置与系统状态指示 (§6.7)
+    //
+    // 设置页侧栏用**线性**图标（16pt、约 1.5pt 描边、恒为次要色）：原先这里
+    // 全是 .fill 变体，实心块在 208pt 的侧栏里视觉重量过重，会把「当前在哪一页」
+    // 的层级从文字上抢走。
     enum Settings {
-        static let general = "gearshape.fill"
-        static let appearance = "paintpalette.fill"
-        static let capture = "tray.and.arrow.down.fill"
-        static let history = "externaldrive.fill"
-        static let paste = "doc.on.clipboard.fill"
-        /// 隐私与脱敏（US1 设置页）
-        static let privacy = "hand.raised.fill"
+        static let general = "gearshape"
+        static let appearance = "paintpalette"
+        static let capture = "tray.and.arrow.down"
+        static let history = "externaldrive"
+        static let paste = "doc.on.clipboard"
+        /// 脱敏（US1 设置页）：一页里放的是脱敏规则，用「看不见」的划眼比
+        /// 原来的举手（隐私）更贴题。14pt 下 `text.redaction` 会糊成三条横线，
+        /// 像列表图标，所以选轮廓更清楚的 `eye.slash`。
+        static let privacy = "eye.slash"
+        /// 折叠分组的展开箭头
+        static let disclosure = "chevron.down"
     }
 
     enum Excluded {

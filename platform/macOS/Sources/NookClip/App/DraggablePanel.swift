@@ -403,12 +403,12 @@ final class DraggablePanel: NSPanel {
         // ⌃⏎ 与 ⌃⇧⏎ 必须在通用 confirm 之前判定：两者都是 ⏎ 系列，
         // 若不先分流会被 confirm 吞掉，脱敏与还原入口即失效（contracts phase1 C1）
         if keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter {
-            if modifiers.contains(.control) {
-                if modifiers.contains(.shift) {
-                    actions.restoreScrubConfirm()
-                } else {
-                    actions.scrubConfirm()
-                }
+            if modifiers == [.control] {
+                actions.scrubConfirm()
+                return true
+            }
+            if modifiers == [.control, .shift] {
+                actions.restoreScrubConfirm()
                 return true
             }
             // ⌥⏎ 在多选态是「顺序粘贴栈」，单选态仍是「纯文本粘贴」：
