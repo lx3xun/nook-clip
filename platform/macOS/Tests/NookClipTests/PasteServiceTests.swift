@@ -95,7 +95,7 @@ final class PasteServiceTests: XCTestCase {
         let secret = "sensitive-secret-\(UUID().uuidString)"
 
         try await withPasteboardLock {
-            service.copyText(secret, containsSensitive: true)
+            _ = service.copyText(secret, containsSensitive: true)
             let pb = PasteboardAccess.general
             XCTAssertEqual(pb.string(forType: .string), secret)
             XCTAssertTrue(pb.types?.contains(NSPasteboard.PasteboardType("org.nspasteboard.TransientType")) == true)

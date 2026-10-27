@@ -246,7 +246,7 @@ final class NookClipTests: XCTestCase {
 
         try await withPasteboardLock {
             let secret = "sk-proj-timeout-test-12345"
-            PasteService.shared.copyText(secret, containsSensitive: true)
+            _ = PasteService.shared.copyText(secret, containsSensitive: true)
             XCTAssertEqual(PasteboardAccess.general.string(forType: .string), secret)
 
             // 用户在自毁前写入了新内容
@@ -508,7 +508,7 @@ final class NookClipTests: XCTestCase {
             captured = item
             exp1.fulfill()
         }
-        try await withPasteboardLock {
+        await withPasteboardLock {
             captured = nil
             let pb = PasteboardAccess.general
             pb.clearContents()
@@ -580,7 +580,7 @@ final class NookClipTests: XCTestCase {
             captured = item
             exp2.fulfill()
         }
-        try await withPasteboardLock {
+        await withPasteboardLock {
             captured = nil
             let pb = PasteboardAccess.general
             pb.clearContents()

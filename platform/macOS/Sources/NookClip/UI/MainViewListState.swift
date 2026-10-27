@@ -377,7 +377,7 @@ final class MainViewListState {
         guard text != searchText else { return }
         searchText = text
         updateMatchedApps(query: text)
-        scheduleQuery(dataVersion: dataVersion)
+        scheduleQuery(dataVersion: dataVersion, debounce: !text.isEmpty)
     }
 
     @discardableResult

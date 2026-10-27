@@ -5,6 +5,7 @@ import XCTest
 ///
 /// 只覆盖纯函数（`PasteStackFlightGeometry`）：轨迹、缩放、透明度、窗口矩形。
 /// 真正的 NSPanel 与 SwiftUI 动画依赖 NSApp 事件循环，放在真机冒烟里验。
+@MainActor
 final class PasteStackFlightGeometryTests: XCTestCase {
 
     // MARK: 轨迹

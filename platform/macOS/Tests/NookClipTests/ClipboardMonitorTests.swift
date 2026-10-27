@@ -32,7 +32,7 @@ final class ClipboardMonitorTests: XCTestCase {
 
         try await withPasteboardLock {
             let secret = "PastedSummary-\(UUID().uuidString)"
-            PasteService.shared.copyText(secret)
+            _ = PasteService.shared.copyText(secret)
 
             let pb = PasteboardAccess.general
             // 外部无 internalMarker 模拟重入，但内容在 1.5s 保护期内且与 lastPastedSummary 相同
@@ -140,7 +140,7 @@ final class ClipboardMonitorTests: XCTestCase {
 
         let text = "Freshly copied item \(UUID().uuidString)"
         let beforeCopy = Date().addingTimeInterval(-5)
-        try await withPasteboardLock {
+        await withPasteboardLock {
             let pb = PasteboardAccess.general
             pb.clearContents()
             pb.setString(text, forType: .string)
@@ -362,7 +362,7 @@ final class ClipboardMonitorTests: XCTestCase {
             capturedExp.fulfill()
         }
 
-        try await withPasteboardLock {
+        await withPasteboardLock {
             let pb = PasteboardAccess.general
             pb.clearContents()
             XCTAssertTrue(pb.setData(pngData, forType: .png))
@@ -485,7 +485,7 @@ final class ClipboardMonitorTests: XCTestCase {
             }
         }
 
-        try await withPasteboardLock {
+        await withPasteboardLock {
             let pb = PasteboardAccess.general
             pb.clearContents()
             XCTAssertTrue(pb.setData(pngData, forType: .png))

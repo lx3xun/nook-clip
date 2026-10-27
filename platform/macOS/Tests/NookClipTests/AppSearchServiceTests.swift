@@ -133,7 +133,10 @@ final class AppSearchServiceTests: XCTestCase {
 
     @MainActor
     func testAppSearchServiceOpenApp() {
-        var openedApp: InstalledApp?
+        final class OpenedAppBox: @unchecked Sendable {
+            var app: InstalledApp?
+        }
+        let box = OpenedAppBox()
         let targetApp = InstalledApp(
             id: "com.apple.Safari",
             name: "Safari",
@@ -143,7 +146,7 @@ final class AppSearchServiceTests: XCTestCase {
         )
 
         let mockProvider = MockAppSearchProvider(apps: [targetApp]) { app in
-            openedApp = app
+            box.app = app
             return true
         }
 
@@ -151,6 +154,6 @@ final class AppSearchServiceTests: XCTestCase {
         let success = service.openApp(targetApp)
 
         XCTAssertTrue(success)
-        XCTAssertEqual(openedApp?.id, targetApp.id)
+        XCTAssertEqual(box.app?.id, targetApp.id)
     }
 }

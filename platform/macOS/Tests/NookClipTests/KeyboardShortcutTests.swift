@@ -11,6 +11,11 @@ import XCTest
 @MainActor
 final class KeyboardShortcutTests: XCTestCase {
 
+    override func tearDown() {
+        super.tearDown()
+        runLoop(0.1)
+    }
+
     // MARK: - 工具
 
     /// 剪贴板写入出口侦测（不触达系统剪贴板）
@@ -90,7 +95,7 @@ final class KeyboardShortcutTests: XCTestCase {
     /// 等待 MainView onAppear 完成并在面板上安装键盘动作表
     private func waitForKeyWiring(_ panel: DraggablePanel) {
         waitFor("键盘动作表接线且成为 KeyWindow") { panel.keyActions != nil && panel.hasKeyFocus }
-        runLoop(0.15)
+        runLoop(0.25)
     }
 
     /// 轮询等待条件成立（每次 50ms，默认 2s 超时后以消息失败）
@@ -202,8 +207,10 @@ final class KeyboardShortcutTests: XCTestCase {
         defer { controller.close() }
 
         sendArrow(kVK_DownArrow, to: panel)
-        sendKey(kVK_Return, "\r", to: panel)
-
+        waitFor("↓ 后 ⏎ 应粘贴第二行") {
+            sendKey(kVK_Return, "\r", to: panel)
+            return !writer.pastedItems.isEmpty
+        }
         XCTAssertEqual(writer.pastedItems.first?.item.summary, "Bravo", "↓ 后 ⏎ 应粘贴第二行")
     }
 
@@ -459,14 +466,14 @@ final class KeyboardShortcutTests: XCTestCase {
         defer { controller.close() }
 
         focusSearchField(to: panel)
-        runLoop(0.15)
+        runLoop(0.2)
         sendKey(kVK_Escape, "\u{1b}", to: panel) // 收起过滤面板
-        runLoop(0.15)
+        runLoop(0.2)
         XCTAssertTrue(panel.isVisible)
 
         // 模拟再次点击搜索框区域：⌘F 等价聚焦 + 展开
         sendKey(kVK_ANSI_F, "f", modifiers: [.command], to: panel)
-        runLoop(0.15)
+        runLoop(0.2)
         XCTAssertTrue(panel.isVisible, "Esc 收起过滤面板后，再次聚焦搜索框不应关闭界面")
     }
 
@@ -481,7 +488,10 @@ final class KeyboardShortcutTests: XCTestCase {
 
         XCTAssertTrue(panel.isVisible, "Esc 清空搜索词后不应收起面板")
 
-        sendKey(kVK_Return, "\r", to: panel)
+        waitFor("搜索词清空后列表恢复首行选中并完成粘贴") {
+            sendKey(kVK_Return, "\r", to: panel)
+            return !writer.pastedItems.isEmpty
+        }
         XCTAssertEqual(writer.pastedItems.first?.item.summary, "Charlie", "搜索词清空后列表应恢复")
     }
 
@@ -491,11 +501,16 @@ final class KeyboardShortcutTests: XCTestCase {
         defer { controller.close() }
 
         sendKey(kVK_ANSI_RightBracket, "]", modifiers: [.command], to: panel)
+        runLoop(0.2)
         sendKey(kVK_Escape, "\u{1b}", to: panel)
+        runLoop(0.2)
 
         XCTAssertTrue(panel.isVisible, "Esc 清分类后不应收起面板")
 
-        sendKey(kVK_Return, "\r", to: panel)
+        waitFor("Esc 后分类回到全部且首行 Charlie 可贴") {
+            sendKey(kVK_Return, "\r", to: panel)
+            return !writer.pastedItems.isEmpty
+        }
         XCTAssertEqual(writer.pastedItems.first?.item.summary, "Charlie", "Esc 后分类应回到「全部」")
     }
 
