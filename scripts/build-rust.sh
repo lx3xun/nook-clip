@@ -91,8 +91,10 @@ fi
 echo "==> Generating UniFFI Swift bindings..."
 cargo run --package nookclip-ffi --bin uniffi-bindgen -- generate \
     --library "$DYLIB_PATH" \
+    --crate nookclip_ffi \
     --language swift \
     --no-format \
+    --metadata-no-deps \
     --out-dir "$OUT_DIR"
 
 echo "==> Staging artifacts for Swift Package Manager..."

@@ -41,7 +41,7 @@
 /* Settings Window */
 "settings.window_title" = "設定";
 "settings.tab.general" = "一般";
-"settings.tab.capture" = "擷取";
+"settings.tab.capture" = "記錄";
 "settings.tab.history" = "歷史與同步";
 "settings.tab.paste" = "貼上";
 "settings.tab.appearance" = "外觀";
@@ -78,7 +78,7 @@
 "settings.general.transparency" = "背景透明度";
 "settings.general.privacy_ocr" = "隱私";
 "settings.general.enable_sensitive" = "敏感資料保護";
-"settings.general.sensitive_desc" = "開啟後密碼、金鑰等敏感內容在本機加密保存並遮罩顯示；關閉後敏感內容不進入歷史，仍可直接貼上到其他應用程式";
+"settings.general.sensitive_desc" = "自動識別密碼與金鑰並遮擋；仍可正常貼上，防止被旁人窺視";
 "settings.general.sensitive_timeout" = "貼上敏感內容後自動清空剪貼簿";
 "settings.general.seconds" = "秒";
 "settings.general.backup_section" = "資料備份與維護";
@@ -182,12 +182,12 @@
 "settings.hotkey.reset_default" = "重設為預設快速鍵 (⌘ ⇧ V)";
 "settings.hotkey.err_modifiers" = "快速鍵必須包含變更鍵 (⌘, ⌥, ⌃, ⇧)";
 "settings.hotkey.err_conflict" = "此快速鍵可能已被系統或其他應用程式佔用";
-"settings.permissions.section" = "macOS 輔助使用 (Accessibility)";
+"settings.permissions.section" = "自動貼上權限";
 "settings.permissions.trusted" = "已允許自動貼上";
-"settings.permissions.untrusted" = "需要輔助使用權限";
-"settings.permissions.trusted_desc" = "%@ 呼叫面板後按 Enter 或按兩下即可直接貼上至目標 App。";
-"settings.permissions.untrusted_desc" = "自動貼上需要 macOS 輔助使用權限。請在系統設定中找到並勾選 NookClip。若列表中沒有 NookClip，按一下下方按鈕將自動叫出系統登記。";
-"settings.permissions.trusted_success" = "已成功獲得輔助使用權限，%@ 呼叫後可自動貼上至目標應用程式。";
+"settings.permissions.untrusted" = "未開啟自動貼上權限";
+"settings.permissions.trusted_desc" = "%@ 呼叫後按 Enter 返回鍵或按兩下即可直接貼入目前應用程式。";
+"settings.permissions.untrusted_desc" = "自動貼上需要系統輔助權限。請點選下方按鈕開啟系統設定並勾選 NookClip。";
+"settings.permissions.trusted_success" = "已開啟權限，%@ 呼叫後按返回鍵可直接貼入目前應用程式。";
 "settings.permissions.open_settings" = "開啟系統設定";
 "settings.permissions.recheck" = "重新檢查";
 "settings.permissions.restart" = "重新啟動 NookClip 生效";
@@ -206,22 +206,22 @@
 "settings.sync.btn_test_conn" = "測試連線";
 "settings.sync.conn_success" = "WebDAV 連線成功！";
 "settings.sync.conn_failed" = "連線失敗: %@";
-"settings.sync.e2ee_title" = "端對端加密 (E2EE) · 進階選項";
-"settings.sync.e2ee_desc" = "iCloud 本身的傳輸與儲存已加密，日常使用無需額外設定。開啟此項後改用只有你持有的金鑰加密，連 Apple 也無法解密；代價是所有 Mac 都要輸入同一個密碼，且密碼遺失後雲端歷史永久無法恢復。（預設關閉，敏感內容預設只留本機）";
-"settings.sync.e2ee_passphrase" = "同步密碼 (Passphrase)";
-"settings.sync.e2ee_passphrase_desc" = "多台 Mac 的配對憑證，所有裝置輸入完全相同的密碼即可解密互通";
+"settings.sync.e2ee_title" = "進階加密同步";
+"settings.sync.e2ee_desc" = "日常使用 iCloud 自帶加密即可，無需額外設定。開啟本項後會使用你專屬的密碼加密，連蘋果也無法查看；所有 Mac 都需要輸入該密碼，密碼遺失後雲端記錄無法找回。";
+"settings.sync.e2ee_passphrase" = "同步密碼";
+"settings.sync.e2ee_passphrase_desc" = "在所有 Mac 上輸入完全相同的密碼，即可解密同步";
 "settings.sync.e2ee_passphrase_placeholder" = "請輸入同步密碼（各裝置需一致）";
-"settings.sync.passphrase_required" = "已啟用端對端加密，請先設定同步密碼";
-"settings.sync.e2ee_verify_btn" = "驗證/初始化密碼";
-"settings.sync.e2ee_reset_title" = "重設雲端加密憑證";
-"settings.sync.e2ee_reset_subtitle" = "使用目前密碼重設雲端憑證並重新加密上傳全部歷史記錄";
-"settings.sync.e2ee_reset_btn" = "重設雲端密碼";
-"settings.sync.e2ee_reset_confirm_title" = "確認使用新密碼重設雲端？";
-"settings.sync.e2ee_reset_confirm_desc" = "將使用目前輸入的新密碼重新產生雲端加密憑證，並以新密碼重新加密推送本機剪貼簿資料。其他裝置需更新為此新密碼才能繼續同步。";
+"settings.sync.passphrase_required" = "已啟用進階加密，請先設定同步密碼";
+"settings.sync.e2ee_verify_btn" = "確認密碼";
+"settings.sync.e2ee_reset_title" = "重設雲端加密密碼";
+"settings.sync.e2ee_reset_subtitle" = "使用新密碼重設雲端記錄並重新加密上傳";
+"settings.sync.e2ee_reset_btn" = "重設同步密碼";
+"settings.sync.e2ee_reset_confirm_title" = "確認重設雲端同步密碼？";
+"settings.sync.e2ee_reset_confirm_desc" = "將使用新密碼重新加密上傳本機資料，其他 Mac 也需要輸入此新密碼才能繼續同步。";
 "settings.sync.e2ee_reset_confirm_action" = "重設並重新同步";
 "settings.sync.e2ee_reset_success" = "雲端密碼已重設並重新同步";
-"settings.sync.e2ee_sync_sensitive" = "同步敏感資料 (密碼 / API Key / 憑證)";
-"settings.sync.e2ee_sync_sensitive_desc" = "開啟後敏感內容受端對端加密保護，可同步到你的其他 Mac；未開啟時嚴格僅留存於當前 Mac 本機。";
+"settings.sync.e2ee_sync_sensitive" = "同步密碼與金鑰等私密內容";
+"settings.sync.e2ee_sync_sensitive_desc" = "開啟後私密內容受專屬密碼保護，可同步到你的其他 Mac；關閉時私密內容只留在此台 Mac 本機。";
 "settings.sync.dir_label" = "同步目錄存放位置";
 "settings.sync.change_dir" = "變更目錄...";
 "settings.sync.status_label" = "同步狀態";
@@ -242,19 +242,19 @@
 "sync.fail.not_found" = "遠端同步目錄不存在 (404)";
 "sync.fail.timeout" = "網路連線逾時";
 "sync.fail.cannot_connect" = "無法連線至伺服器";
-"sync.fail.passphrase_mismatch" = "端到端加密密碼不符";
+"sync.fail.passphrase_mismatch" = "同步密碼不符";
 "sync.fail.database" = "資料庫錯誤: %@";
 "settings.sync.panel_title" = "選取 iCloud 同步目錄";
 "settings.sync.panel_prompt" = "選取並授權";
 "settings.sync.dir_switched" = "已成功切換同步目錄";
 "settings.sync.dir_failed" = "設定目錄失敗: %@";
 "settings.sync.rules_section" = "同步規則與隱私說明";
-"settings.sync.rule_e2ee_on" = "已啟用 AES-256 端對端加密，離機前全程加密，iCloud 與雲端無法解密";
+"settings.sync.rule_e2ee_on" = "已啟用專屬密碼進階加密，離機前全程加密，雲端與蘋果也無法解密";
 "settings.sync.rule_e2ee_off" = "目前使用 iCloud 自帶加密（傳輸與儲存均已加密，金鑰由 Apple 持有）；密碼與 API Key 等敏感內容預設只留在本機，不會同步";
-"settings.sync.rule_sensitive_on" = "密碼與 API Key 等敏感內容受端對端加密保護，可同步到你的其他 Mac";
-"settings.sync.rule_sensitive_off" = "敏感內容（密碼、API Key）嚴格僅留存於當前 Mac 本機，絕不上傳雲端";
-"settings.sync.sensitive_prompt_title" = "是否同步密碼與 API Key？";
-"settings.sync.sensitive_prompt_message" = "你已啟用端對端加密。是否把識別為敏感的記錄（密碼、API Key 等）也同步到你的其他 Mac？\n\n開啟後：這些內容離機前會用你的口令加密，iCloud 與雲端無法解密；但任何取得你同步口令的人都能在其他裝置上讀取它們。\n關閉後：敏感內容嚴格僅留存本機，不上傳雲端、不離開這台 Mac。\n\n可隨時在「敏感資料同步」中修改。";
+"settings.sync.rule_sensitive_on" = "密碼與金鑰等私密內容受專屬密碼保護，可同步到你的其他 Mac";
+"settings.sync.rule_sensitive_off" = "私密內容（密碼、金鑰）嚴格僅留存於當前 Mac 本機，絕不上傳雲端";
+"settings.sync.sensitive_prompt_title" = "是否同步密碼與金鑰等私密內容？";
+"settings.sync.sensitive_prompt_message" = "你已啟用進階加密同步。是否把密碼與金鑰等私密內容也同步到你的其他 Mac？\n\n開啟後：使用你的專屬密碼加密上傳，雲端與蘋果均無法查看，但可在已輸入密碼的裝置上解密查看。\n關閉後：私密內容嚴格僅留存這台 Mac 本機，絕不上傳雲端。\n\n可隨時在同步設定中修改。";
 "settings.sync.sensitive_prompt_enable" = "開啟加密同步";
 "settings.sync.sensitive_prompt_keep_local" = "僅保留本機（建議）";
 "settings.sync.rule_assets_and_delete" = "圖片附件自動隨記錄同步（單張 ≤ 2MB，超限僅存本機）；其他 Mac 上的刪除操作即時同步";
@@ -337,7 +337,7 @@
 "preview.meta_line" = "%1$@ · %2$@ · 複製 %3$@ 次";
 "preview.sensitive.encrypted" = "已在本機加密";
 "preview.sensitive.local_only" = "純本機 · 不同步 iCloud";
-"preview.sensitive.e2ee_sync" = "端對端加密 · 可同步";
+"preview.sensitive.e2ee_sync" = "進階加密 · 可跨端同步";
 "preview.sensitive.auto_remask" = "檢視或貼上 30 秒後自動重新遮罩，並清除系統剪貼簿";
 "preview.image.fallback_type" = "圖片";
 "preview.image.ocr_badge" = "已離線辨識";
@@ -512,7 +512,7 @@
 "scrub.hint.detected" = "偵測到 %@ 處敏感資訊（%@）";
 "scrub.hint.action" = "脫敏貼上";
 "scrub.hint.settings.title" = "貼上前提醒";
-"scrub.hint.settings.desc" = "項目含金鑰、電子郵件、卡號等敏感內容時，預覽區顯示一行提示。不會攔截正常貼上。";
+"scrub.hint.settings.desc" = "內容含金鑰、電子郵件、卡號等敏感資訊時，在下方提示脫敏貼上，不影響正常貼上。";
 "scrub.action.single_only" = "請在單選狀態下使用脫敏貼上";
 "scrub.action.text_only" = "僅文字與連結支援脫敏貼上";
 "scrub.action.reveal_failed" = "無法讀取該項目，脫敏未執行";
@@ -544,7 +544,7 @@
 "scrub.custom.title" = "自訂脫敏規則";
 "scrub.custom.add" = "新增規則";
 "scrub.custom.edit_title" = "編輯規則";
-"scrub.custom.empty" = "還沒有自訂規則。可把公司內部網域、員工編號等也變成預留位置。";
+"scrub.custom.empty" = "還沒有自訂規則。可以把公司網域、員工編號等也自動替換脫敏。";
 "scrub.custom.name" = "名稱";
 "scrub.custom.is_regex" = "以正規表示式比對";
 "scrub.custom.pattern" = "比對內容";
@@ -562,7 +562,7 @@
 "scrub.vault.clear" = "立即清空";
 "scrub.nlp.title" = "辨識人名與地址";
 "scrub.nlp.desc" = "使用 macOS 本機語言模型離線分析，不會上傳任何內容";
-"scrub.footer.privacy" = "對照表只駐留在記憶體，不寫入資料庫與日誌；閒置逾時後自動銷毀。";
+"scrub.footer.privacy" = "脫敏對照表只駐留在記憶體，不寫入資料庫與日誌；閒置逾時後自動清除。";
 /* 螢幕置頂便利貼 */
 "pin.action.single_only" = "請先選取一筆內容";
 
@@ -595,10 +595,10 @@
 "settings.fold.collapsed" = "已收起";
 "settings.subtitle.general" = "啟動方式、外觀，以及 NookClip 自身的更新。";
 "settings.subtitle.appearance" = "主面板的配色、材質與列表樣式。";
-"settings.subtitle.capture" = "什麼內容會被記下來，以及哪些應用不該被記錄。";
+"settings.subtitle.capture" = "控制複製時記什麼、不記什麼，以及連續填表與排除名單。";
 "settings.subtitle.history" = "歷史留存多久、佔用多少磁碟，以及多裝置如何同步。";
 "settings.subtitle.paste" = "喚起快速鍵、自動貼上權限，與常用鍵位速查。";
-"settings.subtitle.privacy" = "哪些內容會被自動識別並遮罩，再留存或同步。";
+"settings.subtitle.privacy" = "為密碼、手機號碼與金鑰等敏感內容脫敏，防止傳送時洩密。";
 
 /* Settings - 現狀帶儲存格標籤 */
 "settings.status.records" = "記錄";
@@ -625,3 +625,42 @@
 "scrub.custom.empty_short" = "暫無規則";
 
 "excluded.more_hint" = "共 %d 個 · 滾動檢視其餘 %d 個";
+
+"settings.status.form_burst" = "連續填表";
+"settings.capture.form_burst_title" = "連續填表";
+"settings.capture.form_burst_row_title" = "複製表格或地址時提示連續填表";
+"settings.capture.form_burst_row_subtitle" = "複製 Excel 表格、多欄內容或收件資訊（姓名、電話、地址）時，在螢幕右下角提示依序逐項貼上";
+
+"form_burst.kind.table" = "表格資料";
+"form_burst.kind.contact" = "地址與聯絡人";
+"form_burst.kind.json" = "JSON 資料";
+"form_burst.kind.key_value" = "表單欄位";
+"form_burst.kind.list" = "文字列表";
+"form_burst.kind.default" = "連續填表";
+"form_burst.toast.summary" = "%@（%d 項）";
+"form_burst.toast.action" = "連續填表";
+/* ===== 終端機安全貼上護欄（Terminal Safe-Paste · P0） ===== */
+"settings.status.terminal_guard" = "終端機護欄";
+"settings.paste.terminal_section" = "終端機安全貼上護欄";
+"settings.paste.terminal_guard_title" = "終端機安全貼上";
+"settings.paste.terminal_guard_desc" = "多行與高危命令先彈窗確認，一般命令自動去掉末尾換行";
+"settings.paste.terminal_ide_title" = "內建終端機保護";
+"settings.paste.terminal_ide_desc" = "在 VS Code、Cursor、Xcode 等工具中也攔截危險命令";
+"terminal.confirm.title" = "這段內容貼進終端機會立刻執行";
+"terminal.confirm.lines" = "%d 行命令";
+"terminal.confirm.safe" = "安全貼上";
+"terminal.confirm.raw" = "原樣貼上";
+"terminal.confirm.cancel" = "取消";
+"terminal.toast.stripped" = "已去掉末尾換行，命令等你按 Return 才執行";
+"terminal.toast.safe_paste" = "已按安全方式貼上，命令等你按 Return 才執行";
+"terminal.hazard.multiline" = "多行命令";
+"terminal.hazard.sudo" = "提權執行";
+"terminal.hazard.rm_rf" = "遞迴強制刪除";
+"terminal.hazard.mkfs" = "格式化磁碟";
+"terminal.hazard.disk_write" = "直接寫磁碟";
+"terminal.hazard.pipe_to_shell" = "下載即執行";
+"terminal.hazard.chmod_777" = "開放全部權限";
+"terminal.hazard.git_force_push" = "強制覆寫或清理";
+"terminal.hazard.sql_drop" = "刪除資料表或庫";
+"terminal.hazard.fork_bomb" = "fork 炸彈";
+"terminal.hazard.power_control" = "關機重啟或強殺";

@@ -1,11 +1,12 @@
 import SwiftUI
 
-// MARK: - Tab: 捕捉 (Capture) —— 记什么、不记什么
+// MARK: - Tab: 记录 (Capture) —— 记什么、不记什么
 
 @MainActor
 struct CaptureSettingsTab: View {
     @AppStorage("enableSensitiveProtection") private var enableSensitiveProtection = true
     @AppStorage("sensitiveClipboardTimeout") private var sensitiveClipboardTimeout = 30
+    @AppStorage(UserDefaultsKey.formBurstAutoSuggestEnabled.rawValue) private var formBurstAutoSuggestEnabled = true
 
     var body: some View {
         SettingsPage(
@@ -16,6 +17,7 @@ struct CaptureSettingsTab: View {
                 (L10n.tr("settings.status.sensitive_clear"), sensitiveClipboardTimeout == 0
                     ? L10n.tr("settings.retention.unlimited")
                     : "\(sensitiveClipboardTimeout) " + L10n.tr("settings.general.seconds")),
+                (L10n.tr("settings.status.form_burst"), L10n.stateWord(formBurstAutoSuggestEnabled)),
                 (L10n.tr("settings.status.excluded"), "\(excludedCount)"),
             ]
         ) {
@@ -51,6 +53,21 @@ struct CaptureSettingsTab: View {
 
             SettingsFoldGroup(
                 index: 1,
+                title: L10n.tr("settings.capture.form_burst_title"),
+                summary: L10n.stateWord(formBurstAutoSuggestEnabled)
+            ) {
+                SettingsRow(
+                    title: L10n.tr("settings.capture.form_burst_row_title"),
+                    subtitle: L10n.tr("settings.capture.form_burst_row_subtitle")
+                ) {
+                    Toggle("", isOn: $formBurstAutoSuggestEnabled)
+                        .toggleStyle(.nookSwitch)
+                        .labelsHidden()
+                }
+            }
+
+            SettingsFoldGroup(
+                index: 2,
                 title: L10n.tr("excluded.title"),
                 summary: "\(excludedCount)"
             ) {

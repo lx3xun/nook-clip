@@ -710,8 +710,15 @@ struct MainView: View {
             plainTextOnly: plainTextOnly,
             closePanel: keepOpen ? nil : onClose
         )
-        if case .staleFile(let message) = outcome {
+        switch outcome {
+        case .staleFile(let message):
             staleFileMessage = message
+        case .pastedWithNote(let message):
+            // 终端护栏的轻提示：面板可能已关，交给系统级悬浮提示，
+            // 否则这条反馈会随着面板一起消失，用户根本看不到发生了什么
+            TerminalSafePasteNotifier.shared.show(message)
+        case .pasted, .itemMissing, .cancelled:
+            break
         }
     }
 
@@ -719,14 +726,17 @@ struct MainView: View {
     func pasteBatch(keepOpen: Bool, plainTextOnly: Bool) {
         let ordered = flatRows.filter { selectionCoordinator.selectionIDs.contains($0.id) }
         guard !ordered.isEmpty else { return }
-        pasteWorkflow.pasteBatch(
+        let pasted = pasteWorkflow.pasteBatch(
             entries: ordered.map { row in
                 ClipboardWorkflow.BatchEntry(id: row.id, summary: row.summary, isSensitive: row.isSensitive)
             },
             targetApplication: getTargetApplication(),
             closePanel: keepOpen ? nil : onClose
         )
-        selectionCoordinator.selectionIDs.removeAll()
+        // 取消（终端确认弹窗里点了取消）时保留选区现场，用户可改选其它条目
+        if pasted {
+            selectionCoordinator.selectionIDs.removeAll()
+        }
     }
 
     /// ⌘C / 右键「拷贝」：写入系统剪贴板并收起面板，不向前台应用发送 ⌘V 粘贴事件

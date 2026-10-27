@@ -50,14 +50,16 @@ extension MainView {
         // 没命中任何敏感项：仍然粘贴原文，但明确告知「本条目无需脱敏」，
         // 避免用户以为 ⌃⏎ 失效（透明反馈优先于静默）
         guard outcome.hasReplacements else {
-            showScrubFeedback(L10n.tr("scrub.result.none"))
-            pasteTextDirectly(plainText, containsSensitive: item.isSensitive)
+            if pasteTextDirectly(plainText, containsSensitive: item.isSensitive) {
+                showScrubFeedback(L10n.tr("scrub.result.none"))
+            }
             return
         }
 
-        store.markUsed(id)
-        pasteTextDirectly(outcome.scrubbedText, containsSensitive: false)
-        showScrubFeedback(outcome.localizedSummary)
+        if pasteTextDirectly(outcome.scrubbedText, containsSensitive: false) {
+            store.markUsed(id)
+            showScrubFeedback(outcome.localizedSummary)
+        }
     }
 
     // MARK: - ⌃⇧⏎ 还原粘贴（US1 反向）
@@ -88,28 +90,61 @@ extension MainView {
 
         // 没有可还原的占位符：回退成普通粘贴（用户按错了不该毫无反应）
         guard outcome.restoredCount > 0 else {
-            showScrubFeedback(L10n.tr("scrub.restore.none"))
-            pasteTextDirectly(candidateText, containsSensitive: false)
+            if pasteTextDirectly(candidateText, containsSensitive: false) {
+                showScrubFeedback(L10n.tr("scrub.restore.none"))
+            }
             return
         }
 
-        if let id = targetItemID {
-            store.markUsed(id)
-        }
         // 还原后的文本含真实敏感值：必须以 containsSensitive 写入，
         // 让 PasteService 打上 transient/concealed 标记并调度 30s 自毁
-        pasteTextDirectly(outcome.restoredText, containsSensitive: true)
-        showScrubFeedback(L10n.tr("scrub.restore.summary", String(outcome.restoredCount)))
+        if pasteTextDirectly(outcome.restoredText, containsSensitive: true) {
+            if let id = targetItemID {
+                store.markUsed(id)
+            }
+            showScrubFeedback(L10n.tr("scrub.restore.summary", String(outcome.restoredCount)))
+        }
     }
 
-    /// 脱敏/还原的统一粘贴出口：写入剪贴板 → 模拟 ⌘V → 关面板。
-    private func pasteTextDirectly(_ text: String, containsSensitive: Bool) {
+    /// 脱敏/还原的统一粘贴出口：同样经过终端护栏 → 写入剪贴板 → 模拟 ⌘V → 关面板。
+    @discardableResult
+    private func pasteTextDirectly(_ text: String, containsSensitive: Bool) -> Bool {
+        let targetApp = getTargetApplication()
+        var textToPaste = text
+        var toastMessage: String?
+
+        switch TerminalPasteGuard.decide(
+            bundleId: targetApp?.bundleIdentifier,
+            appName: targetApp?.localizedName,
+            text: text
+        ) {
+        case .passthrough:
+            break
+        case .silentStrip(let assessment):
+            textToPaste = assessment.pasteText
+            toastMessage = L10n.tr("terminal.toast.stripped")
+        case .confirm(let assessment):
+            switch TerminalPasteConfirm.present(assessment) {
+            case .cancel:
+                return false
+            case .safe:
+                textToPaste = assessment.pasteText
+                toastMessage = L10n.tr("terminal.toast.safe_paste")
+            case .raw:
+                textToPaste = text
+            }
+        }
+
         onClose()
         _ = clipboardWriter.pasteText(
-            text,
-            targetApplication: getTargetApplication(),
+            textToPaste,
+            targetApplication: targetApp,
             containsSensitive: containsSensitive
         )
+        if let toastMessage {
+            TerminalSafePasteNotifier.shared.show(toastMessage)
+        }
+        return true
     }
 
     /// 把剪贴板当前内容原样再贴一次（⌃⇧⏎ 无占位符时的回退路径）
@@ -118,34 +153,79 @@ extension MainView {
         pasteTextDirectly(text, containsSensitive: false)
     }
 
-    // MARK: - ⌥⏎ 顺序粘贴栈（US2）
+    // MARK: - ⌥⏎ 顺序粘贴栈（US2）与多维智能拆解填表（Smart Form Burst）
 
-    /// 多选态启动顺序粘贴栈；单选态返回 false 让分发表回落成普通纯文本粘贴。
+    /// 多选态启动顺序粘贴栈；单选态仅当条目具备高确定性表单结构（`shouldSuggestFormBurst`）时
+    /// 触发「智能拆解入栈（Burst to Stack）」，普通文本返回 false 回落成普通纯文本粘贴（契约 C1）。
     ///
     /// - Returns: 是否消费了本次按键
     @discardableResult
     func startPasteStackFromSelection() -> Bool {
-        guard isBatchMode else { return false }
+        if isBatchMode {
+            let selectedIDs = selectionCoordinator.selectionIDs
+            guard selectedIDs.count >= 2 else { return false }
 
-        let selectedIDs = selectionCoordinator.selectionIDs
-        guard selectedIDs.count >= 2 else { return false }
+            // 取条目本身，然后按「复制先后」排 —— **刻意不用列表显示序**。
+            // 列表按 `lastUsedAt` 倒序（刚复制的排最上），照搬会把顺序整个翻过来：
+            // 依次复制 A、B、C 后多选启动，用户期待 A → B → C，实际却贴 C → B → A。
+            // 「顺序粘贴」的全部价值就是「照我复制的顺序来」，排序统一由
+            // `PasteStackQueue.inCopyOrder` 负责（那里有确定性与理由的完整注释）。
+            let selected = selectedIDs.compactMap { store.item(withID: $0) }
+            guard selected.count >= 2 else { return false }
 
-        // 取条目本身，然后按「复制先后」排 —— **刻意不用列表显示序**。
-        // 列表按 `lastUsedAt` 倒序（刚复制的排最上），照搬会把顺序整个翻过来：
-        // 依次复制 A、B、C 后多选启动，用户期待 A → B → C，实际却贴 C → B → A。
-        // 「顺序粘贴」的全部价值就是「照我复制的顺序来」，排序统一由
-        // `PasteStackQueue.inCopyOrder` 负责（那里有确定性与理由的完整注释）。
-        let selected = selectedIDs.compactMap { store.item(withID: $0) }
-        guard selected.count >= 2 else { return false }
+            // 敏感条目无法解密时跳过（绝不把掩码串塞进粘贴栈）
+            let usable = PasteStackQueue.inCopyOrder(
+                selected.filter { !$0.isSensitive || $0.revealPlainContentResult().isSuccess }
+            )
+            guard !usable.isEmpty else { return false }
 
-        // 敏感条目无法解密时跳过（绝不把掩码串塞进粘贴栈）
-        let usable = PasteStackQueue.inCopyOrder(
-            selected.filter { !$0.isSensitive || $0.revealPlainContentResult().isSuccess }
-        )
-        guard !usable.isEmpty else { return false }
+            onClose()
+            PasteStackController.shared.start(with: usable)
+            return true
+        } else {
+            return burstAndStartPasteStack()
+        }
+    }
+
+    /// 单选态：智能拆解当前条目并直接注入顺序粘贴栈
+    @discardableResult
+    func burstAndStartPasteStack() -> Bool {
+        guard let id = selectionCoordinator.selectedID,
+              let item = store.item(withID: id) else {
+            return false
+        }
+        guard (item.type == .text || item.type == .url), !item.isSensitive else { return false }
+
+        let plainText: String
+        switch item.revealPlainContentResult() {
+        case .success(let text):
+            plainText = text
+        case .failure:
+            return false
+        }
+
+        guard shouldSuggestFormBurst(text: plainText) else {
+            return false
+        }
+
+        let pieces = burstFormText(text: plainText)
+        guard pieces.count >= 2 else {
+            return false
+        }
+
+        let now = Date()
+        let burstItems = pieces.enumerated().map { index, piece in
+            ClipboardItem(
+                id: UUID(),
+                type: .text,
+                title: piece,
+                summary: piece,
+                createdAt: now.addingTimeInterval(TimeInterval(index))
+            )
+        }
 
         onClose()
-        PasteStackController.shared.start(with: usable)
+        PasteStackController.shared.start(with: burstItems)
         return true
     }
 

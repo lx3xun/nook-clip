@@ -8,6 +8,10 @@ import SwiftUI
 struct PasteSettingsTab: View {
     @AppStorage(UserDefaultsKey.hotkeyDisplay.rawValue) private var hotkeyDisplay = "⌘ ⇧ V"
     @AppStorage("pasteSoundEnabled") private var pasteSoundEnabled = true
+    /// 终端防误触护栏开关（缺省开启：关掉它等于让用户先踩一次坑）
+    @AppStorage(UserDefaultsKey.terminalSafePasteEnabled.rawValue) private var terminalSafePasteEnabled = true
+    /// 是否同时保护 VS Code / Cursor / Xcode / JetBrains 等编辑器与 AI 工具内置终端（缺省开启）
+    @AppStorage(UserDefaultsKey.terminalSafePasteIdeEnabled.rawValue) private var terminalSafePasteIdeEnabled = true
     @State private var accessibilityTrusted = PasteService.isAccessibilityTrusted
     private let accessibilityStatusTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
@@ -19,6 +23,7 @@ struct PasteSettingsTab: View {
                 (L10n.tr("settings.status.hotkey"), hotkeyDisplay),
                 (L10n.tr("settings.status.accessibility"), accessibilityStateWord),
                 (L10n.tr("settings.paste.sound_section"), L10n.stateWord(pasteSoundEnabled)),
+                (L10n.tr("settings.status.terminal_guard"), L10n.stateWord(terminalSafePasteEnabled)),
             ]
         ) {
             // 1. 全局唤起快捷键
@@ -166,13 +171,44 @@ struct PasteSettingsTab: View {
                 }
             }
 
-            // 4. 键位速查
+            // 4. 终端防误触护栏
+            //
+            // 放在音效之后、速查之前：它改的是「按回车的后果」，比音效重要得多，
+            // 但又不如快捷键和权限那样必须第一时间看到。
+            SettingsFoldGroup(
+                index: 3,
+                title: L10n.tr("settings.paste.terminal_section"),
+                summary: L10n.stateWord(terminalSafePasteEnabled)
+            ) {
+                SettingsRow(
+                    title: L10n.tr("settings.paste.terminal_guard_title"),
+                    subtitle: L10n.tr("settings.paste.terminal_guard_desc"),
+                    showDivider: terminalSafePasteEnabled
+                ) {
+                    Toggle("", isOn: $terminalSafePasteEnabled)
+                        .toggleStyle(.nookSwitch)
+                        .labelsHidden()
+                }
+
+                if terminalSafePasteEnabled {
+                    SettingsRow(
+                        title: L10n.tr("settings.paste.terminal_ide_title"),
+                        subtitle: L10n.tr("settings.paste.terminal_ide_desc")
+                    ) {
+                        Toggle("", isOn: $terminalSafePasteIdeEnabled)
+                            .toggleStyle(.nookSwitch)
+                            .labelsHidden()
+                    }
+                }
+            }
+
+            // 5. 键位速查
             //
             // 原先四张速查表各占一个分组，翻下去全是键位、很吵。
             // 现在收进同一组：折叠时一行摘要就够，展开后按「导航 / 粘贴 / 管理 / 面板」分段。
             // 与 MainView 键盘主循环及 contracts C3 全表一致。
             SettingsFoldGroup(
-                index: 3,
+                index: 4,
                 title: L10n.tr("settings.hotkey.cheatsheet"),
                 summary: L10n.tr("settings.hotkey.cheatsheet_sum")
             ) {

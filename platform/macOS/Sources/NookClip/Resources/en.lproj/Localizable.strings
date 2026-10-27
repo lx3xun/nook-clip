@@ -625,3 +625,42 @@
 "scrub.custom.empty_short" = "None yet";
 
 "excluded.more_hint" = "%d total · scroll for %d more";
+
+"settings.status.form_burst" = "Form fill";
+"settings.capture.form_burst_title" = "Sequential form fill";
+"settings.capture.form_burst_row_title" = "Suggest sequential fill when copying tables or addresses";
+"settings.capture.form_burst_row_subtitle" = "When copying spreadsheet rows, multi-column text, or contact details (name, phone, address), show a corner prompt to paste fields one by one";
+
+"form_burst.kind.table" = "Table data";
+"form_burst.kind.contact" = "Contact & address";
+"form_burst.kind.json" = "JSON data";
+"form_burst.kind.key_value" = "Form fields";
+"form_burst.kind.list" = "Text list";
+"form_burst.kind.default" = "Form fill";
+"form_burst.toast.summary" = "%@ (%d items)";
+"form_burst.toast.action" = "Fill sequentially";
+/* ===== Terminal Safe-Paste guard (P0) ===== */
+"settings.status.terminal_guard" = "Terminal guard";
+"settings.paste.terminal_section" = "Terminal Safe-Paste";
+"settings.paste.terminal_guard_title" = "Terminal Safe-Paste";
+"settings.paste.terminal_guard_desc" = "Confirm multi-line or risky commands first and strip trailing newlines";
+"settings.paste.terminal_ide_title" = "Protect IDE terminals";
+"settings.paste.terminal_ide_desc" = "Also intercept multi-line and risky commands in VS Code, Cursor, and Xcode";
+"terminal.confirm.title" = "This will run immediately in the terminal";
+"terminal.confirm.lines" = "%d command lines";
+"terminal.confirm.safe" = "Paste safely";
+"terminal.confirm.raw" = "Paste as-is";
+"terminal.confirm.cancel" = "Cancel";
+"terminal.toast.stripped" = "Trailing newline removed — press Return yourself to run it";
+"terminal.toast.safe_paste" = "Pasted safely — press Return yourself to run it";
+"terminal.hazard.multiline" = "Multi-line command";
+"terminal.hazard.sudo" = "Elevated execution";
+"terminal.hazard.rm_rf" = "Recursive force delete";
+"terminal.hazard.mkfs" = "Formats a disk";
+"terminal.hazard.disk_write" = "Writes a raw disk";
+"terminal.hazard.pipe_to_shell" = "Download and execute";
+"terminal.hazard.chmod_777" = "Grants full permissions";
+"terminal.hazard.git_force_push" = "Force push or hard reset";
+"terminal.hazard.sql_drop" = "Drops a table or database";
+"terminal.hazard.fork_bomb" = "Fork bomb";
+"terminal.hazard.power_control" = "Shutdown, restart, or force kill";

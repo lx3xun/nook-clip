@@ -1433,6 +1433,94 @@ pub fn resolve_clipboard_source_app(
         .map(Into::into)
 }
 
+// ---------------------------------------------------------------------------
+// 终端安全粘贴护栏（Terminal Safe-Paste / P0）
+// ---------------------------------------------------------------------------
+
+/// 终端粘贴风险评估结果（与 Rust `TerminalPasteAssessment` 一一对应）。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiTerminalPasteAssessment {
+    /// 目标应用是否已知终端；false 时其余字段无意义，客户端走原有粘贴路径
+    pub is_terminal: bool,
+    /// 是否需要弹窗确认（多行命令或命中高危词）
+    pub requires_confirmation: bool,
+    /// 命中的高危分类稳定标识（如 "multiline" / "sudo" / "rm_rf"），
+    /// 由客户端翻译成用户文案
+    pub hazards: Vec<String>,
+    /// 去掉末尾回车后剩余的非空行数（1 = 单行）
+    pub line_count: u32,
+    /// 建议粘贴的文本：已去掉末尾所有换行/回车
+    pub safe_text: String,
+    /// 可安全串联时给出的单行形态（`cmd1 && cmd2`）；不可串联时等于 `safe_text`
+    pub single_line_text: String,
+    /// 多行能否安全合并为一行（false 时调用方不要提供「合并为一行」选项）
+    pub can_merge_single_line: bool,
+    /// 原文末尾确有换行（静默档据此给一句轻提示）
+    pub strips_trailing_newline: bool,
+}
+
+impl From<algorithms::terminal_guard::TerminalPasteAssessment> for FfiTerminalPasteAssessment {
+    fn from(a: algorithms::terminal_guard::TerminalPasteAssessment) -> Self {
+        Self {
+            is_terminal: a.is_terminal,
+            requires_confirmation: a.requires_confirmation,
+            hazards: a.hazards.into_iter().map(|h| h.key().to_string()).collect(),
+            line_count: a.line_count,
+            safe_text: a.safe_text,
+            single_line_text: a.single_line_text,
+            can_merge_single_line: a.can_merge_single_line,
+            strips_trailing_newline: a.strips_trailing_newline,
+        }
+    }
+}
+
+/// 判定一次粘贴要不要按「终端安全」处理。
+///
+/// - `bundle_id` 为空或不是已知终端：`is_terminal = false`，调用方原样粘贴；
+/// - 终端 + 单行普通命令带末尾回车：`strips_trailing_newline = true`，
+///   调用方粘贴 `safe_text` 并给一句轻提示，不弹窗；
+/// - 终端 + 多行 / 高危：`requires_confirmation = true`，调用方必须弹窗确认。
+#[uniffi::export]
+pub fn assess_terminal_paste_risk(
+    bundle_id: String,
+    text: String,
+) -> FfiTerminalPasteAssessment {
+    algorithms::terminal_guard::assess_terminal_paste(&bundle_id, &text).into()
+}
+
+/// 带应用显示名称与「是否保护编辑器内置终端」开关的终端粘贴风险评估。
+#[uniffi::export]
+pub fn assess_terminal_paste_risk_with_context(
+    bundle_id: String,
+    app_name: String,
+    text: String,
+    include_ide_terminals: bool,
+) -> FfiTerminalPasteAssessment {
+    algorithms::terminal_guard::assess_terminal_paste_with_context(
+        &bundle_id,
+        &app_name,
+        &text,
+        include_ide_terminals,
+    )
+    .into()
+}
+
+/// 目标应用是否是已知终端（设置页预览 / 测试用）。
+#[uniffi::export]
+pub fn is_terminal_bundle_id(bundle_id: String) -> bool {
+    algorithms::terminal_guard::is_terminal_bundle_id(&bundle_id)
+}
+
+/// 综合 Bundle ID、应用显示名称与 IDE 开关判断目标是否受终端护栏保护。
+#[uniffi::export]
+pub fn is_terminal_target_app(
+    bundle_id: String,
+    app_name: String,
+    include_ide_terminals: bool,
+) -> bool {
+    algorithms::terminal_guard::is_terminal_target(&bundle_id, &app_name, include_ide_terminals)
+}
+
 #[uniffi::export]
 pub fn resolve_or_create_master_key(
     key_file_path: String,
@@ -1655,4 +1743,24 @@ pub fn clear_scrub_session_vault() {
 #[uniffi::export]
 pub fn active_scrub_vault_count() -> u32 {
     algorithms::scrub::active_vault_count()
+}
+
+// ---------------------------------------------------------------------------
+// 智能表单拆解（Smart Form / Table Bursting）
+// ---------------------------------------------------------------------------
+
+/// 智能拆解混合文本为独立表单子项列表（直接供顺序粘贴栈使用）
+#[uniffi::export]
+pub fn burst_form_text(text: String) -> Vec<String> {
+    algorithms::form_burst::burst_form_text(&text)
+}
+
+#[uniffi::export]
+pub fn should_suggest_form_burst(text: String) -> bool {
+    algorithms::form_burst::should_suggest_form_burst(&text)
+}
+
+#[uniffi::export]
+pub fn detect_form_burst_kind(text: String) -> String {
+    algorithms::form_burst::detect_form_burst_kind(&text).to_string()
 }

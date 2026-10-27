@@ -105,6 +105,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.historyStore.applyCapturedItem(item)
             // 录制态：把新复制的条目追加进栈尾（非录制态 append 自身会忽略）
             PasteStackController.shared.append(item)
+
+            // 若未在录制态且复制了具备高确定性表单结构的内容（如 Excel、收件信息、JSON、键值对），主动弹出轻量拆解提示
+            if (item.type == .text || item.type == .url),
+               !item.isSensitive,
+               !PasteStackController.shared.isRecording,
+               !PasteStackController.shared.isActive {
+                if shouldSuggestFormBurst(text: item.summary) {
+                    FormBurstToastController.shared.suggest(for: item.summary)
+                }
+            }
         }
 
         // 顺序粘贴浮窗里点「粘贴」要把内容贴到目标应用，而不是贴回我们自己的窗口。

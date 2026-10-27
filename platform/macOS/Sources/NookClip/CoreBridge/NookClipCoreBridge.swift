@@ -2654,6 +2654,173 @@ public func FfiConverterTypeFfiScrubScanResult_lower(_ value: FfiScrubScanResult
 }
 
 
+/**
+ * 终端粘贴风险评估结果（与 Rust `TerminalPasteAssessment` 一一对应）。
+ */
+public struct FfiTerminalPasteAssessment {
+    /**
+     * 目标应用是否已知终端；false 时其余字段无意义，客户端走原有粘贴路径
+     */
+    public var isTerminal: Bool
+    /**
+     * 是否需要弹窗确认（多行命令或命中高危词）
+     */
+    public var requiresConfirmation: Bool
+    /**
+     * 命中的高危分类稳定标识（如 "multiline" / "sudo" / "rm_rf"），
+     * 由客户端翻译成用户文案
+     */
+    public var hazards: [String]
+    /**
+     * 去掉末尾回车后剩余的非空行数（1 = 单行）
+     */
+    public var lineCount: UInt32
+    /**
+     * 建议粘贴的文本：已去掉末尾所有换行/回车
+     */
+    public var safeText: String
+    /**
+     * 可安全串联时给出的单行形态（`cmd1 && cmd2`）；不可串联时等于 `safe_text`
+     */
+    public var singleLineText: String
+    /**
+     * 多行能否安全合并为一行（false 时调用方不要提供「合并为一行」选项）
+     */
+    public var canMergeSingleLine: Bool
+    /**
+     * 原文末尾确有换行（静默档据此给一句轻提示）
+     */
+    public var stripsTrailingNewline: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 目标应用是否已知终端；false 时其余字段无意义，客户端走原有粘贴路径
+         */isTerminal: Bool, 
+        /**
+         * 是否需要弹窗确认（多行命令或命中高危词）
+         */requiresConfirmation: Bool, 
+        /**
+         * 命中的高危分类稳定标识（如 "multiline" / "sudo" / "rm_rf"），
+         * 由客户端翻译成用户文案
+         */hazards: [String], 
+        /**
+         * 去掉末尾回车后剩余的非空行数（1 = 单行）
+         */lineCount: UInt32, 
+        /**
+         * 建议粘贴的文本：已去掉末尾所有换行/回车
+         */safeText: String, 
+        /**
+         * 可安全串联时给出的单行形态（`cmd1 && cmd2`）；不可串联时等于 `safe_text`
+         */singleLineText: String, 
+        /**
+         * 多行能否安全合并为一行（false 时调用方不要提供「合并为一行」选项）
+         */canMergeSingleLine: Bool, 
+        /**
+         * 原文末尾确有换行（静默档据此给一句轻提示）
+         */stripsTrailingNewline: Bool) {
+        self.isTerminal = isTerminal
+        self.requiresConfirmation = requiresConfirmation
+        self.hazards = hazards
+        self.lineCount = lineCount
+        self.safeText = safeText
+        self.singleLineText = singleLineText
+        self.canMergeSingleLine = canMergeSingleLine
+        self.stripsTrailingNewline = stripsTrailingNewline
+    }
+}
+
+
+
+extension FfiTerminalPasteAssessment: Equatable, Hashable {
+    public static func ==(lhs: FfiTerminalPasteAssessment, rhs: FfiTerminalPasteAssessment) -> Bool {
+        if lhs.isTerminal != rhs.isTerminal {
+            return false
+        }
+        if lhs.requiresConfirmation != rhs.requiresConfirmation {
+            return false
+        }
+        if lhs.hazards != rhs.hazards {
+            return false
+        }
+        if lhs.lineCount != rhs.lineCount {
+            return false
+        }
+        if lhs.safeText != rhs.safeText {
+            return false
+        }
+        if lhs.singleLineText != rhs.singleLineText {
+            return false
+        }
+        if lhs.canMergeSingleLine != rhs.canMergeSingleLine {
+            return false
+        }
+        if lhs.stripsTrailingNewline != rhs.stripsTrailingNewline {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(isTerminal)
+        hasher.combine(requiresConfirmation)
+        hasher.combine(hazards)
+        hasher.combine(lineCount)
+        hasher.combine(safeText)
+        hasher.combine(singleLineText)
+        hasher.combine(canMergeSingleLine)
+        hasher.combine(stripsTrailingNewline)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiTerminalPasteAssessment: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiTerminalPasteAssessment {
+        return
+            try FfiTerminalPasteAssessment(
+                isTerminal: FfiConverterBool.read(from: &buf), 
+                requiresConfirmation: FfiConverterBool.read(from: &buf), 
+                hazards: FfiConverterSequenceString.read(from: &buf), 
+                lineCount: FfiConverterUInt32.read(from: &buf), 
+                safeText: FfiConverterString.read(from: &buf), 
+                singleLineText: FfiConverterString.read(from: &buf), 
+                canMergeSingleLine: FfiConverterBool.read(from: &buf), 
+                stripsTrailingNewline: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiTerminalPasteAssessment, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.isTerminal, into: &buf)
+        FfiConverterBool.write(value.requiresConfirmation, into: &buf)
+        FfiConverterSequenceString.write(value.hazards, into: &buf)
+        FfiConverterUInt32.write(value.lineCount, into: &buf)
+        FfiConverterString.write(value.safeText, into: &buf)
+        FfiConverterString.write(value.singleLineText, into: &buf)
+        FfiConverterBool.write(value.canMergeSingleLine, into: &buf)
+        FfiConverterBool.write(value.stripsTrailingNewline, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiTerminalPasteAssessment_lift(_ buf: RustBuffer) throws -> FfiTerminalPasteAssessment {
+    return try FfiConverterTypeFfiTerminalPasteAssessment.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiTerminalPasteAssessment_lower(_ value: FfiTerminalPasteAssessment) -> RustBuffer {
+    return FfiConverterTypeFfiTerminalPasteAssessment.lower(value)
+}
+
+
 public struct HighlightRange {
     public var startByte: UInt32
     public var endByte: UInt32
@@ -5569,6 +5736,45 @@ public func activeScrubVaultCount() -> UInt32 {
     )
 })
 }
+/**
+ * 判定一次粘贴要不要按「终端安全」处理。
+ *
+ * - `bundle_id` 为空或不是已知终端：`is_terminal = false`，调用方原样粘贴；
+ * - 终端 + 单行普通命令带末尾回车：`strips_trailing_newline = true`，
+ * 调用方粘贴 `safe_text` 并给一句轻提示，不弹窗；
+ * - 终端 + 多行 / 高危：`requires_confirmation = true`，调用方必须弹窗确认。
+ */
+public func assessTerminalPasteRisk(bundleId: String, text: String) -> FfiTerminalPasteAssessment {
+    return try!  FfiConverterTypeFfiTerminalPasteAssessment.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_assess_terminal_paste_risk(
+        FfiConverterString.lower(bundleId),
+        FfiConverterString.lower(text),$0
+    )
+})
+}
+/**
+ * 带应用显示名称与「是否保护编辑器内置终端」开关的终端粘贴风险评估。
+ */
+public func assessTerminalPasteRiskWithContext(bundleId: String, appName: String, text: String, includeIdeTerminals: Bool) -> FfiTerminalPasteAssessment {
+    return try!  FfiConverterTypeFfiTerminalPasteAssessment.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_assess_terminal_paste_risk_with_context(
+        FfiConverterString.lower(bundleId),
+        FfiConverterString.lower(appName),
+        FfiConverterString.lower(text),
+        FfiConverterBool.lower(includeIdeTerminals),$0
+    )
+})
+}
+/**
+ * 智能拆解混合文本为独立表单子项列表（直接供顺序粘贴栈使用）
+ */
+public func burstFormText(text: String) -> [String] {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_burst_form_text(
+        FfiConverterString.lower(text),$0
+    )
+})
+}
 public func classifyTextContent(text: String) -> DetectionResult {
     return try!  FfiConverterTypeDetectionResult.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_func_classify_text_content(
@@ -5603,10 +5809,39 @@ public func defaultEnabledScrubRules() -> [String] {
     )
 })
 }
+public func detectFormBurstKind(text: String) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_detect_form_burst_kind(
+        FfiConverterString.lower(text),$0
+    )
+})
+}
 public func formatOcrLayoutBlocks(blocks: [OcrTextBlock]) -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_func_format_ocr_layout_blocks(
         FfiConverterSequenceTypeOcrTextBlock.lower(blocks),$0
+    )
+})
+}
+/**
+ * 目标应用是否是已知终端（设置页预览 / 测试用）。
+ */
+public func isTerminalBundleId(bundleId: String) -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_is_terminal_bundle_id(
+        FfiConverterString.lower(bundleId),$0
+    )
+})
+}
+/**
+ * 综合 Bundle ID、应用显示名称与 IDE 开关判断目标是否受终端护栏保护。
+ */
+public func isTerminalTargetApp(bundleId: String, appName: String, includeIdeTerminals: Bool) -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_is_terminal_target_app(
+        FfiConverterString.lower(bundleId),
+        FfiConverterString.lower(appName),
+        FfiConverterBool.lower(includeIdeTerminals),$0
     )
 })
 }
@@ -5705,6 +5940,13 @@ public func scrubSensitiveText(text: String, config: FfiScrubConfig, externalSpa
     )
 })
 }
+public func shouldSuggestFormBurst(text: String) -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_should_suggest_form_burst(
+        FfiConverterString.lower(text),$0
+    )
+})
+}
 public func sweepOrphanPayloadAssets(storageDir: String, referencedFilenames: [String], olderThanSeconds: Double)throws  -> UInt32 {
     return try  FfiConverterUInt32.lift(try rustCallWithError(FfiConverterTypeNookClipError.lift) {
     uniffi_nookclip_ffi_fn_func_sweep_orphan_payload_assets(
@@ -5758,6 +6000,15 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_active_scrub_vault_count() != 39510) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_assess_terminal_paste_risk() != 6852) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_assess_terminal_paste_risk_with_context() != 19574) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_burst_form_text() != 49005) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_classify_text_content() != 34131) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5770,7 +6021,16 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_default_enabled_scrub_rules() != 25075) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_detect_form_burst_kind() != 53186) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_format_ocr_layout_blocks() != 38903) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_is_terminal_bundle_id() != 51690) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_is_terminal_target_app() != 53206) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_mask_sensitive_text() != 30185) {
@@ -5801,6 +6061,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_scrub_sensitive_text() != 16495) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_should_suggest_form_burst() != 3377) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_sweep_orphan_payload_assets() != 15341) {

@@ -555,6 +555,21 @@ uint32_t uniffi_nookclip_ffi_fn_func_active_scrub_vault_count(RustCallStatus *_N
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_ASSESS_TERMINAL_PASTE_RISK
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_ASSESS_TERMINAL_PASTE_RISK
+RustBuffer uniffi_nookclip_ffi_fn_func_assess_terminal_paste_risk(RustBuffer bundle_id, RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_ASSESS_TERMINAL_PASTE_RISK_WITH_CONTEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_ASSESS_TERMINAL_PASTE_RISK_WITH_CONTEXT
+RustBuffer uniffi_nookclip_ffi_fn_func_assess_terminal_paste_risk_with_context(RustBuffer bundle_id, RustBuffer app_name, RustBuffer text, int8_t include_ide_terminals, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_BURST_FORM_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_BURST_FORM_TEXT
+RustBuffer uniffi_nookclip_ffi_fn_func_burst_form_text(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_CLASSIFY_TEXT_CONTENT
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_CLASSIFY_TEXT_CONTENT
 RustBuffer uniffi_nookclip_ffi_fn_func_classify_text_content(RustBuffer text, RustCallStatus *_Nonnull out_status
@@ -577,9 +592,24 @@ RustBuffer uniffi_nookclip_ffi_fn_func_default_enabled_scrub_rules(RustCallStatu
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DETECT_FORM_BURST_KIND
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DETECT_FORM_BURST_KIND
+RustBuffer uniffi_nookclip_ffi_fn_func_detect_form_burst_kind(RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_FORMAT_OCR_LAYOUT_BLOCKS
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_FORMAT_OCR_LAYOUT_BLOCKS
 RustBuffer uniffi_nookclip_ffi_fn_func_format_ocr_layout_blocks(RustBuffer blocks, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_IS_TERMINAL_BUNDLE_ID
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_IS_TERMINAL_BUNDLE_ID
+int8_t uniffi_nookclip_ffi_fn_func_is_terminal_bundle_id(RustBuffer bundle_id, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_IS_TERMINAL_TARGET_APP
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_IS_TERMINAL_TARGET_APP
+int8_t uniffi_nookclip_ffi_fn_func_is_terminal_target_app(RustBuffer bundle_id, RustBuffer app_name, int8_t include_ide_terminals, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_MASK_SENSITIVE_TEXT
@@ -630,6 +660,11 @@ RustBuffer uniffi_nookclip_ffi_fn_func_scan_scrub_text(RustBuffer text, RustBuff
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SCRUB_SENSITIVE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SCRUB_SENSITIVE_TEXT
 RustBuffer uniffi_nookclip_ffi_fn_func_scrub_sensitive_text(RustBuffer text, RustBuffer config, RustBuffer external_spans, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SHOULD_SUGGEST_FORM_BURST
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SHOULD_SUGGEST_FORM_BURST
+int8_t uniffi_nookclip_ffi_fn_func_should_suggest_form_burst(RustBuffer text, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_SWEEP_ORPHAN_PAYLOAD_ASSETS
@@ -938,6 +973,24 @@ uint16_t uniffi_nookclip_ffi_checksum_func_active_scrub_vault_count(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_ASSESS_TERMINAL_PASTE_RISK
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_ASSESS_TERMINAL_PASTE_RISK
+uint16_t uniffi_nookclip_ffi_checksum_func_assess_terminal_paste_risk(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_ASSESS_TERMINAL_PASTE_RISK_WITH_CONTEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_ASSESS_TERMINAL_PASTE_RISK_WITH_CONTEXT
+uint16_t uniffi_nookclip_ffi_checksum_func_assess_terminal_paste_risk_with_context(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_BURST_FORM_TEXT
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_BURST_FORM_TEXT
+uint16_t uniffi_nookclip_ffi_checksum_func_burst_form_text(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_CLASSIFY_TEXT_CONTENT
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_CLASSIFY_TEXT_CONTENT
 uint16_t uniffi_nookclip_ffi_checksum_func_classify_text_content(void
@@ -962,9 +1015,27 @@ uint16_t uniffi_nookclip_ffi_checksum_func_default_enabled_scrub_rules(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DETECT_FORM_BURST_KIND
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DETECT_FORM_BURST_KIND
+uint16_t uniffi_nookclip_ffi_checksum_func_detect_form_burst_kind(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_FORMAT_OCR_LAYOUT_BLOCKS
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_FORMAT_OCR_LAYOUT_BLOCKS
 uint16_t uniffi_nookclip_ffi_checksum_func_format_ocr_layout_blocks(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_IS_TERMINAL_BUNDLE_ID
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_IS_TERMINAL_BUNDLE_ID
+uint16_t uniffi_nookclip_ffi_checksum_func_is_terminal_bundle_id(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_IS_TERMINAL_TARGET_APP
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_IS_TERMINAL_TARGET_APP
+uint16_t uniffi_nookclip_ffi_checksum_func_is_terminal_target_app(void
     
 );
 #endif
@@ -1025,6 +1096,12 @@ uint16_t uniffi_nookclip_ffi_checksum_func_scan_scrub_text(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SCRUB_SENSITIVE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SCRUB_SENSITIVE_TEXT
 uint16_t uniffi_nookclip_ffi_checksum_func_scrub_sensitive_text(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SHOULD_SUGGEST_FORM_BURST
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_SHOULD_SUGGEST_FORM_BURST
+uint16_t uniffi_nookclip_ffi_checksum_func_should_suggest_form_burst(void
     
 );
 #endif

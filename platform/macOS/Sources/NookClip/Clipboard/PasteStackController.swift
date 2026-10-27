@@ -294,6 +294,9 @@ final class PasteStackController {
     /// 队列是否处于激活态（激活 = 有队列且在推进/录制）
     private(set) var isActive = false
 
+    /// 是否正处于录制模式
+    var isRecording: Bool { state.isRecording }
+
     /// 目标应用（点某行「粘贴」时要把内容真正贴到哪个 App）。
     ///
     /// 不做成控制器内部查 `NSWorkspace.frontmostApplication`：用户点浮窗的瞬间
@@ -422,6 +425,25 @@ final class PasteStackController {
     func pasteItem(at index: Int) {
         guard isActive, state.items.indices.contains(index) else { return }
         let item = state.items[index]
+        // 终端护栏（specs/015）：栈里装的可能是多行命令，点一下「粘贴」就会
+        // 逐行执行。这一步是用户主动求贴，必须让他先看清内容再决定。
+        // 判定放在改状态之前：用户取消时队列现场（高亮、进度）要原样保留。
+        var terminalSafeText: String?
+        switch terminalDecision(for: item) {
+        case .passthrough:
+            break
+        case .silentStrip(let assessment):
+            terminalSafeText = assessment.pasteText
+        case .confirm(let assessment):
+            switch TerminalPasteConfirm.present(assessment) {
+            case .cancel:
+                return
+            case .safe:
+                terminalSafeText = assessment.pasteText
+            case .raw:
+                break
+            }
+        }
         cancelPendingStop()
         state.setCompleted(false)
         state.setPaused(false)
@@ -430,11 +452,23 @@ final class PasteStackController {
         // 真实粘贴：写剪贴板 + 激活目标应用 + 模拟 ⌘V。
         // 不再走 loadCurrentItemToPasteboard()——那只是「装填」，按钮的语义是
         // 「现在贴出去」，用户点了就该看到内容落进目标输入框。
-        let pasted = PasteService.shared.paste(
-            item,
-            targetApplication: targetApplicationProvider?(),
-            plainTextOnly: false
-        )
+        // 用户选了「安全粘贴」时，写进剪贴板的必须是改写后的文本（多行串成
+        // 一行），所以此时不能走 `paste(item)`——那会把条目原文重新写一遍，
+        // 护栏等于白做。
+        let pasted: Bool
+        if let terminalSafeText {
+            pasted = PasteService.shared.pasteText(
+                terminalSafeText,
+                targetApplication: targetApplicationProvider?(),
+                containsSensitive: item.isSensitive
+            )
+        } else {
+            pasted = PasteService.shared.paste(
+                item,
+                targetApplication: targetApplicationProvider?(),
+                plainTextOnly: false
+            )
+        }
         guard pasted else {
             // 缺辅助功能权限时 paste 已写剪贴板并弹过授权引导；
             // 这里不改任何状态，避免「界面上打了勾但其实没贴」的假成功
@@ -560,7 +594,44 @@ final class PasteStackController {
     /// 标记能让 ClipboardMonitor 跳过入库，敏感条目还会顺带挂上自毁定时。
     private func loadCurrentItemToPasteboard() {
         guard let item = state.currentItem else { return }
-        _ = PasteService.shared.copyOnly(item, plainTextOnly: false)
+        // 装填路径也过护栏，但只做「最小改写」：这一步没有真的粘贴，用户可能
+        // 只是想把内容 ⌘V 进 vim 或微信。所以只去掉末尾回车（防手滑直接执行），
+        // 不把多行串成一行——那会毁掉「我要贴一段脚本」的正常用途。
+        // 弹窗也只在真正粘贴时出现，这里不打断用户。
+        switch terminalDecision(for: item) {
+        case .passthrough:
+            _ = PasteService.shared.copyOnly(item, plainTextOnly: false)
+        case .silentStrip(let assessment), .confirm(let assessment):
+            _ = PasteService.shared.copyText(assessment.safeText, containsSensitive: item.isSensitive)
+        }
+    }
+
+    /// 取条目明文交给终端护栏判定；非文本、开关关闭、拿不到目标应用一律放行。
+    ///
+    /// 与 `ClipboardWorkflow.terminalDecision(for:targetApplication:)` 同构，
+    /// 但这里的目标应用来自 `targetApplicationProvider`（栈是常驻的，没有
+    /// 「本次点击的入参」）。两处各自实现而不是抽公共函数，是因为依赖来源
+    /// 不同，硬抽一个带闭包参数的函数反而更难读。
+    private func terminalDecision(for item: ClipboardItem) -> TerminalPasteDecision {
+        guard TerminalPasteGuard.isEnabled else { return .passthrough }
+        guard item.type == .text || item.type == .url else { return .passthrough }
+        let targetApp = targetApplicationProvider?()
+        let bundleId = targetApp?.bundleIdentifier
+        let appName = targetApp?.localizedName
+        guard (bundleId != nil && !(bundleId?.isEmpty ?? true))
+            || (appName != nil && !(appName?.isEmpty ?? true)) else {
+            return .passthrough
+        }
+        // 敏感条目解密失败时放弃判定：宁可走原有路径，也不把掩码当命令分析
+        guard case .success(let plainText) = item.revealPlainContentResult(), !plainText.isEmpty else {
+            return .passthrough
+        }
+        return TerminalPasteGuard.decide(
+            bundleId: bundleId,
+            appName: appName,
+            includeIdeTerminals: TerminalPasteGuard.isIdeEnabled,
+            text: plainText
+        )
     }
 
     /// 走完队列：先亮 0.8s 完成态，再自动退出（胶囊窗在此期间淡出）

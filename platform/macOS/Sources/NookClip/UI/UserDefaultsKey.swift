@@ -34,4 +34,14 @@ enum UserDefaultsKey: String {
     // MARK: 首次启动引导
     /// 是否已经完成过首次启动引导（首启自动唤出面板 + 菜单栏提示）
     case hasLaunchedBefore
+
+    // MARK: 表单拆解
+    /// 复制表单内容时是否主动提示拆解（默认开启）
+    case formBurstAutoSuggestEnabled
+
+    // MARK: 终端安全粘贴（P0 · Terminal Safe-Paste）
+    /// 往终端粘贴时是否启用防误触护栏（默认开启）
+    case terminalSafePasteEnabled
+    /// 是否同时保护 VS Code / Cursor / Xcode / JetBrains 等编辑器与 AI 工具的内置终端（默认开启）
+    case terminalSafePasteIdeEnabled
 }

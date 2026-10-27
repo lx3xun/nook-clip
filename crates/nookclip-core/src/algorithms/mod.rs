@@ -1,4 +1,5 @@
 pub mod color;
+pub mod form_burst;
 pub mod highlight;
 pub mod kind;
 pub mod language;
@@ -7,6 +8,7 @@ pub mod retention;
 pub mod scrub;
 pub mod sensitive;
 pub mod source_resolver;
+pub mod terminal_guard;
 use crate::model::DetectionResult;
 use std::sync::LazyLock;
 
