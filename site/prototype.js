@@ -364,6 +364,7 @@
           { text: "· ⇧ ↓ / ⌘ 点选 ：扩展多选（按 ↩ 合并多条一起粘贴）" },
           { pair: true, spans: ["· ⌘ [ / ⌘ ] ：切换内容类型（跳过空类型）", "· ⌘ T ：循环跳转时间分组"] },
           { pair: true, spans: ["· ⌘ S ：收藏（豁免自动清理）", "· ⌘ R ：为条目设置别名"] },
+          { text: "· ⌘ D ：对比任意两条记录（字词级红绿高亮）" },
           { pair: true, spans: ["· ⌘ ⌫ ：删除选中项", "· ⌘ Z ：10 秒内撤销删除"] }
         ]
       },
@@ -512,6 +513,7 @@
           { text: "· ⇧ ↓ / ⌘ 點選 ：擴展多選（按 ↩ 合併多條一起貼上）" },
           { pair: true, spans: ["· ⌘ [ / ⌘ ] ：快速切換分類", "· ⌘ T ：循環跳轉時間分組"] },
           { pair: true, spans: ["· ⌘ S ：收藏（豁免自動清理）", "· ⌘ R ：為項目設定別名"] },
+          { text: "· ⌘ D ：對比任意兩筆記錄（字詞級紅綠高亮）" },
           { pair: true, spans: ["· ⌘ ⌫ ：刪除選取項", "· ⌘ Z ：10 秒內復原刪除"] }
         ]
       },
@@ -662,6 +664,7 @@
           { text: "· ⇧ ↓ / ⌘ Click : Multi-select (press ↩ to merge & paste)" },
           { pair: true, spans: ["· ⌘ [ / ⌘ ] : Switch category", "· ⌘ T : Jump time group"] },
           { pair: true, spans: ["· ⌘ S : Favorite (exempt from cleanup)", "· ⌘ R : Set alias"] },
+          { text: "· ⌘ D : Inline diff of two entries (word-level red/green)" },
           { pair: true, spans: ["· ⌘ ⌫ : Delete selected", "· ⌘ Z : Undo delete within 10s"] }
         ]
       },

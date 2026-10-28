@@ -295,6 +295,8 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .brand-logo {
@@ -344,13 +346,15 @@ button {
   display: flex;
   align-items: center;
   list-style: none;
-  gap: 28px;
+  gap: 24px;
+  flex-wrap: nowrap;
 }
 
 .nav-link {
   font-size: 0.875rem;
   color: var(--text-secondary);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .nav-link:hover {
@@ -360,7 +364,19 @@ button {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+@media (max-width: 1060px) {
+  .site-nav .nav-list {
+    gap: 16px;
+  }
+  .header-actions .nav-github .btn-text {
+    display: none;
+  }
+  .header-actions .nav-github {
+    padding: 8px 10px;
+  }
 }
 
 /* 语言切换菜单 */
@@ -1244,22 +1260,21 @@ body.mobile-nav-locked {
   .bento-card {
     padding: 32px;
   }
+  .bento-card:first-child {
+    grid-column: span 2;
+  }
 }
 
 @media (min-width: 1080px) {
   .features-bento {
     grid-template-columns: repeat(3, 1fr);
   }
+  .bento-card,
+  .bento-card:first-child,
   .bento-wide {
-    grid-column: span 3;
+    grid-column: span 1;
     display: flex;
     flex-direction: column;
-  }
-  .bento-wide:first-child {
-    grid-column: span 2;
-  }
-  .bento-wide:nth-child(2) {
-    grid-column: span 1;
   }
 }
 
@@ -1280,6 +1295,7 @@ body.mobile-nav-locked {
 .text-indigo { color: #6366F1; }
 .text-pink { color: #EC4899; }
 .text-cyan { color: #0891B2; }
+.text-rose { color: #E11D48; }
 
 .card-title {
   font-size: 1.25rem;

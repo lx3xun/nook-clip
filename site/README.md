@@ -13,6 +13,10 @@ site/
 ├── prototype.js               # 独立交互测试台组件与模拟数据
 ├── i18n.js                    # 三语国际化字典（简 / 繁 / 英）
 ├── main.js                    # 落地页交互脚本（三语切换、深浅模式超清截图联动、一键复制构建命令、移动端抽屉导航）
+├── docs/                      # 在线使用文档站（Docsify 零构建渲染 + Markdown 源文件，支持仓库内直接阅读与 Pages 浏览）
+│   ├── index.html             # 文档站入口（苹果风深浅色主题、全文搜索、上下篇导航）
+│   ├── _sidebar.md            # 左侧文档目录树
+│   └── README.md              # 文档首页与分类专题（getting-started / advanced / search-and-manage / privacy-and-sync / reference）
 ├── assets/                    # 运行时必需的高清图片、品牌图标与功能演示视频
 │   ├── features/              # 核心功能（顺序粘贴 / 语义脱敏 / 屏幕置顶 / 标签筛选 / 离线 OCR）微视频、GIF 与封面图
 │   ├── apps/                  # 应用来源图标资源
@@ -43,6 +47,7 @@ npx serve site
 ```
 
 访问 `http://localhost:8080` 即可实时查看。
+访问 `http://localhost:8080/docs/` 即可查看在线使用文档站。
 
 ## 部署上线指南
 

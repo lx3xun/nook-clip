@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-Hans" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NookClip 使用文档 - macOS 剪贴板工作台</title>
+  <meta name="description" content="NookClip 完整使用手册：涵盖安装配置、顺序粘贴栈、语义脱敏粘贴、屏幕置顶贴条、终端安全粘贴、两条记录行内对比、离线 OCR 与快捷键速查。">
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+
+  <!-- 首屏防闪烁主题与语言读取（与介绍页共享 nookclip-theme 与 nookclip-lang） -->
+  <script>
+    (function () {
+      try {
+        var savedTheme = localStorage.getItem('nookclip-theme');
+        var theme = (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+
+        // 若初次进入无显式语言路由，自动继承主站语言偏好
+        var hash = window.location.hash || '';
+        if (!hash || hash === '#/' || hash === '#') {
+          var savedLang = localStorage.getItem('nookclip-lang');
+          if (savedLang === 'zh-Hant') {
+            window.location.replace('#/zh-Hant/');
+          } else if (savedLang === 'en') {
+            window.location.replace('#/en/');
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Docsify 基础结构样式 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+
+  <!-- NookClip 苹果风深浅色定制主题（与介绍页顶栏与配色完全对齐） -->
+  <style>
+    :root {
+      --bg-page: #F5F5F7;
+      --bg-sidebar: #FFFFFF;
+      --bg-surface: #FFFFFF;
+      --bg-surface-secondary: #EBEBEF;
+      --bg-header: rgba(245, 245, 247, 0.85);
+      --bg-subtle: #EBEBEF;
+      --bg-kbd: #F2F2F7;
+      --bg-code: #1E2024;
+      --text-code: #E5E7EB;
+      --text-primary: #1D1D1F;
+      --text-secondary: #515154;
+      --text-tertiary: #86868B;
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --border-hover: rgba(22, 119, 255, 0.4);
+      --theme-color: #1677FF;
+      --color-accent: #1677FF;
+      --color-accent-hover: #0958D9;
+      --color-accent-subtle: rgba(22, 119, 255, 0.09);
+      --color-accent-border: rgba(22, 119, 255, 0.25);
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --topbar-height: 64px;
+    }
+
+    [data-theme="dark"] {
+      --bg-page: #0F172A;
+      --bg-sidebar: #141E33;
+      --bg-surface: #1E293B;
+      --bg-surface-secondary: #262932;
+      --bg-header: rgba(15, 23, 42, 0.86);
+      --bg-subtle: #26334D;
+      --bg-kbd: #26334D;
+      --bg-code: #0B1120;
+      --text-code: #F3F4F6;
+      --text-primary: #F5F5F7;
+      --text-secondary: #CBD5E1;
+      --text-tertiary: #94A3B8;
+      --border-subtle: rgba(255, 255, 255, 0.09);
+      --border-hover: rgba(64, 150, 255, 0.5);
+      --theme-color: #4096FF;
+      --color-accent: #4096FF;
+      --color-accent-hover: #69B1FF;
+      --color-accent-subtle: rgba(64, 150, 255, 0.14);
+      --color-accent-border: rgba(64, 150, 255, 0.32);
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 15.5px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+    }
+
+    /* 顶部统一导航栏（与主站 .site-header 同高同质感，避免使用 <nav> 规避 Docsify 全局 nav 偏移样式） */
+    .nook-docs-topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--topbar-height);
+      background-color: var(--bg-header);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 100;
+    }
+
+    .nook-docs-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none !important;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .nook-docs-logo {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      display: block;
+    }
+
+    .nook-docs-brand-name {
+      font-size: 1.125rem;
+      letter-spacing: -0.02em;
+      display: inline-flex;
+      align-items: center;
+      line-height: 1;
+    }
+
+    .nook-docs-brand-nook {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    [data-theme="dark"] .nook-docs-brand-nook {
+      color: #FFFFFF;
+    }
+
+    .nook-docs-brand-clip {
+      font-weight: 700;
+      color: var(--color-accent);
+    }
+
+    .nook-docs-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background-color: var(--color-accent-subtle);
+      color: var(--color-accent);
+      border: 1px solid var(--color-accent-border);
+      line-height: 1.4;
+    }
+
+    .nook-docs-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nook-docs-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary) !important;
+      text-decoration: none !important;
+      white-space: nowrap;
+      transition: color 0.15s ease;
+    }
+
+    .nook-docs-link:hover {
+      color: var(--text-primary) !important;
+      background-color: var(--bg-subtle);
+    }
+
+    /* 语言切换下拉菜单（与主站同款） */
+    .docs-lang-wrapper {
+      position: relative;
+    }
+
+    .docs-lang-btn {
+      height: 36px;
+      padding: 0 10px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      background-color: var(--bg-surface-secondary);
+      border: 1px solid var(--border-subtle);
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.15s ease;
+    }
+
+    .docs-lang-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    .docs-lang-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 116px;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 150;
+    }
+
+    .docs-lang-dropdown[hidden] {
+      display: none;
+    }
+
+    .docs-lang-option {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .docs-lang-option:hover {
+      background-color: var(--bg-subtle);
+      color: var(--text-primary);
+    }
+
+    .docs-lang-option.is-active {
+      background-color: var(--color-accent-subtle);
+      color: var(--color-accent);
+      font-weight: 600;
+    }
+
+    .nook-docs-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      background-color: var(--bg-surface-secondary);
+      color: var(--text-primary) !important;
+      border: 1px solid var(--border-subtle);
+      text-decoration: none !important;
+      white-space: nowrap;
+      transition: border-color 0.15s ease;
+    }
+
+    .nook-docs-btn-secondary:hover {
+      border-color: var(--border-hover);
+      background-color: var(--bg-subtle);
+    }
+
+    .nook-theme-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background-color: var(--bg-surface-secondary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 0;
+      transition: border-color 0.15s ease;
+    }
+
+    .nook-theme-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    [data-theme="dark"] .icon-sun { display: block; }
+    [data-theme="dark"] .icon-moon { display: none; }
+    [data-theme="light"] .icon-sun { display: none; }
+    [data-theme="light"] .icon-moon { display: block; }
+
+    /* Docsify 主容器与侧边栏定位 */
+    main {
+      padding-top: var(--topbar-height);
+    }
+
+    .sidebar {
+      top: var(--topbar-height) !important;
+      height: calc(100vh - var(--topbar-height)) !important;
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-subtle);
+      padding: 10px 0 36px;
+      width: 280px;
+      color: var(--text-primary);
+    }
+
+    .sidebar-toggle {
+      display: none;
+      top: 14px;
+      bottom: auto;
+      left: 12px;
+      background-color: var(--bg-surface) !important;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 9px 8px;
+      width: 36px;
+      height: 36px;
+      box-shadow: var(--shadow-sm);
+      z-index: 102;
+    }
+
+    .sidebar-toggle span {
+      background-color: var(--text-primary);
+    }
+
+    .content {
+      top: var(--topbar-height);
+      left: 280px;
+    }
+
+    /* 搜索框美化 */
+    .search {
+      margin-bottom: 10px !important;
+      padding: 8px 16px 12px !important;
+      border-bottom: 1px solid var(--border-subtle) !important;
+    }
+
+    .search .input-wrap {
+      background: var(--bg-page);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.15s ease;
+    }
+
+    .search .input-wrap:focus-within {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px var(--color-accent-subtle);
+    }
+
+    .search input {
+      background: transparent !important;
+      color: var(--text-primary) !important;
+      font-size: 13.5px !important;
+      padding: 8px 12px !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    .search input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .search .results-panel {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .search .matching-post {
+      border-bottom: 1px solid var(--border-subtle) !important;
+      padding: 10px 4px;
+    }
+
+    .search .matching-post h2 {
+      color: var(--text-primary) !important;
+      font-size: 14px !important;
+    }
+
+    .search .matching-post p {
+      color: var(--text-secondary) !important;
+      font-size: 12.5px !important;
+    }
+
+    /* 侧边栏目录层级 */
+    .sidebar-nav {
+      padding: 0 12px;
+    }
+
+    .sidebar-nav > ul > li {
+      margin: 14px 0 6px;
+    }
+
+    .sidebar-nav > ul > li > p,
+    .sidebar-nav > ul > li > strong {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-tertiary);
+      padding: 0 10px;
+      margin: 0 0 4px;
+      display: block;
+    }
+
+    .sidebar-nav ul ul {
+      padding-left: 0;
+    }
+
+    .sidebar-nav li a {
+      font-size: 14px;
+      color: var(--text-secondary) !important;
+      padding: 6px 10px;
+      border-radius: 7px;
+      margin: 2px 0;
+      line-height: 1.45;
+      transition: all 0.14s ease;
+      border-right: none !important;
+    }
+
+    .sidebar-nav li a:hover {
+      color: var(--text-primary) !important;
+      background: var(--bg-subtle);
+      text-decoration: none !important;
+    }
+
+    .sidebar-nav li.active > a {
+      color: var(--color-accent) !important;
+      background: var(--color-accent-subtle);
+      font-weight: 600 !important;
+      border-right: none !important;
+    }
+
+    /* 正文排版 */
+    .markdown-section {
+      max-width: 820px;
+      padding: 36px 40px 80px;
+      color: var(--text-primary);
+    }
+
+    .markdown-section h1,
+    .markdown-section h2,
+    .markdown-section h3,
+    .markdown-section h4,
+    .markdown-section h1 span,
+    .markdown-section h2 span,
+    .markdown-section h3 span,
+    .markdown-section h4 span,
+    .anchor span {
+      color: var(--text-primary) !important;
+      font-weight: 650;
+      letter-spacing: -0.015em;
+    }
+
+    .markdown-section h1 {
+      font-size: 1.95rem;
+      margin: 0 0 1rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .markdown-section h2 {
+      font-size: 1.35rem;
+      margin: 2.2rem 0 0.9rem;
+      padding-bottom: 0.45rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .markdown-section h3 {
+      font-size: 1.1rem;
+      margin: 1.5rem 0 0.6rem;
+    }
+
+    .markdown-section p,
+    .markdown-section ul,
+    .markdown-section ol {
+      color: var(--text-secondary);
+      line-height: 1.75;
+    }
+
+    .markdown-section strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .markdown-section a {
+      color: var(--color-accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .markdown-section a:hover {
+      text-decoration: underline;
+    }
+
+    .markdown-section hr {
+      border: none;
+      border-top: 1px solid var(--border-subtle);
+      margin: 2rem 0;
+    }
+
+    /* 行内代码与快捷键效果 */
+    .markdown-section code {
+      font-family: var(--font-mono);
+      font-size: 0.86em;
+      background-color: var(--bg-kbd) !important;
+      color: var(--text-primary) !important;
+      padding: 3px 7px !important;
+      border-radius: 6px !important;
+      border: 1px solid var(--border-subtle);
+      margin: 0 2px;
+    }
+
+    /* 代码块 */
+    .markdown-section pre {
+      background-color: var(--bg-code) !important;
+      border-radius: 12px !important;
+      border: 1px solid var(--border-subtle);
+      padding: 16px 20px !important;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .markdown-section pre > code {
+      background-color: transparent !important;
+      color: var(--text-code) !important;
+      border: none !important;
+      padding: 0 !important;
+      font-size: 13.5px !important;
+      line-height: 1.6 !important;
+    }
+
+    /* 提示框 Blockquote */
+    .markdown-section blockquote {
+      background: var(--color-accent-subtle);
+      border-left: 4px solid var(--color-accent);
+      border-radius: 0 10px 10px 0;
+      padding: 12px 16px;
+      margin: 1.2rem 0;
+      color: var(--text-secondary);
+    }
+
+    .markdown-section blockquote p {
+      margin: 0;
+      color: var(--text-primary);
+    }
+
+    /* 表格 */
+    .markdown-section table {
+      display: table;
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 1.2rem 0;
+      background: var(--bg-surface);
+    }
+
+    .markdown-section table tr {
+      border-top: 1px solid var(--border-subtle);
+      background-color: transparent !important;
+    }
+
+    .markdown-section table tr:nth-child(2n) {
+      background-color: rgba(128, 128, 128, 0.04) !important;
+    }
+
+    .markdown-section table th,
+    .markdown-section table td {
+      border: none;
+      border-bottom: 1px solid var(--border-subtle);
+      border-right: 1px solid var(--border-subtle);
+      padding: 10px 14px;
+      font-size: 14px;
+      text-align: left;
+    }
+
+    .markdown-section table th:last-child,
+    .markdown-section table td:last-child {
+      border-right: none;
+    }
+
+    .markdown-section table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .markdown-section table th {
+      background: var(--bg-subtle);
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    /* 底部上一篇 / 下一篇分页器 */
+    .docsify-pagination-container {
+      border-top: 1px solid var(--border-subtle) !important;
+      margin-top: 3rem !important;
+      padding-top: 1.5rem !important;
+    }
+
+    .pagination-item-label {
+      color: var(--text-tertiary) !important;
+      font-size: 12px !important;
+    }
+
+    .pagination-item-title {
+      color: var(--color-accent) !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+    }
+
+    @media (max-width: 768px) {
+      .nook-docs-topbar {
+        padding: 0 14px 0 56px;
+      }
+      .sidebar-toggle {
+        display: block;
+        top: 14px;
+        bottom: auto;
+        left: 12px;
+        z-index: 102;
+      }
+      .nook-docs-badge,
+      .nook-docs-link.hide-mobile,
+      .nook-docs-btn-secondary.hide-mobile {
+        display: none;
+      }
+      .content {
+        left: 0;
+      }
+      .markdown-section {
+        padding: 24px 18px 64px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部导航条（使用 div.nook-docs-actions 避免被 Docsify 的全局 nav 样式影响） -->
+  <header class="nook-docs-topbar">
+    <a href="../" class="nook-docs-brand" id="docsBrandLink" title="返回 NookClip 产品主页">
+      <img src="../assets/nookclip-appicon.svg" alt="NookClip" class="nook-docs-logo" width="30" height="30">
+      <span class="nook-docs-brand-name"><span class="nook-docs-brand-nook">Nook</span><span class="nook-docs-brand-clip">Clip</span></span>
+      <span class="nook-docs-badge" id="docsTopBadge">使用文档</span>
+    </a>
+    <div class="nook-docs-actions">
+      <a href="../" class="nook-docs-link" id="docsBackHomeLink">← 产品主页</a>
+      <a href="../playground.html" class="nook-docs-link hide-mobile" id="docsPlaygroundLink">在线测试台</a>
+
+      <!-- 多语言切换下拉菜单（简 / 繁 / EN） -->
+      <div class="docs-lang-wrapper">
+        <button type="button" id="docsLangBtn" class="docs-lang-btn" aria-label="切换语言 / Language" aria-expanded="false" title="切换语言 / Language">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span id="docsLangLabel">简</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div id="docsLangDropdown" class="docs-lang-dropdown" hidden>
+          <button type="button" class="docs-lang-option is-active" data-lang="zh-Hans">简体中文</button>
+          <button type="button" class="docs-lang-option" data-lang="zh-Hant">繁體中文</button>
+          <button type="button" class="docs-lang-option" data-lang="en">English</button>
+        </div>
+      </div>
+
+      <button type="button" id="docsThemeToggle" class="nook-theme-btn" aria-label="切换深色/浅色模式" title="切换深色/浅色模式">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+
+      <a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" class="nook-docs-btn-secondary hide-mobile" aria-label="GitHub">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </header>
+
+  <div id="app">正在加载文档…</div>
+
+  <script>
+    // 1. 深浅色主题切换（与主站共享 localStorage 'nookclip-theme'）
+    document.getElementById('docsThemeToggle').addEventListener('click', function () {
+      var root = document.documentElement;
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try {
+        localStorage.setItem('nookclip-theme', next);
+      } catch (e) {}
+    });
+
+    // 2. 多语言切换与顶栏文案同步（与主站共享 localStorage 'nookclip-lang'）
+    var DOCS_UI_I18N = {
+      'zh-Hans': {
+        short: '简',
+        badge: '使用文档',
+        backHome: '← 产品主页',
+        playground: '在线测试台',
+        searchPlaceholder: '搜索文档（快捷键 / 功能 / 排查）…'
+      },
+      'zh-Hant': {
+        short: '繁',
+        badge: '使用手冊',
+        backHome: '← 產品首頁',
+        playground: '線上測試台',
+        searchPlaceholder: '搜尋手冊（快捷鍵 / 功能 / 排查）…'
+      },
+      'en': {
+        short: 'EN',
+        badge: 'Docs',
+        backHome: '← Home',
+        playground: 'Playground',
+        searchPlaceholder: 'Search docs (shortcuts, features, FAQ)…'
+      }
+    };
+
+    function detectLangFromHash() {
+      var h = window.location.hash || '#/';
+      if (h.indexOf('#/zh-Hant') === 0) return 'zh-Hant';
+      if (h.indexOf('#/en') === 0) return 'en';
+      return 'zh-Hans';
+    }
+
+    function syncTopbarLanguageUI(lang) {
+      var ui = DOCS_UI_I18N[lang] || DOCS_UI_I18N['zh-Hans'];
+      document.documentElement.lang = lang;
+      document.getElementById('docsLangLabel').textContent = ui.short;
+      document.getElementById('docsTopBadge').textContent = ui.badge;
+      document.getElementById('docsBackHomeLink').textContent = ui.backHome;
+      document.getElementById('docsPlaygroundLink').textContent = ui.playground;
+
+      var searchInput = document.querySelector('.search input');
+      if (searchInput) {
+        searchInput.setAttribute('placeholder', ui.searchPlaceholder);
+      }
+
+      document.querySelectorAll('.docs-lang-option').forEach(function (btn) {
+        btn.classList.toggle('is-active', btn.getAttribute('data-lang') === lang);
+      });
+    }
+
+    function switchDocsLanguage(targetLang) {
+      try {
+        localStorage.setItem('nookclip-lang', targetLang);
+      } catch (e) {}
+
+      // 提取当前页面的相对文档路径（去掉语言前缀與查询参数）
+      var rawHash = (window.location.hash || '#/').replace(/^#/, '');
+      var pathOnly = rawHash.split('?')[0] || '/';
+      var canonical = pathOnly.replace(/^\/(zh-Hant|en)(?=\/|$)/, '') || '/';
+      if (canonical.charAt(0) !== '/') canonical = '/' + canonical;
+
+      var prefix = '';
+      if (targetLang === 'zh-Hant') prefix = '/zh-Hant';
+      else if (targetLang === 'en') prefix = '/en';
+
+      var nextHash = '#' + prefix + canonical;
+      if (window.location.hash !== nextHash) {
+        window.location.hash = nextHash;
+      }
+      syncTopbarLanguageUI(targetLang);
+    }
+
+    var langBtn = document.getElementById('docsLangBtn');
+    var langDropdown = document.getElementById('docsLangDropdown');
+
+    langBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isHidden = langDropdown.hasAttribute('hidden');
+      if (isHidden) {
+        langDropdown.removeAttribute('hidden');
+        langBtn.setAttribute('aria-expanded', 'true');
+      } else {
+        langDropdown.setAttribute('hidden', '');
+        langBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!langBtn.contains(e.target) && !langDropdown.contains(e.target)) {
+        langDropdown.setAttribute('hidden', '');
+        langBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.querySelectorAll('.docs-lang-option').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var targetLang = btn.getAttribute('data-lang');
+        langDropdown.setAttribute('hidden', '');
+        langBtn.setAttribute('aria-expanded', 'false');
+        switchDocsLanguage(targetLang);
+      });
+    });
+
+    window.addEventListener('hashchange', function () {
+      syncTopbarLanguageUI(detectLangFromHash());
+    });
+
+    syncTopbarLanguageUI(detectLangFromHash());
+
+    // 3. Docsify 配置（支持三语目录树、三语全文搜索、三语上下篇导航）
+    var BASE_DOC_PATHS = [
+      '/',
+      '/getting-started/installation.md',
+      '/getting-started/basic-usage.md',
+      '/advanced/paste-stack.md',
+      '/advanced/scrub-paste.md',
+      '/advanced/pinned-note.md',
+      '/advanced/terminal-safe-paste.md',
+      '/advanced/inline-diff.md',
+      '/search-and-manage/search-and-launch.md',
+      '/search-and-manage/ocr-image.md',
+      '/search-and-manage/types-and-tags.md',
+      '/search-and-manage/batch-and-undo.md',
+      '/privacy-and-sync/sensitive-guard.md',
+      '/privacy-and-sync/app-blacklist.md',
+      '/privacy-and-sync/sync-and-backup.md',
+      '/privacy-and-sync/auto-burn.md',
+      '/reference/shortcuts.md',
+      '/reference/faq.md'
+    ];
+
+    var ALL_SEARCH_PATHS = [];
+    ['', '/zh-Hant', '/en'].forEach(function (prefix) {
+      BASE_DOC_PATHS.forEach(function (p) {
+        ALL_SEARCH_PATHS.push(prefix + p);
+      });
+    });
+
+    window.$docsify = {
+      name: '',
+      repo: '',
+      homepage: 'README.md',
+      loadSidebar: true,
+      alias: {
+        '/zh-Hant/.*/_sidebar.md': '/zh-Hant/_sidebar.md',
+        '/en/.*/_sidebar.md': '/en/_sidebar.md',
+        '/(?!zh-Hant|en).*/_sidebar.md': '/_sidebar.md'
+      },
+      subMaxLevel: 2,
+      auto2top: true,
+      relativePath: true,
+      plugins: [
+        function (hook) {
+          hook.beforeEach(function (md) {
+            return md.replace(/(```[\s\S]*?```|`[^`\n]+`)|\*\*([^\n*]+?)\*\*/g, function (m, code, bold) {
+              return code ? code : '<strong>' + bold + '</strong>';
+            });
+          });
+          hook.doneEach(function () {
+            syncTopbarLanguageUI(detectLangFromHash());
+          });
+        }
+      ],
+      search: {
+        maxAge: 3600000,
+        paths: ALL_SEARCH_PATHS,
+        placeholder: {
+          '/zh-Hant/': '搜尋手冊（快捷鍵 / 功能 / 排查）…',
+          '/en/': 'Search docs (shortcuts, features, FAQ)…',
+          '/': '搜索文档（快捷键 / 功能 / 排查）…'
+        },
+        noData: {
+          '/zh-Hant/': '未找到相關文件內容',
+          '/en/': 'No matching results found',
+          '/': '未找到相关文档内容'
+        },
+        depth: 3,
+        pathNamespaces: ['/zh-Hant', '/en']
+      },
+      copyCode: {
+        buttonText: {
+          '/zh-Hant/': '複製',
+          '/en/': 'Copy',
+          '/': '复制'
+        },
+        errorText: {
+          '/zh-Hant/': '失敗',
+          '/en/': 'Failed',
+          '/': '失败'
+        },
+        successText: {
+          '/zh-Hant/': '已複製',
+          '/en/': 'Copied',
+          '/': '已复制'
+        }
+      },
+      pagination: {
+        previousText: {
+          '/zh-Hant/': '上一篇',
+          '/en/': 'Previous',
+          '/': '上一篇'
+        },
+        nextText: {
+          '/zh-Hant/': '下一篇',
+          '/en/': 'Next',
+          '/': '下一篇'
+        },
+        crossChapter: true,
+        crossChapterText: true
+      }
+    };
+  </script>
+
+  <!-- Docsify 核心与插件 -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2/dist/docsify-copy-code.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+</body>
+</html>

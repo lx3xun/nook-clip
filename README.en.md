@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://lx3xun.github.io/nook-clip/">Product Page</a> · <a href="README.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.en.md">English</a>
+  <a href="https://lx3xun.github.io/nook-clip/">Product Page</a> · <a href="site/docs/en/README.md">📖 User Guide</a> · <a href="README.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.en.md">English</a>
 </p>
 
 <p align="center">
@@ -57,17 +57,17 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 - **Privacy Masking**: Displays as `••••••••` in the list with automatic re-masking after 30 seconds.
 - **Isolated from Search & Sync**: Sensitive entries are never written to search indexes or uploaded during sync.
 - **App Blacklist**: Automatically pauses recording when password managers or other excluded apps are active in the foreground.
-- **Semantic Redaction on Paste (`⌃ ⏎`)**: press `⌃ ⏎` and 19 categories of sensitive data — keys, phone numbers, IDs, bank cards, IBANs, emails, IPs, hostnames, home paths — become readable placeholders such as `<API_KEY_1>` and `<EMAIL_1>`, so you can hand "runnable but real-value-free" text to an AI or a colleague. Bank cards use Luhn, national IDs use ISO 7064 and IBANs use MOD-97, leaving everyday text like `127.0.0.1` and `/Users/Shared` untouched.
-- **One-Key Restore (`⌃ ⇧ ⏎`)**: when an AI reply brings placeholders back, the preview pane shows "N redaction placeholders detected" — press `⌃ ⇧ ⏎` to restore the real values before pasting.
-- **Hint Before Pasting**: selecting an item that contains keys, emails, card numbers or similar sensitive data shows a single line at the top of the preview pane — "N sensitive items found (email, API key)" — with a `⌃ ⏎` scrubbed-paste shortcut right there, so you no longer have to paste once to find out what you leaked. No dialog, no blocked keystrokes; switch it off in Settings → Privacy.
-- **Mapping Table Never Touches Disk**: placeholder-to-value pairs live only in RAM, never in the database or logs; they expire after 30 minutes of inactivity and can be wiped from Settings at any time.
+- **Scrubbed Paste & Restore (`⌃ ⏎` / `⌃ ⇧ ⏎`)**: Selecting an item with keys, emails, or card numbers shows a non-intrusive hint in the preview pane; press `⌃ ⏎` to replace 19 categories of sensitive data with readable placeholders like `<API_KEY_1>` and `<EMAIL_1>` before sharing with AI, and press `⌃ ⇧ ⏎` on AI replies to restore the real values. The mapping table lives only in RAM and expires after 30 minutes of inactivity.
+- **Auto-Burn Clipboard**: Automatically extracts plain digits from copied verification SMS (`⌘ V` pastes just the code), wipes sensitive items from the clipboard ~0.3s after pasting (or after a 10/30/60s countdown), and optionally purges verification codes from history 5s after paste.
+- **Terminal Safe-Paste Guard**: Intercepts multi-line and high-risk commands (`sudo`, `rm -rf`, `curl | sh`, etc.) when pasting into 40+ terminals (Terminal, iTerm2, Warp, Ghostty, etc.) and IDE integrated terminals (VS Code, Cursor, Xcode, etc.) with Safe Paste / Paste As-Is / Cancel options, while stripping trailing newlines from single-line commands.
 
-### More Capabilities
-- **iCloud Drive Sync**: Optional sync across your own devices using your personal iCloud Drive (no third-party servers).
-- **Backup & Export**: Export to JSON or Markdown, with options to exclude or mask sensitive items.
-- **Batch Actions & Undo**: Select multiple items with Shift, ⌘, or by **dragging the mouse down the list** (hold Shift while dragging to add to the existing selection; drag past the top or bottom edge to auto-scroll) to merge-paste or delete; undo deletions within 10 seconds with `⌘ Z`.
-- **Paste Stack (`⌥ ⏎`)**: select several items and press `⌥ ⏎` to queue them **in the order you copied them** (oldest first — deliberately the reverse of the "newest first" list order); a panel appears at the bottom of the screen listing every queued item with "x of y pasted" progress. Pressing native `⌘ V` repeatedly in the target app pastes them one by one, or click the "Paste" button on any row to paste that item right away. The row marked ▶ is "next up" and advances automatically to the next item not yet pasted; clicking a row only moves the highlight (press `⏎` to paste it), and pasted rows get a check and strikethrough. The panel can be dragged and remembers its position, and recording mode has its own global shortcut `⌃ ⌥ V` (press again to stop). The panel never steals focus, so `Esc` ends the queue from any app without clicking it first. While recording, each copy also sends a small card arcing from the pointer into the row it just landed in. While the queue is active the clipboard always holds the highlighted row, so copying something new never displaces items you have not pasted yet.
-- **Pin to Screen (`⌘ P`)**: pin any item as a floating note (pinning another replaces it in place) with adjustable opacity, collapse, click-through (press `⌘ ⌥ P` or click the corner lock chip to restore clicks), inline editing, copy, or save back to history; code notes support syntax highlighting and image notes can copy their OCR text in one click.
+### Advanced Workflows & More
+- **Paste Stack (`⌥ ⏎` / `⌃ ⌥ V`)**: Select multiple items and press `⌥ ⏎` (or press `⌃ ⌥ V` to record copies across apps) to queue them in copy order inside a non-activating bottom panel; press native `⌘ V` repeatedly in the target window to paste one by one, click any row to jump, or press `Esc` to exit.
+- **Smart Form & Table Splitting**: Copying spreadsheet rows, multi-column text, JSON, or contact details (name, phone, address) pops a suggestion to split fields into a Paste Stack with one click or `⌥ ⏎`, letting you fill form inputs sequentially with `⌘ V`.
+- **Pin to Screen (`⌘ P`)**: Pin any entry as a floating note (pinning another replaces it in place) with `⌥ + scroll` opacity control, collapse, click-through lock (`⌘ ⌥ P` to restore), inline editing, syntax highlighting, and one-click OCR text copy.
+- **Inline Diff of Two Entries (`⌘ D`)**: Press `⌘ D` or click Compare in the 2-item batch bar, preview toolbar, or right-click menu to view line- and word-level red/green diffs (Inline / Side-by-Side / Changes-Only); press `↑` / `↓` while diffing to live-swap entries, pick versions per block, and press `⌘ C` to copy or `⏎` to paste the merged result.
+- **Batch Actions & Undo**: Select multiple items with `⇧`, `⌘`, or by dragging the mouse down the list (with edge auto-scrolling) to merge-paste or bulk-delete; undo deletions within 10 seconds with `⌘ Z`.
+- **iCloud Drive Sync & Backup**: Optional sync across your Macs via personal iCloud Drive (no third-party servers), plus JSON and Markdown export with options to exclude or mask sensitive items.
 
 ---
 ## 🎬 Core Features, Animated
@@ -98,16 +98,20 @@ Clips reconstructed at the real interface's size and colors (click a thumbnail f
 | :--- | :--- |
 | **`⌘ ⇧ V`** | Show / hide quick panel (re-recordable in **Settings → Paste**) |
 | **`⌃ ⌥ V`** | Start / stop recording a Paste Stack (build a queue by copying from any app) |
-| **`↑` / `↓`** | Move selection up or down (hold to repeat; auto-paginates at the bottom) |
+| **`↑` / `↓`** | Move selection up or down (hold to repeat; auto-paginates at the bottom); while diffing, keeps the pinned reference entry and live-swaps the other side |
 | **`⇧ ↑` / `⇧ ↓` / `⌘ Click` / Drag** | Extend multi-selection; drag the mouse up or down the list to select a whole range (drag past the edges to auto-scroll) — `⏎` to merge & paste, `⌘ ⌫` to bulk delete |
 | **`⏎`** | Paste selection into the frontmost app / Launch selected application |
 | **`⌃ ⏎`** | Redacted paste: replace sensitive data with semantic placeholders (`<API_KEY_1>` etc.) |
 | **`⌃ ⇧ ⏎`** | Restore-and-paste: swap placeholders on the clipboard back for their real values |
 | **`⌘ P`** | Pin the selected item as a floating on-screen note |
 | **`⌘ ⌥ P`** | Restore mouse clicks on a click-through pinned note |
-| **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting); starts Paste Stack in multi-select mode |
+| **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting); starts Paste Stack in multi-select mode or on structured table/contact items |
 | **`⌘ ⏎`** | Paste and keep panel open (great for filling multi-field forms) |
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
+| **`⌘ D`** | Compare two entries / leave the diff view (also clickable from the 2-item batch bar, preview toolbar, or right-click menu) |
+| **`⌥ ↑` / `⌥ ↓`** | Jump to the previous / next change while diffing |
+| **`⌘ C` (while diffing)** | Copy the merged result built from your per-block choices |
+| **`⏎` (while diffing)** | Paste the merged result and close the panel |
 | **`⌘ [` / `⌘ ]`** | Cycle content types (`⌘ ]` next, `⌘ [` previous, empty types skipped) |
 | **`⌘ ↓`** | Expand / collapse the filter panel under the search field (type grid + tag flow) |
 | **`⌘ F`** | Focus the search field and expand the filter panel (or simply start typing while in list mode) |
@@ -118,7 +122,7 @@ Clips reconstructed at the real interface's size and colors (click a thumbnail f
 | **`⌘ Z`** | Undo last delete |
 | **`⌘ L`** | Edit tags of the selected item |
 | **`⌫`** | With the search field focused, remove embedded filter conditions one layer at a time (tag first, then type; deletes text normally when there is a query) |
-| **`Esc`** | Layered dismiss: close tag/rename overlay → collapse filter panel → exit multi-select → clear search → clear tag → reset type filter → reset time group → hide panel |
+| **`Esc`** | Layered dismiss: close tag/rename overlay → collapse filter panel → leave the diff view → exit multi-select → clear search → clear tag → reset type filter → reset time group → hide panel |
 
 ---
 
