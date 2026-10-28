@@ -229,6 +229,7 @@ struct PasteSettingsTab: View {
 
                 cheatSectionTitle(L10n.tr("settings.hotkey.group_manage"))
                 shortcutCheatRow(kbd: "⌘ P", label: L10n.tr("preview.pin.button"), divider: true)
+                shortcutCheatRow(kbd: "⌘ D", label: L10n.tr("hints.diff"), divider: true)
                 shortcutCheatRow(kbd: "⌘ S", label: L10n.tr("settings.hotkey.action_favorite"), divider: true)
                 shortcutCheatRow(kbd: "⌘ R", label: L10n.tr("settings.hotkey.action_rename"), divider: true)
                 shortcutCheatRow(kbd: "⌘ ⌫", label: L10n.tr("settings.hotkey.action_delete"), divider: true)

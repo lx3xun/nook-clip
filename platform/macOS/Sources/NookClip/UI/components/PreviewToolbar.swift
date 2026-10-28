@@ -28,6 +28,10 @@ struct PreviewToolbar: View {
     var onPinToScreen: (() -> Void)? = nil
     /// 当前条目能否脱敏粘贴（图片/文件条目无可脱敏文本，按钮置灰不显示）
     var canScrubPaste: Bool = false
+    /// ⌘D 行内对比：对比两条记录的字词级差异
+    var onDiff: (() -> Void)? = nil
+    /// 当前条目能否参与对比（列表至少 2 条且当前条目含文本或 OCR 文字）
+    var canDiff: Bool = false
 
 
     /// 磁盘派生元信息（trailingInfo 异步加载，body 内不做同步磁盘 IO · 契约 C8/FR-019）
@@ -68,14 +72,27 @@ struct PreviewToolbar: View {
                 if canScrubPaste, let onScrubPaste {
                     ToolbarActionButton(
                         title: L10n.tr("preview.scrub.button"),
+                        shortcut: "⌃⏎",
                         icon: NookClipIcon.Action.scrub,
+                        tooltipAlignment: .bottomTrailing,
                         action: onScrubPaste
+                    )
+                }
+                if canDiff, let onDiff {
+                    ToolbarActionButton(
+                        title: L10n.tr("preview.diff.button"),
+                        shortcut: "⌘D",
+                        icon: NookClipIcon.Action.diff,
+                        tooltipAlignment: .bottomTrailing,
+                        action: onDiff
                     )
                 }
                 if let onPinToScreen {
                     ToolbarActionButton(
                         title: L10n.tr("preview.pin.button"),
+                        shortcut: "⌘P",
                         icon: NookClipIcon.Action.pin,
+                        tooltipAlignment: .bottomTrailing,
                         action: onPinToScreen
                     )
                 }
@@ -303,8 +320,10 @@ struct InstantTooltipBubble: View {
 /// 预览区工具栏通用操作按钮（Icon-Only · 24×24pt 微圆角，带即时微气泡）
 private struct ToolbarActionButton: View {
     let title: String
+    var shortcut: String? = nil
     let icon: String
     var isActive: Bool = false
+    var tooltipAlignment: Alignment = .bottomLeading
     let action: () -> Void
 
     @State private var isHovered = false
@@ -355,9 +374,9 @@ private struct ToolbarActionButton: View {
         }
         // 左侧动作按钮：气泡向左下生长会溢出到左列（列表列 zIndex 更高会盖住它），
         // 改为 `bottomLeading` 让它向右下生长，始终落在预览列内、浮于下方内容之上。
-        .overlay(alignment: .bottomLeading) {
+        .overlay(alignment: tooltipAlignment) {
             if showTooltip {
-                InstantTooltipBubble(text: title)
+                InstantTooltipBubble(text: shortcut.map { "\(title) (\($0))" } ?? title)
             }
         }
         .accessibilityLabel(title)

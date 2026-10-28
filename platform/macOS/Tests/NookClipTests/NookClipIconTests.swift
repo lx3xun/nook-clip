@@ -65,7 +65,7 @@ final class NookClipIconTests: XCTestCase {
             NookClipIcon.Context.favorite, NookClipIcon.Context.favoriteFilled, NookClipIcon.Context.delete,
             // ⌘D 行内对比
             NookClipIcon.Action.diff, NookClipIcon.Action.diffClose,
-            NookClipIcon.Action.diffJump,
+            NookClipIcon.Action.diffJump, NookClipIcon.Context.diff,
             // 粘完即焚
             NookClipIcon.AutoBurn.burn, NookClipIcon.AutoBurn.burnFilled,
             NookClipIcon.AutoBurn.otp, NookClipIcon.AutoBurn.keep,

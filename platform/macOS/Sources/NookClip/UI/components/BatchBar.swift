@@ -29,6 +29,8 @@ struct BatchBar: View {
     let onDelete: () -> Void
     /// 打开批量标签编辑器（⌘L）
     var onEditTags: (() -> Void)? = nil
+    /// 行内对比两条记录（⌘D · 仅 selectedCount == 2 时展示）
+    var onDiff: (() -> Void)? = nil
 
     /// 主按钮悬停态：只影响底色，不影响尺寸
     @State private var isMergeHovered = false
@@ -56,6 +58,14 @@ struct BatchBar: View {
             HStack(spacing: 4) {
                 // 主操作吃满剩余宽度：宽度只由列宽决定，悬停不会改变它
                 mergeButton
+                if selectedCount == 2, let onDiff {
+                    BatchActionButton(
+                        title: L10n.tr("batch.diff"),
+                        shortcut: "⌘D",
+                        role: .primary,
+                        action: onDiff
+                    )
+                }
                 if let onStartPasteStack {
                     BatchActionButton(
                         title: L10n.tr("batch.paste_stack"),

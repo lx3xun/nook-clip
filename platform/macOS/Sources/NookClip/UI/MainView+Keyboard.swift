@@ -55,12 +55,11 @@ extension MainView {
     var panelKeyActions: PanelKeyActions {
         PanelKeyActions(
             arrow: { step, extend in
-                // 对比态下按普通 ↑/↓ 视为「看完了，继续浏览」：先退出对比再移动列表。
-                // 不能把按键静默吞掉——否则左侧不动、右侧不变，用户会以为键盘坏了；
-                // 也不能边比边移——右侧展示的是一对固定的两条，左侧高亮一移动就错位。
-                // 块间跳转是 ⌥↑/⌥↓，与这里不冲突。
-                if diffSession.isActive || diffSession.failure != nil {
-                    exitDiff()
+                // 对比态下按 ↑/↓：保持基准条目不变，实时切换另一侧记录并更新右侧对比；
+                // 按 ⇧↑/⇧↓ 则以当前游标行为新基准并切换相邻记录。块间跳转是 ⌥↑/⌥↓，互不冲突。
+                if diffSession.isInSession {
+                    moveDiffComparisonSelection(offset: step, changeAnchor: extend)
+                    return
                 }
                 if extend {
                     extendSelection(offset: step)
@@ -160,7 +159,7 @@ extension MainView {
         }
         // 对比态（含只显示了失败原因的情形）：Esc 先退出对比，回到常规预览；
         // 下方其余层级保持原语义。失败态也要能被 Esc 关掉，否则右列会一直卡着提示。
-        if diffSession.isActive || diffSession.failure != nil {
+        if diffSession.isInSession {
             exitDiff()
             return
         }

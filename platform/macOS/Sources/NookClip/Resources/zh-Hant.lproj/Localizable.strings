@@ -703,6 +703,12 @@
 "diff.error.too_many_selected" = "已選取 %@ 筆，一次只能對比 2 筆";
 "diff.error.no_text" = "所選項目沒有可比對的文字";
 "diff.error.reveal_failed" = "「%@」無法解密，暫時不能對比";
+"batch.diff" = "對比";
+"preview.diff.button" = "對比兩筆記錄";
+"context.diff" = "對比兩筆記錄";
+"diff.hint.switch" = "換筆";
+"diff.side.pinned_help" = "已固定此筆為基準，點左側清單或按 ↑↓ 即時替換另一側";
+"diff.side.pin_help" = "點擊固定此筆為基準，去替換另一側記錄";
 
 // MARK: 貼完即焚（Auto-Burn Clipboard）
 "settings.capture.auto_burn_title" = "貼完即焚";

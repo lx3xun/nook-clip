@@ -48,6 +48,10 @@ struct PreviewPane: View {
     var canScrubPaste: Bool = false
     /// ⌃⇧⏎ 还原粘贴：把当前条目里的占位符还原成真实值（US1 反向）
     var onRestoreScrub: (() -> Void)? = nil
+    /// ⌘D 行内对比：进入两条记录对比视图
+    var onDiff: (() -> Void)? = nil
+    /// 当前列表状态是否满足对比前置条件（至少 2 条、未选超过 2 条）
+    var canDiff: Bool = false
 
     // MARK: US3 脱敏状态（data-model §3.2：明文态持续 ≤30s，离开明文态必清剪贴板）
 
@@ -145,6 +149,16 @@ struct PreviewPane: View {
         return scrubHint?.hasHits == true
     }
 
+    /// 当前预览条目是否可发起对比（文本类条目直接可比；图片/文件须已有 OCR 文本）
+    private var canDiffCurrentItem: Bool {
+        guard canDiff, let item else { return false }
+        if item.kind == .image || item.kind == .file {
+            let ocr = entity(item)?.ocrText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !ocr.isEmpty
+        }
+        return true
+    }
+
     /// 防抖后异步跑一次预检。
     ///
     /// 为什么需要防抖：`scan_text` 在 64KB 上约 1ms、256KB 约 4ms，单次可忽略，
@@ -190,7 +204,9 @@ struct PreviewPane: View {
                     onDeleteTag: onDeleteTag,
                     onScrubPaste: onScrubPaste,
                     onPinToScreen: onPinToScreen,
-                    canScrubPaste: canScrubPaste
+                    canScrubPaste: canScrubPaste,
+                    onDiff: onDiff,
+                    canDiff: canDiffCurrentItem
                 )
                 // 顶栏必须绘制在其下方内容之上：工具栏按钮的即时微气泡会向下偏移
                 // 探入内容区（offset y≈25），若此栏与下方 ScrollView 同层，后者作为

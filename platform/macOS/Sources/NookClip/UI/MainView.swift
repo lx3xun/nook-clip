@@ -497,7 +497,7 @@ struct MainView: View {
 
                 // 列表级提示栏（列表列内）：条目级操作（收藏/删除）的提示在
                 // 预览区工具栏；呼出/隐藏快捷键在菜单栏「打开 NookClip」菜单项上展示
-                if diffSession.isActive {
+                if diffSession.isInSession {
                     // 对比态：多选栏整体让位（⏎ 语义已被「粘贴合并版」接管，见 DiffSessionHintsBar）
                     DiffSessionHintsBar(
                         onPasteMerged: { pasteMergedDiff() },
@@ -514,7 +514,8 @@ struct MainView: View {
                             _ = startPasteStackFromSelection()
                         },
                         onDelete: { deleteSelection() },
-                        onEditTags: { beginTagEditForBatch() }
+                        onEditTags: { beginTagEditForBatch() },
+                        onDiff: { toggleDiff() }
                     )
                 } else {
                     // 底栏主循环高频三键：选择 → 粘贴 → 分类切换；
@@ -573,7 +574,7 @@ struct MainView: View {
 
             // 右列：详细预览区（对比态 / 应用预览 / 条目级预览）
             Group {
-                if diffSession.isActive || diffSession.failure != nil {
+                if diffSession.isInSession {
                     DiffPreviewCard(
                         session: diffSession,
                         onSetChoice: { choice, hunkID in
@@ -585,7 +586,8 @@ struct MainView: View {
                         onToggleIgnoreCase: { toggleDiffIgnoreCase() },
                         onCopyMerged: { copyMergedDiff() },
                         onPasteMerged: { pasteMergedDiff() },
-                        onClose: { exitDiff() }
+                        onClose: { exitDiff() },
+                        onPinSide: { id in pinDiffAnchor(id) }
                     )
                 } else if let selectedApp = matchedApps.first(where: { $0.id == selectedAppID }) {
                     AppPreviewPane(app: selectedApp) {
@@ -623,7 +625,9 @@ struct MainView: View {
                         onScrubPaste: { scrubPasteSelected() },
                         onPinToScreen: { pinSelectedToScreen() },
                         canScrubPaste: selectedRow.map { $0.kind != .image && $0.kind != .file } ?? false,
-                        onRestoreScrub: { restoreScrubPaste() }
+                        onRestoreScrub: { restoreScrubPaste() },
+                        onDiff: { toggleDiff() },
+                        canDiff: canDiffSelection
                     )
                 }
             }

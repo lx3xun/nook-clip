@@ -703,6 +703,12 @@
 "diff.error.too_many_selected" = "%@ selected — compare exactly 2";
 "diff.error.no_text" = "The selected entries have no text to compare";
 "diff.error.reveal_failed" = "“%@” can’t be decrypted right now";
+"batch.diff" = "Diff";
+"preview.diff.button" = "Compare Two Entries";
+"context.diff" = "Compare Two Entries";
+"diff.hint.switch" = "Switch";
+"diff.side.pinned_help" = "Pinned as reference — click a row or press ↑↓ to swap the other side";
+"diff.side.pin_help" = "Click to pin this side as reference and swap the other side";
 
 // MARK: Auto-Burn Clipboard
 "settings.capture.auto_burn_title" = "Auto-Burn Clipboard";

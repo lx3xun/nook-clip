@@ -63,6 +63,7 @@ struct DiffPreviewCard: View {
     var onCopyMerged: () -> Void = {}
     var onPasteMerged: () -> Void = {}
     var onClose: () -> Void = {}
+    var onPinSide: (UUID) -> Void = { _ in }
 
     @Environment(\.self) private var environment
 
@@ -74,10 +75,10 @@ struct DiffPreviewCard: View {
                 onSetViewMode: onSetViewMode,
                 onToggleIgnoreWhitespace: onToggleIgnoreWhitespace,
                 onToggleIgnoreCase: onToggleIgnoreCase,
+                onPinSide: onPinSide,
                 onClose: onClose
             )
             .zIndex(1)
-
             content(palette: palette)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -170,6 +171,7 @@ private struct DiffToolbar: View {
     let onSetViewMode: (DiffViewMode) -> Void
     let onToggleIgnoreWhitespace: () -> Void
     let onToggleIgnoreCase: () -> Void
+    let onPinSide: (UUID) -> Void
     let onClose: () -> Void
     @State private var isCloseHovered = false
 
@@ -180,6 +182,7 @@ private struct DiffToolbar: View {
                 .foregroundStyle(NookClip.accent)
 
             sidePill(
+                side: session.oldSide,
                 tag: L10n.tr("diff.label.old"),
                 title: session.oldSide?.title ?? L10n.tr("diff.label.unknown"),
                 tint: NookClip.diffRemovedText,
@@ -191,12 +194,12 @@ private struct DiffToolbar: View {
                 .foregroundStyle(NookClip.textTertiary)
 
             sidePill(
+                side: session.newSide,
                 tag: L10n.tr("diff.label.new"),
                 title: session.newSide?.title ?? L10n.tr("diff.label.unknown"),
                 tint: NookClip.diffAddedText,
                 bg: NookClip.diffAddedLineBg
             )
-
             Spacer(minLength: 4)
 
             // 三段式视图切换：行内（Inline） / 左右（Split） / 只看差异（Changes Only）
@@ -271,22 +274,47 @@ private struct DiffToolbar: View {
         .accessibilityLabel(label)
     }
 
-    private func sidePill(tag: String, title: String, tint: Color, bg: Color) -> some View {
-        HStack(spacing: 4) {
-            Text(tag)
-                .font(.nookClipCaption)
-                .fontWeight(.semibold)
+    private func sidePill(
+        side: DiffSide?,
+        tag: String,
+        title: String,
+        tint: Color,
+        bg: Color
+    ) -> some View {
+        let isPinned = side != nil && session.anchorItemID == side?.itemID
+        let helpText = L10n.tr(isPinned ? "diff.side.pinned_help" : "diff.side.pin_help")
+        return Button {
+            if let id = side?.itemID {
+                onPinSide(id)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                HStack(spacing: 2) {
+                    if isPinned {
+                        Image(systemName: NookClipIcon.Action.pinFilled)
+                            .font(.system(size: NookClipIconSize.microSmall, weight: .semibold))
+                    }
+                    Text(tag)
+                        .font(.nookClipCaption)
+                        .fontWeight(.semibold)
+                }
                 .foregroundStyle(tint)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
                 .background(bg, in: RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous))
-            Text(title)
-                .font(.nookClipMetaMedium)
-                .foregroundStyle(NookClip.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 72, alignment: .leading)
+                Text(title)
+                    .font(.nookClipMetaMedium)
+                    .foregroundStyle(NookClip.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 68, alignment: .leading)
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(helpText)
+        .accessibilityLabel("\(tag) \(title)")
     }
 
     private func togglePill(
@@ -799,14 +827,23 @@ struct DiffSessionHintsBar: View {
                     .foregroundStyle(NookClip.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                HStack(spacing: 3) {
-                    KbdView(text: "⌥↑", fontSize: 9)
-                    KbdView(text: "⌥↓", fontSize: 9)
-                    Text(L10n.tr("diff.hint.jump"))
-                        .font(.nookClipCaption)
-                        .foregroundStyle(NookClip.textTertiary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                HStack(spacing: 6) {
+                    HStack(spacing: 3) {
+                        KbdView(text: "↑↓", fontSize: 9)
+                        Text(L10n.tr("diff.hint.switch"))
+                            .font(.nookClipCaption)
+                            .foregroundStyle(NookClip.textTertiary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    HStack(spacing: 3) {
+                        KbdView(text: "⌥↑↓", fontSize: 9)
+                        Text(L10n.tr("diff.hint.jump"))
+                            .font(.nookClipCaption)
+                            .foregroundStyle(NookClip.textTertiary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
                 }
             }
 

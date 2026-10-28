@@ -256,6 +256,12 @@ extension MainView {
         }
         .disabled(renaming)
         Button {
+            toggleDiff()
+        } label: {
+            Label(L10n.tr("context.diff"), systemImage: NookClipIcon.Context.diff)
+        }
+        .disabled(renaming || !canDiffSelection)
+        Button {
             beginRename()
         } label: {
             Label(L10n.tr("context.rename"), systemImage: NookClipIcon.Context.rename)
@@ -404,6 +410,16 @@ extension MainView {
         // 由 SwiftUI 决定，不能只依赖「刚结束」这一条时间条件）
         guard dragSelectionAnchorID == nil, !didJustFinishDragSelection else { return }
         let modifiers = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if diffSession.isInSession {
+            withAnimation(NookClip.animSelection) {
+                handleDiffModeRowTap(
+                    item,
+                    shiftHeld: modifiers.contains(.shift),
+                    commandHeld: modifiers.contains(.command)
+                )
+            }
+            return
+        }
         withAnimation(NookClip.animSelection) {
             selectionCoordinator.handleTap(
                 item,

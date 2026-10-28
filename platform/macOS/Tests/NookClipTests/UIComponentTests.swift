@@ -150,6 +150,22 @@ final class UIComponentTests: XCTestCase {
         XCTAssertTrue(editTagsFired, "点击标签按钮必须执行 onEditTags")
     }
 
+    func testBatchBarWiresDiffActionWhenTwoSelected() {
+        var diffFired = false
+        let bar = BatchBar(
+            selectedCount: 2,
+            onMergePaste: {},
+            onStartPasteStack: {},
+            onDelete: {},
+            onEditTags: {},
+            onDiff: { diffFired = true }
+        )
+
+        XCTAssertNotNil(renderView(bar), "勾选 2 条且带对比入口的批量工具栏应正常渲染")
+        bar.onDiff?()
+        XCTAssertTrue(diffFired, "点击对比按钮必须执行 onDiff")
+    }
+
     /// 工具栏只有 310pt 列宽：四个动作必须全部可辨识，不能退化成「合…」「…」。
     /// 这里锁定「常量布局」——四个动作都常驻文字，宽度只由文字决定，鼠标悬停只改底色
     /// 不改尺寸。一旦有人把文字改成悬停才出现的伸缩按钮，鼠标扫过时整排会动起来。

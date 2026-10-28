@@ -58,10 +58,11 @@ final class DiffSessionStateTests: XCTestCase {
     func testResetClearsEverything() {
         let session = makeActiveSession()
         session.autoSelectedPair = true
+        session.previousSelectedID = UUID()
         session.reset()
         XCTAssertFalse(session.isActive)
         XCTAssertFalse(session.autoSelectedPair, "退出对比时必须一并重置自动多选标记")
-        XCTAssertNil(session.oldSide)
+        XCTAssertNil(session.previousSelectedID, "退出对比时必须一并清除进入前的单选锚点")
         XCTAssertNil(session.newSide)
         XCTAssertNil(session.result)
         XCTAssertNil(session.failure)
@@ -357,5 +358,150 @@ final class DiffSessionHelperTests: XCTestCase {
         XCTAssertEqual(DiffHunkKeep.old.rawValue, 1)
         XCTAssertEqual(DiffHunkKeep.both.rawValue, 2)
         XCTAssertEqual(DiffHunkKeep.allCases.count, 3)
+    }
+
+    // MARK: - 对比记录配对规则（resolvePairForDiff）
+
+    private func makeRow(title: String) -> ClipboardRowModel {
+        ClipboardRowModel(
+            item: ClipboardItem(type: .text, title: title, summary: title)
+        )
+    }
+
+    func testResolvePairWhenTopRowSelectedComparesTopTwo() {
+        let r0 = makeRow(title: "latest")
+        let r1 = makeRow(title: "second")
+        let r2 = makeRow(title: "third")
+        let resolution = MainView.resolvePairForDiff(
+            flatRows: [r0, r1, r2],
+            selectedID: r0.id,
+            selectionIDs: []
+        )
+        guard case .pair(let old, let new) = resolution else {
+            return XCTFail("应当成功选出两条记录")
+        }
+        XCTAssertEqual(old.id, r1.id, "选中第 1 条时，第 2 条作为旧版")
+        XCTAssertEqual(new.id, r0.id, "选中第 1 条时，第 1 条作为新版")
+    }
+
+    func testResolvePairWhenLowerRowSingleSelectedComparesAgainstTopRow() {
+        let r0 = makeRow(title: "latest")
+        let r1 = makeRow(title: "second")
+        let r2 = makeRow(title: "third")
+        let resolution = MainView.resolvePairForDiff(
+            flatRows: [r0, r1, r2],
+            selectedID: r2.id,
+            selectionIDs: []
+        )
+        guard case .pair(let old, let new) = resolution else {
+            return XCTFail("单选第 3 条时应与第 1 条配对")
+        }
+        XCTAssertEqual(old.id, r2.id, "单选下方条目时，当前选中条目作为旧版")
+        XCTAssertEqual(new.id, r0.id, "单选下方条目时，列表顶部最新条目作为新版")
+    }
+
+    func testResolvePairWhenTwoRowsMultiSelectedRespectsListOrder() {
+        let r0 = makeRow(title: "latest")
+        let r1 = makeRow(title: "second")
+        let r2 = makeRow(title: "third")
+        let resolution = MainView.resolvePairForDiff(
+            flatRows: [r0, r1, r2],
+            selectedID: r2.id,
+            selectionIDs: [r1.id, r2.id]
+        )
+        guard case .pair(let old, let new) = resolution else {
+            return XCTFail("多选 2 条时应直接配对这两条")
+        }
+        XCTAssertEqual(old.id, r2.id, "列表里靠下的为旧版")
+        XCTAssertEqual(new.id, r1.id, "列表里靠上的为新版")
+    }
+
+    func testResolvePairFailsWhenMoreThanTwoSelectedOrNotEnoughItems() {
+        let r0 = makeRow(title: "only")
+        let notEnough = MainView.resolvePairForDiff(
+            flatRows: [r0],
+            selectedID: r0.id,
+            selectionIDs: []
+        )
+        if case .failure(let f) = notEnough {
+            XCTAssertEqual(f, .notEnoughItems)
+        } else {
+            XCTFail("仅 1 条记录时应返回 notEnoughItems")
+        }
+
+        let r1 = makeRow(title: "two")
+        let r2 = makeRow(title: "three")
+        let tooMany = MainView.resolvePairForDiff(
+            flatRows: [r0, r1, r2],
+            selectedID: r0.id,
+            selectionIDs: [r0.id, r1.id, r2.id]
+        )
+        if case .failure(let f) = tooMany {
+            XCTAssertEqual(f, .tooManySelected(3))
+        } else {
+            XCTFail("选中 3 条时应返回 tooManySelected(3)")
+        }
+    }
+
+    func testNextDiffCursorRowSkipsPinnedAnchorAndClampsAtBounds() {
+        let r0 = makeRow(title: "r0")
+        let r1 = makeRow(title: "r1")
+        let r2 = makeRow(title: "r2")
+        let r3 = makeRow(title: "r3")
+        let rows = [r0, r1, r2, r3]
+
+        // 基准固定在 r0（首行），游标在 r1：按 ↑ 不能跳到基准行 r0，应返回 nil
+        XCTAssertNil(
+            MainView.nextDiffCursorRow(flatRows: rows, currentSelectedID: r1.id, anchorID: r0.id, step: -1),
+            "基准在首行且游标在第二行时，向上无可移动目标"
+        )
+
+        // 基准固定在 r0，游标在 r1：按 ↓ 移动到 r2
+        let downFromR1 = MainView.nextDiffCursorRow(flatRows: rows, currentSelectedID: r1.id, anchorID: r0.id, step: 1)
+        XCTAssertEqual(downFromR1?.id, r2.id)
+
+        // 基准固定在中间行 r2，游标在 r1：按 ↓ 应自动跨过 r2 落到 r3
+        let skipAnchorDown = MainView.nextDiffCursorRow(flatRows: rows, currentSelectedID: r1.id, anchorID: r2.id, step: 1)
+        XCTAssertEqual(skipAnchorDown?.id, r3.id, "经过基准行时应自动跨过，避免自己与自己对比")
+
+        // 基准固定在中间行 r2，游标在 r3：按 ↑ 应自动跨过 r2 落到 r1
+        let skipAnchorUp = MainView.nextDiffCursorRow(flatRows: rows, currentSelectedID: r3.id, anchorID: r2.id, step: -1)
+        XCTAssertEqual(skipAnchorUp?.id, r1.id)
+    }
+
+    func testResolvePairWithAnchorOrdersNewAndOldByListPosition() {
+        let r0 = makeRow(title: "r0")
+        let r1 = makeRow(title: "r1")
+        let r2 = makeRow(title: "r2")
+        let rows = [r0, r1, r2]
+
+        // 基准 r1 在上、目标 r2 在下 → r1 为新、r2 为旧
+        let below = MainView.resolvePairWithAnchor(flatRows: rows, anchorID: r1.id, targetID: r2.id)
+        XCTAssertEqual(below?.new.id, r1.id)
+        XCTAssertEqual(below?.old.id, r2.id)
+
+        // 基准 r1 在下、目标 r0 在上 → r0 为新、r1 为旧
+        let above = MainView.resolvePairWithAnchor(flatRows: rows, anchorID: r1.id, targetID: r0.id)
+        XCTAssertEqual(above?.new.id, r0.id)
+        XCTAssertEqual(above?.old.id, r1.id)
+    }
+
+    func testSwitchingRecordsInSessionPreservesViewModeAndAnchor() {
+        let session = DiffSessionState()
+        let s0 = makeSide(text: "line 1\nline 2")
+        let s1 = makeSide(text: "line 1\nline 2 old")
+        let s2 = makeSide(text: "line 1\nline 2 older")
+
+        session.start(old: s1, new: s0, failure: nil)
+        XCTAssertEqual(session.anchorItemID, s0.itemID, "默认固定新版为基准")
+
+        session.viewMode = .sideBySide
+        session.setAnchor(s1.itemID)
+        XCTAssertEqual(session.anchorItemID, s1.itemID, "点击固定侧应切换 anchorItemID")
+
+        // 实时切换到 s2（保留 s1）
+        session.start(old: s2, new: s1, failure: nil)
+        XCTAssertEqual(session.viewMode, .sideBySide, "实时切换记录时必须保留用户选中的视图模式")
+        XCTAssertEqual(session.anchorItemID, s1.itemID, "实时切换记录时必须保留已固定的基准 ID")
     }
 }

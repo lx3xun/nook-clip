@@ -703,6 +703,12 @@
 "diff.error.too_many_selected" = "已选中 %@ 条，一次只能对比 2 条";
 "diff.error.no_text" = "所选条目没有可比对的文本";
 "diff.error.reveal_failed" = "「%@」无法解密，暂时不能对比";
+"batch.diff" = "对比";
+"preview.diff.button" = "对比两条记录";
+"context.diff" = "对比两条记录";
+"diff.hint.switch" = "换条";
+"diff.side.pinned_help" = "已固定此条为基准，点左侧列表或按 ↑↓ 实时替换另一侧";
+"diff.side.pin_help" = "点击固定此条为基准，去替换另一侧记录";
 
 // MARK: 粘完即焚（Auto-Burn Clipboard）
 "settings.capture.auto_burn_title" = "粘完即焚";

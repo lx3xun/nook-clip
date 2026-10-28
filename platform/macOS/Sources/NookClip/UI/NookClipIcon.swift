@@ -216,5 +216,6 @@ enum NookClipIcon {
         static let markSensitive = "lock"
         static let unmarkSensitive = "lock.open"
         static let delete = "trash"
+        static let diff = "arrow.left.arrow.right.square"
     }
 }

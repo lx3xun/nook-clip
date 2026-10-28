@@ -94,10 +94,14 @@ final class DiffSessionState {
     private(set) var isComputing = false
     /// 计算失败/不可对比的原因（nil = 正常）
     private(set) var failure: DiffFailure?
-    /// 是否由「未多选时盲按 ⌘D」自动勾选了最顶两条：
-    /// 退出对比时若仍为 true，自动清空多选并恢复单选，避免用户按 Esc 后意外停留在批量多选模式。
+    /// 是否由「未多选时触发对比」自动勾选了两条记录：
+    /// 退出对比时若仍为 true，自动清空多选并恢复进入对比前的单选锚点，避免按 Esc 后停留在批量多选模式。
     var autoSelectedPair = false
-
+    /// 自动勾选进入对比前的单选条目 ID（退出时恢复）
+    var previousSelectedID: UUID?
+    /// 对比态下固定不动的「基准条目 ID」：用户在左侧按 ↑/↓ 或点击其它行时，
+    /// 保持该基准条目不变，实时替换另一侧并重算差异（默认固定靠上的新版条目）
+    var anchorItemID: UUID?
     /// 视图模式
     var viewMode: DiffViewMode = .inline
     /// 是否忽略空白差异。**默认不忽略**：一键对比的全部价值是「到底改了什么」，
@@ -115,7 +119,8 @@ final class DiffSessionState {
     private(set) var mergedText: String = ""
 
     var isActive: Bool { oldSide != nil && newSide != nil }
-
+    /// 是否正处于对比会话中（含在对比中途切到无文本条目时的瞬态提示，按 ↑/↓ 可继续切换其它条目）
+    var isInSession: Bool { isActive || anchorItemID != nil || failure != nil }
     /// 可选择的差异块（只有改动块；上下文块不参与合并选择）
     var changeHunks: [FfiDiffHunk] {
         result?.hunks.filter(\.isChange) ?? []
@@ -141,12 +146,30 @@ final class DiffSessionState {
         }
         oldSide = old
         newSide = new
+        if anchorItemID == nil || (anchorItemID != old.itemID && anchorItemID != new.itemID) {
+            anchorItemID = new.itemID
+        }
         self.failure = nil
-        viewMode = .inline
         focusedHunkID = nil
         hunkChoices = []
         mergedText = ""
         recompute()
+    }
+
+    /// 切换固定基准侧（点击顶栏「旧」或「新」胶囊，或在列表点已处于对比中的某一条时触发）
+    func setAnchor(_ id: UUID) {
+        guard id == oldSide?.itemID || id == newSide?.itemID else { return }
+        anchorItemID = id
+    }
+
+    /// 对比态中途切换到不可比条目（如无 OCR 的纯图片）时记录瞬态原因，
+    /// 保留 anchorItemID / viewMode / 忽略开关，使用户继续按 ↑/↓ 或点下一条即可恢复实时对比
+    func setTransientFailure(_ failure: DiffFailure) {
+        self.failure = failure
+        self.result = nil
+        self.hunkChoices = []
+        self.focusedHunkID = nil
+        self.mergedText = ""
     }
 
     /// 退出对比态（⌘D 再按一次 / Esc）
@@ -156,6 +179,9 @@ final class DiffSessionState {
         result = nil
         failure = nil
         autoSelectedPair = false
+        previousSelectedID = nil
+        anchorItemID = nil
+        viewMode = .inline
         isComputing = false
         hunkChoices = []
         focusedHunkID = nil
