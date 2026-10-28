@@ -68,6 +68,7 @@
 - **兩筆記錄行內對比（`⌘ D`）**：按 `⌘ D` 或點擊多選底欄、預覽頂欄、右鍵選單的「對比」，右側即刻呈現行級與字詞級紅綠差異（支援行內 / 左右 / 只看差異三種視圖）；對比中可按 `↑` / `↓` 即時切換記錄、逐塊挑選保留新舊版本，按 `⌘ C` 複製或 `⏎` 直接貼上合併結果。
 - **批次操作與復原**：支援按住 `⇧`、`⌘` 或用滑鼠上下拖曳整段勾選（拖到邊緣自動捲動），一鍵合併貼上或批次刪除，刪除後 10 秒內可按 `⌘ Z` 復原。
 - **iCloud Drive 同步與備份匯出**：透過個人 iCloud 雲碟在多台 Mac 間同步（可選開啟，無第三方伺服器）；支援匯出 JSON 或 Markdown 格式並排除或遮罩敏感記錄。
+- **手機互傳（區域網路掃碼）**：選取任意記錄，在預覽區頂欄「⋯ 更多」裡選「手機互傳」，手機用系統相機掃碼即可在瀏覽器裡免安裝檢視並複製電腦長文、下載原圖/檔案，也能把手機文字或相簿圖片傳回電腦剪貼簿並入庫；僅在同一區域網路內傳輸、5 分鐘自動失效、關閉彈窗立即釋放連接埠，資料不經過任何雲端伺服器。
 
 ---
 ## 🎬 核心功能動態演示
@@ -78,12 +79,12 @@
 |:---:|:---:|:---:|
 | [![順序貼上](site/assets/features/poster-paste-stack.jpg)](site/assets/features/paste-stack.gif) | [![語義脫敏貼上](site/assets/features/poster-scrub-paste.jpg)](site/assets/features/scrub-paste.gif) | [![螢幕置頂貼條](site/assets/features/poster-pinned-note.jpg)](site/assets/features/pinned-note.gif) |
 
-| 類型與標籤篩選（`⌘ ↓`） | 離線圖片 OCR 辨識與搜尋 |
-|:---:|:---:|
-| [![類型與標籤篩選](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![離線 OCR 搜圖](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) |
+| 類型與標籤篩選（`⌘ ↓`） | 離線圖片 OCR 辨識與搜尋 | 手機互傳（區域網路掃碼） |
+|:---:|:---:|:---:|
+| [![類型與標籤篩選](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![離線 OCR 搜圖](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) | [![手機互傳](site/assets/features/poster-phone-drop.jpg)](site/assets/features/phone-drop.gif) |
 
-- 單功能 MP4：[順序貼上](site/assets/features/paste-stack.mp4) · [語義脫敏](site/assets/features/scrub-paste.mp4) · [貼條](site/assets/features/pinned-note.mp4) · [類型與標籤篩選](site/assets/features/filter-tags.mp4) · [離線 OCR 搜圖](site/assets/features/ocr-search.mp4)
-- 單功能 GIF：[順序貼上](site/assets/features/paste-stack.gif) · [語義脫敏](site/assets/features/scrub-paste.gif) · [貼條](site/assets/features/pinned-note.gif) · [類型與標籤篩選](site/assets/features/filter-tags.gif) · [離線 OCR 搜尋](site/assets/features/ocr-search.gif)
+- 單功能 MP4：[順序貼上](site/assets/features/paste-stack.mp4) · [語義脫敏](site/assets/features/scrub-paste.mp4) · [貼條](site/assets/features/pinned-note.mp4) · [類型與標籤篩選](site/assets/features/filter-tags.mp4) · [離線 OCR 搜圖](site/assets/features/ocr-search.mp4) · [手機互傳](site/assets/features/phone-drop.mp4)
+- 單功能 GIF：[順序貼上](site/assets/features/paste-stack.gif) · [語義脫敏](site/assets/features/scrub-paste.gif) · [貼條](site/assets/features/pinned-note.gif) · [類型與標籤篩選](site/assets/features/filter-tags.gif) · [離線 OCR 搜尋](site/assets/features/ocr-search.gif) · [手機互傳](site/assets/features/phone-drop.gif)
 - 貼上三進階三合一整片：[all-three.mp4](site/assets/features/all-three.mp4)（約 27 秒）
 - 帶說明的展示頁：[preview.html](site/assets/features/preview.html)（支援點擊放大觀看）
 
@@ -108,7 +109,7 @@
 | **`⌥ ⏎`** | 純文字貼上（自動剔除字型、顏色、背景等富文字格式）；多選狀態或選取表格/收件資訊時啟動順序貼上佇列 |
 | **`⌘ ⏎`** | 貼上且保持面板開啟（適合連續填表與比對） |
 | **`⌘ C`** | 重新複製選取項目至系統剪貼簿（列表態複製整筆，預覽區支援選取文字複製） |
-| **`⌘ D`** | 對比兩筆記錄 / 離開對比（也可點多選底欄、預覽頂欄或右鍵選單；單選第 N 筆時與最新一筆對比，在頂部時直接比最上面兩筆） |
+| **`⌘ D`** | 對比兩筆記錄 / 離開對比（也可點多選底欄、預覽頂欄「更多」或右鍵選單；單選第 N 筆時與最新一筆對比，在頂部時直接比最上面兩筆） |
 | **`⌥ ↑` / `⌥ ↓`** | 對比狀態內跳到上一處 / 下一處改動 |
 | **`⌘ C`（對比狀態內）** | 複製依逐塊選擇拼好的合併版 |
 | **`⏎`（對比狀態內）** | 貼上合併版並收起面板 |

@@ -24,7 +24,7 @@
 
   <!-- 静态资源加版本戳：本地/预览站常开缓存，改完 CSS/JS 后若 URL 不变，
        浏览器会一直用旧副本（本次就踩到旧 style.scss 缓存导致改动"看不见"） -->
-  <link rel="stylesheet" href="style.css?v=20261028_1">
+  <link rel="stylesheet" href="style.css?v=20261028_2">
 </head>
 <body>
   <!-- 页面顶部导航栏 -->
@@ -40,8 +40,8 @@
       <nav class="site-nav" aria-label="网站主要导航">
         <ul class="nav-list">
           <li><a href="#demos" class="nav-link" data-i18n="nav_demos">动态演示</a></li>
-          <li><a href="#features" class="nav-link" data-i18n="nav_features">功能介绍</a></li>
-          <li><a href="#shortcuts" class="nav-link" data-i18n="nav_shortcuts">快捷键流</a></li>
+          <li><a href="#features" class="nav-link" data-i18n="nav_features">核心能力</a></li>
+          <li><a href="#comparison" class="nav-link" data-i18n="nav_comparison">方案对比</a></li>
           <li><a href="#privacy" class="nav-link" data-i18n="nav_privacy">隐私安全</a></li>
           <li><a href="docs/" class="nav-link" data-i18n="nav_docs">使用文档</a></li>
         </ul>
@@ -138,11 +138,10 @@
       <nav class="mobile-nav-inner" aria-label="移动端网站导航">
         <ul class="mobile-nav-list">
           <li><a href="#demos" class="mobile-nav-link" data-i18n="nav_demos">动态演示</a></li>
-          <li><a href="#features" class="mobile-nav-link" data-i18n="nav_features">功能介绍</a></li>
-          <li><a href="#shortcuts" class="mobile-nav-link" data-i18n="nav_shortcuts">快捷键流</a></li>
-          <li><a href="docs/" class="mobile-nav-link" data-i18n="nav_docs">使用文档</a></li>
-          <li><a href="#comparison" class="mobile-nav-link" data-i18n="nav_comparison">工具对比</a></li>
+          <li><a href="#features" class="mobile-nav-link" data-i18n="nav_features">核心能力</a></li>
+          <li><a href="#comparison" class="mobile-nav-link" data-i18n="nav_comparison">方案对比</a></li>
           <li><a href="#privacy" class="mobile-nav-link" data-i18n="nav_privacy">隐私安全</a></li>
+          <li><a href="docs/" class="mobile-nav-link" data-i18n="nav_docs">使用文档</a></li>
           <li><a href="#download" class="mobile-nav-link" data-i18n="nav_download">下载安装</a></li>
           <li><a href="https://github.com/lx3xun/nook-clip" target="_blank" rel="noopener noreferrer" class="mobile-nav-link" data-i18n="footer_repo">GitHub 仓库</a></li>
         </ul>
@@ -225,10 +224,6 @@
                 浅色模式
               </button>
             </div>
-            <a href="playground.html" class="fullscreen-playground-link" target="_blank" rel="noopener noreferrer">
-              <span data-i18n="nav_playground">在线交互测试台</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-            </a>
           </div>
 
           <!-- 原生界面超清截图展示窗 -->
@@ -295,8 +290,8 @@
       <div class="container">
         <div class="section-header">
           <div class="section-kicker" data-i18n="demos_kicker">WORKFLOW BOOSTERS</div>
-          <h2 class="section-title" data-i18n="demos_title">五个让剪贴板更顺手的高效动作</h2>
-          <p class="section-desc" data-i18n="demos_desc">按真实界面的尺寸与配色复刻：顺序粘贴、语义脱敏、屏幕贴条、类型与标签筛选、离线 OCR 搜图。</p>
+          <h2 class="section-title" data-i18n="demos_title">六个让剪贴板更顺手的高效动作</h2>
+          <p class="section-desc" data-i18n="demos_desc">按真实界面的尺寸与配色复刻：顺序粘贴、语义脱敏、屏幕贴条、类型与标签筛选、离线 OCR 搜图、手机互传。</p>
         </div>
 
         <div class="demos-grid">
@@ -316,7 +311,7 @@
                 </div>
               </div>
               <p class="demo-desc" data-i18n="demo1_desc">
-                多选几条后按 <code>⌥⏎</code>（或按 <code>⌃⌥V</code> 边复制边录制），按你复制的先后顺序排成底部队列浮窗。在目标窗口连续按原生 <code>⌘V</code> 即可逐条贴出，也能点行跳转、按 <code>Esc</code> 随时结束。
+                多选几条按 <code>⌥⏎</code>（或按 <code>⌃⌥V</code> 跨应用录制），按复制先后排成底部队列浮窗，在目标窗口连续按 <code>⌘V</code> 即可逐条贴出。
               </p>
               <div class="demo-tags">
                 <span class="demo-tag" data-i18n="demo1_tag1">按复制顺序排队的浮窗</span>
@@ -342,7 +337,7 @@
                 </div>
               </div>
               <p class="demo-desc" data-i18n="demo2_desc">
-                选中含密钥、邮箱、卡号等记录时预览区主动提醒；按 <code>⌃⏎</code> 自动将 19 类敏感信息换成 <code>&lt;API_KEY_1&gt;</code> 等可读占位符安全交给 AI。映射表只驻留内存，AI 回复带回占位符时按 <code>⌃⇧⏎</code> 一键还原真值。
+                按 <code>⌃⏎</code> 自动将密钥、邮箱、卡号等 19 类敏感信息换成 <code>&lt;API_KEY_1&gt;</code> 可读占位符安全发给 AI；AI 回复后按 <code>⌃⇧⏎</code> 一键还原真值。
               </p>
               <div class="demo-tags">
                 <span class="demo-tag demo-tag-green" data-i18n="demo2_tag1">19 类规则校验</span>
@@ -368,7 +363,7 @@
                 </div>
               </div>
               <p class="demo-desc" data-i18n="demo3_desc">
-                选中任意条目按 <code>⌘P</code> 钉成跨桌面常驻的悬浮小窗（再钉一条自动原位替换）。支持 <code>⌥+滚轮</code> 调节透明度、折叠成单行、开启鼠标点击穿透直接操作底层窗口，还能内联编辑或一键提取图片贴条里的 OCR 文字。
+                按 <code>⌘P</code> 将文本、代码或截图钉成跨桌面常驻小窗，支持 <code>⌥+滚轮</code> 调透明度、单行折叠、鼠标点击穿透与内联编辑。
               </p>
               <div class="demo-tags">
                 <span class="demo-tag" data-i18n="demo3_tag1">跨桌面置顶</span>
@@ -394,7 +389,7 @@
                 </div>
               </div>
               <p class="demo-desc" data-i18n="demo4_desc">
-                按 <code>⌘↓</code> 展开 8 槽位固定类型网格与标签流，点选即刻以搜索框内嵌胶囊生效。支持 <code>⌘L</code> 快速打标，按 <code>⌫</code> 或 <code>Esc</code> 逐层优雅复位。
+                按 <code>⌘↓</code> 展开 8 槽位固定类型网格与标签流，点选即刻以搜索框胶囊生效；支持 <code>⌘L</code> 快速打标，按 <code>⌫</code> 或 <code>Esc</code> 逐层复位。
               </p>
               <div class="demo-tags">
                 <span class="demo-tag" data-i18n="demo4_tag1">8 槽位固定网格</span>
@@ -416,12 +411,34 @@
                 <h3 class="demo-title" data-i18n="demo5_title">离线图片 OCR 识别与搜索</h3>
               </div>
               <p class="demo-desc" data-i18n="demo5_desc">
-                遇到报错截图点一下「识别文字」，系统自带 Vision 离线引擎毫秒级提取文本并自动写入 SQLite FTS5 全文索引；之后直接在搜索框敲词即可命中截图。
+                截图点一下「识别文字」，系统原生 Vision 离线毫秒提取文字并写入全文索引，之后直接在搜索框敲词即可搜出对应截图。
               </p>
               <div class="demo-tags">
                 <span class="demo-tag demo-tag-green" data-i18n="demo5_tag1">原生 Vision 离线</span>
                 <span class="demo-tag" data-i18n="demo5_tag2">全文搜图内文字</span>
                 <span class="demo-tag" data-i18n="demo5_tag3">一键复制提取词</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Demo 6: 手机互传 -->
+          <article class="demo-card">
+            <div class="demo-video-wrap" role="button" tabindex="0" aria-label="放大观看演示：手机互传" data-demo-idx="5">
+              <video class="demo-video" src="assets/features/phone-drop.mp4" poster="assets/features/poster-phone-drop.jpg" autoplay loop muted playsinline preload="metadata"></video>
+              <div class="demo-zoom-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg><span data-i18n="demo_zoom_hint">点击放大</span></div>
+            </div>
+            <div class="demo-meta">
+              <div class="demo-head">
+                <span class="demo-num">06</span>
+                <h3 class="demo-title" data-i18n="demo6_title">手机互传（局域网扫码）</h3>
+              </div>
+              <p class="demo-desc" data-i18n="demo6_desc">
+                选中记录，在预览顶栏「⋯ 更多」里选「手机互传」，手机相机扫码即可在浏览器免安装复制电脑长文、下载原图，或把手机文字与相册图片一键传回 Mac 剪贴板。
+              </p>
+              <div class="demo-tags">
+                <span class="demo-tag demo-tag-green" data-i18n="demo6_tag1">仅局域网直传</span>
+                <span class="demo-tag" data-i18n="demo6_tag2">免装 App 双向收发</span>
+                <span class="demo-tag" data-i18n="demo6_tag3">关闭即释放端口</span>
               </div>
             </div>
           </article>
@@ -439,7 +456,7 @@
 
         <div class="features-bento">
           <!-- 卡片 1: 极致轻量与零等待 -->
-          <article class="bento-card bento-wide">
+          <article class="bento-card">
             <div class="card-icon-wrapper text-blue">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
@@ -447,69 +464,12 @@
             </div>
             <h3 class="card-title" data-i18n="card1_title">极致轻量与零等待</h3>
             <p class="card-desc" data-i18n="card1_desc">
-              底层采用 Rust 高性能存储引擎（SQLite WAL 模式与 FTS5 全文索引），前端使用 SwiftUI 原生构建。没有庞大的 Chromium 内核，常驻内存仅约 20 MB，按下快捷键无缝瞬间呼出。
+              底层采用 Rust 存储引擎（SQLite WAL + FTS5 全文索引）与 SwiftUI 原生界面。无 Chromium 内核，常驻内存仅 ~20 MB，按下 <code>⌘⇧V</code> 零延迟呼出，失焦或按 <code>Esc</code> 自动隐退。
             </p>
-            <ul class="feature-checklist">
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card1_check1">原生 macOS 悬浮交互，失去焦点或 Esc 自动隐退</span>
-              </li>
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card1_check2">无感知后台静默监听，永不打断当前应用敲击</span>
-              </li>
-            </ul>
           </article>
 
-          <!-- 卡片 2: 隐私底线与敏感信息防护 -->
-          <article class="bento-card bento-wide">
-            <div class="card-icon-wrapper text-amber">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-            </div>
-            <h3 class="card-title" data-i18n="card2_title">敏感凭证加密与语义脱敏</h3>
-            <p class="card-desc" data-i18n="card2_desc">
-              自动识别 API Key、Token、私钥、邮箱、银行卡等 19 类敏感信息。存盘采用 AES-256-GCM 加密与防窥掩码；按 <code>⌃⏎</code> 可将敏感词替换为 <code>&lt;API_KEY_1&gt;</code> 占位符安全发给 AI，按 <code>⌃⇧⏎</code> 一键还原真实值。
-            </p>
-            <ul class="feature-checklist">
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card2_check1">敏感条目不进全文索引、不同步上云；脱敏映射表仅驻留内存，闲置自动销毁</span>
-              </li>
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card2_check2">粘贴前温和提醒敏感项数量；支持 1Password 等密码管理器黑名单静默暂停</span>
-              </li>
-            </ul>
-          </article>
-
-          <!-- 卡片 9: 粘完即焚 -->
-          <article class="bento-card bento-wide">
-            <div class="card-icon-wrapper text-rose">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
-              </svg>
-            </div>
-            <h3 class="card-title" data-i18n="card9_title">粘完即焚</h3>
-            <p class="card-desc" data-i18n="card9_desc">
-              复制验证码短信时，剪贴板自动提纯为纯数字（如 <code class="code-tag">482910</code>），<code>⌘V</code> 直接粘出验证码；验证码、密码、API 密钥等敏感内容粘贴一次后约 0.3 秒自动清空剪贴板，未粘贴则按 10/30/60 秒倒计时擦除。
-            </p>
-            <ul class="feature-checklist">
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card9_check1">驻留剪贴板时显示火焰徽章与倒计时，可选开启「验证码粘完 5 秒从历史彻底销毁」</span>
-              </li>
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card9_check2">已复制新内容时不会误擦；无辅助功能权限时自动退化为倒计时擦除，不弹窗打扰</span>
-              </li>
-            </ul>
-          </article>
-
-          <!-- 卡片 7: 终端安全粘贴护栏 -->
-          <article class="bento-card bento-wide">
+          <!-- 卡片 2: 终端安全粘贴护栏 -->
+          <article class="bento-card">
             <div class="card-icon-wrapper text-rose">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="4 17 10 11 4 5"></polyline>
@@ -518,22 +478,12 @@
             </div>
             <h3 class="card-title" data-i18n="card7_title">终端安全粘贴护栏</h3>
             <p class="card-desc" data-i18n="card7_desc">
-              识别到目标窗口是 Terminal、iTerm2、Warp、Ghostty 等 40+ 款终端或 VS Code、Cursor 等内置终端时，多行命令与 <code class="code-tag">sudo</code>、<code class="code-tag">rm -rf</code>、<code class="code-tag">curl | sh</code> 等高危指令会先弹窗确认；单行普通命令自动去掉末尾回车，不会一贴就执行。
+              识别 Terminal、iTerm2、Warp、Ghostty 及 VS Code / Cursor 内置终端等 40+ 款终端，多行命令与 <code class="code-tag">sudo</code>、<code class="code-tag">rm -rf</code> 等高危指令先弹窗确认，单行命令自动去除末尾回车防误执行。
             </p>
-            <ul class="feature-checklist">
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card7_check1">可选「安全粘贴（串成单行等你按 Return）/ 原样粘贴 / 取消」，绝不强行改写命令语义</span>
-              </li>
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card7_check2">单条粘贴、批量合并、脱敏粘贴与顺序粘贴栈里的每一条都走同一套护栏</span>
-              </li>
-            </ul>
           </article>
 
-          <!-- 卡片 8: 两条记录行内对比 -->
-          <article class="bento-card bento-wide">
+          <!-- 卡片 3: 两条记录行内对比 -->
+          <article class="bento-card">
             <div class="card-icon-wrapper text-indigo">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="12" y1="3" x2="12" y2="21"></line>
@@ -543,240 +493,50 @@
             </div>
             <h3 class="card-title" data-i18n="card8_title">两条记录行内对比</h3>
             <p class="card-desc" data-i18n="card8_desc">
-              按 <code>⌘D</code> 或点多选底栏、预览顶栏、右键菜单的「对比」，右侧预览区即刻呈现行级与字词级红绿差异视图——如金额 <code class="code-tag">10000</code> 改 <code class="code-tag">12000</code> 只标数字，无需再打开对比软件来回粘贴。
+              选中两条按 <code>⌘D</code> 即刻呈现行级与字词级红绿差异（支持行内 / 左右 / 只看差异三种视图），对比中可按 <code>↑↓</code> 实时换条、逐块挑选保留哪一版并直接合并粘贴。
             </p>
-            <ul class="feature-checklist">
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card8_check1">对比中按 ↑↓ 可实时切换记录；逐块选保留新 / 旧 / 都留，⌘C 复制或 ⏎ 直接贴出合并版</span>
-              </li>
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card8_check2">支持行内 / 左右 / 只看差异三种视图，⌥↑⌥↓ 逐处跳转，图片自动比对 OCR 文字</span>
-              </li>
-            </ul>
           </article>
 
-          <!-- 卡片 3: 打字直搜与离线 OCR -->
-          <article class="bento-card bento-wide">
+          <!-- 卡片 4: 验证码提纯与粘完即焚 -->
+          <article class="bento-card">
+            <div class="card-icon-wrapper text-amber">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+              </svg>
+            </div>
+            <h3 class="card-title" data-i18n="card9_title">验证码提纯与粘完即焚</h3>
+            <p class="card-desc" data-i18n="card9_desc">
+              复制验证码短信自动提纯为纯数字（如 <code class="code-tag">482910</code>），<code>⌘V</code> 直接贴出验证码；密码、API 密钥等敏感内容粘贴一次后约 0.3 秒自动清空剪贴板，未粘贴则按倒计时自动擦除。
+            </p>
+          </article>
+
+          <!-- 卡片 5: 代码高亮、JSON 与色值预览 -->
+          <article class="bento-card">
+            <div class="card-icon-wrapper text-pink">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+            </div>
+            <h3 class="card-title" data-i18n="card4_title">代码、JSON 与色值富预览</h3>
+            <p class="card-desc" data-i18n="card4_desc">
+              代码自动语法高亮，JSON 卡片一键切换「原文 / 美化 / 压缩」；识别颜色值（如 <code class="code-tag">#1677FF</code>）直观展示色标并转换 HEX / RGB，已删文件路径在粘贴前主动提醒。
+            </p>
+          </article>
+
+          <!-- 卡片 6: 打字即搜与拼音启动应用 -->
+          <article class="bento-card">
             <div class="card-icon-wrapper text-green">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="8"></circle>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
             </div>
-            <h3 class="card-title" data-i18n="card3_title">打字即搜与离线 OCR</h3>
-            <p class="card-desc" data-i18n="card3_desc">
-              呼出面板后无需专门点击搜索框，直接敲击键盘即可实时检索。在图片卡片上点一下「识别文字」，系统原生 Vision 离线提取文字并写入全文索引，之后敲词就能直接搜出截图。
-            </p>
-            <ul class="feature-checklist">
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card3_check1">按需离线识别截图文字，平时零后台内存开销，识别后永久可搜、一键复制</span>
-              </li>
-              <li>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span data-i18n="card3_check2">连续填表智能拆解：复制表格或收件信息时，一键按字段拆入顺序粘贴栈逐格填入</span>
-              </li>
-            </ul>
-          </article>
-
-          <!-- 卡片 4: 开发者专属富预览 -->
-          <article class="bento-card">
-            <div class="card-icon-wrapper text-indigo">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="16 18 22 12 16 6"></polyline>
-                <polyline points="8 6 2 12 8 18"></polyline>
-              </svg>
-            </div>
-            <h3 class="card-title" data-i18n="card4_title">代码与 JSON 专属卡片</h3>
-            <p class="card-desc" data-i18n="card4_desc">
-              复制的代码自动高亮着色；识别到 JSON 数据直接给出专属卡片，在「原文 / 美化 / 压缩」之间一键切换，复制精美缩进或压成一行都不用再专门打开在线格式化工具。
-            </p>
-          </article>
-
-          <!-- 卡片 5: 色值、二维码与失效保护 -->
-          <article class="bento-card">
-            <div class="card-icon-wrapper text-pink">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"></circle>
-                <circle cx="12" cy="12" r="4"></circle>
-                <line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line>
-                <line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line>
-                <line x1="14.83" y1="9.17" x2="19.07" y2="4.93"></line>
-                <line x1="4.93" y1="19.07" x2="9.17" y2="14.83"></line>
-              </svg>
-            </div>
-            <h3 class="card-title" data-i18n="card5_title">设计师实用辅助</h3>
-            <p class="card-desc" data-i18n="card5_desc">
-              识别到十六进制颜色值（如 <code class="code-tag">#1677FF</code>）在列表中直观呈现色标，一键复制 HEX / RGB；识别链接自动生成二维码，手机随扫随开。复制的文件若已被删除，粘贴前明确警示。
-            </p>
-          </article>
-
-          <!-- 卡片 6: 应用检索与拼音快速启动 -->
-          <article class="bento-card">
-            <div class="card-icon-wrapper text-cyan">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
-            </div>
-            <h3 class="card-title" data-i18n="card6_title">拼音快速启动应用</h3>
+            <h3 class="card-title" data-i18n="card6_title">打字即搜与拼音启动应用</h3>
             <p class="card-desc" data-i18n="card6_desc">
-              不仅能找历史，还能直接当作轻量启动器。在搜索栏键入拼音首字母（如输入 <code class="code-tag">wx</code> 找微信、<code class="code-tag">zd</code> 找终端），回车直接打开应用，无需额外切换工具。
+              呼出面板直接敲字即可毫秒级全文检索，复制表格或收件信息还能一键按字段拆入顺序粘贴栈；输入拼音首字母（如 <code class="code-tag">wx</code> 找微信、<code class="code-tag">zd</code> 找终端）回车直接打开应用。
             </p>
           </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- 全键盘极速流 Keyboard Flow Section -->
-    <section class="shortcuts-section" id="shortcuts">
-      <div class="container">
-        <div class="section-header">
-          <div class="section-kicker" data-i18n="shortcuts_kicker">KEYBOARD FIRST</div>
-          <h2 class="section-title" data-i18n="shortcuts_title">双手不离键盘，流畅贯穿全流程</h2>
-          <p class="section-desc" data-i18n="shortcuts_desc">每一个高频动作都有对应的直觉快捷键。熟练后无需碰触鼠标即可完成复制挑选。</p>
-        </div>
-
-        <div class="shortcuts-grid">
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">⇧</kbd>
-              <kbd class="key-cap">V</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc1_action">全局呼出 / 隐藏</div>
-              <div class="shortcut-desc" data-i18n="sc1_desc">从任意应用快速唤起 NookClip 悬浮面板，随选随粘</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">↑</kbd>
-              <kbd class="key-cap">↓</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc2_action">选择历史记录</div>
-              <div class="shortcut-desc" data-i18n="sc2_desc">长按顺畅平移，触底自动懒加载扩页，即刻在右侧预览</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⏎</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc3_action">一键粘贴 / 启动应用</div>
-              <div class="shortcut-desc" data-i18n="sc3_desc">粘贴选中项到当前前台应用，面板自动收起，焦点无缝归位</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌥</kbd>
-              <kbd class="key-cap">⏎</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc4_action">纯文本粘贴 / 顺序粘贴栈</div>
-              <div class="shortcut-desc" data-i18n="sc4_desc">单选时剔除富文本格式贴纯字；多选态下按复制先后顺序启动底部队列浮窗逐条粘贴</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌃</kbd>
-              <kbd class="key-cap">⏎</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc5_action">语义脱敏粘贴</div>
-              <div class="shortcut-desc" data-i18n="sc5_desc">把 19 类敏感信息换成 &lt;API_KEY_1&gt; 等占位符再粘贴；按 ⌃⇧⏎ 可将占位符还原为真实值</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">P</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc6_action">钉成屏幕置顶贴条</div>
-              <div class="shortcut-desc" data-i18n="sc6_desc">将选中项钉为悬浮小窗，支持调透明度、折叠、点击穿透、内联编辑与 OCR 提取</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌃</kbd>
-              <kbd class="key-cap">⌥</kbd>
-              <kbd class="key-cap">V</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc7_action">跨应用录制粘贴队列</div>
-              <div class="shortcut-desc" data-i18n="sc7_desc">在任意应用里边复制边攒进顺序粘贴栈，小卡片沿弧线飞入队列，连续按 ⌘V 依次贴出</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">⏎</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc8_action">连续粘贴（保持打开）</div>
-              <div class="shortcut-desc" data-i18n="sc8_desc">粘贴后浮层不收起，专为表单连续填报与多源信息比对录入优化</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⇧</kbd>
-              <kbd class="key-cap">↑</kbd>
-              <span class="key-sep">/</span>
-              <kbd class="key-cap">↓</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc9_action">多选与鼠标拖选</div>
-              <div class="shortcut-desc" data-i18n="sc9_desc">按住 Shift 或鼠标上下拖动整段勾选，回车合并粘贴，⌥⏎ 顺序粘贴，⌘⌫ 批量删除（⌘Z 撤销）</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">↓</kbd>
-              <span class="key-sep">/</span>
-              <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">L</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc10_action">类型与标签筛选</div>
-              <div class="shortcut-desc" data-i18n="sc10_desc">⌘↓ 展开 8 槽位类型网格与标签流，⌘[ / ⌘] 循环切类型，⌘L 快速为条目打标签</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">⌘</kbd>
-              <kbd class="key-cap">D</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc11_action">两条记录行内对比</div>
-              <div class="shortcut-desc" data-i18n="sc11_desc">选中两条（或单选一条与最新记录）即刻字词级对比，对比中按 ↑↓ 可实时切换记录，回车直接贴出合并版</div>
-            </div>
-          </div>
-
-          <div class="shortcut-item">
-            <div class="shortcut-keys">
-              <kbd class="key-cap">Esc</kbd>
-            </div>
-            <div class="shortcut-info">
-              <div class="shortcut-action" data-i18n="sc12_action">分层智能返回</div>
-              <div class="shortcut-desc" data-i18n="sc12_desc">依次关闭浮层 → 收起筛选 → 退出对比 → 退出多选 → 清空搜索与筛选 → 收起面板，不怕误触丢失状态</div>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -1023,11 +783,10 @@
           <ul>
             <li><a href="docs/" data-i18n="nav_docs">使用文档</a></li>
             <li><a href="#demos" data-i18n="nav_demos">动态演示</a></li>
-            <li><a href="#features" data-i18n="nav_features">功能介绍</a></li>
-            <li><a href="#shortcuts" data-i18n="nav_shortcuts">快捷键指南</a></li>
-            <li><a href="playground.html" data-i18n="nav_playground">在线交互测试台</a></li>
+            <li><a href="#features" data-i18n="nav_features">核心能力</a></li>
+            <li><a href="docs/#/reference/shortcuts" data-i18n="nav_shortcuts">快捷键指南</a></li>
             <li><a href="#comparison" data-i18n="nav_comparison">方案对比</a></li>
-            <li><a href="#privacy" data-i18n="nav_privacy">隐私安全白皮书</a></li>
+            <li><a href="#privacy" data-i18n="nav_privacy">隐私安全</a></li>
           </ul>
         </div>
 
@@ -1111,7 +870,7 @@
           <button type="button" class="demo-lightbox-btn" id="demoLightboxPrevBtn" aria-label="上一个演示" title="上一个 (←)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
-          <span class="demo-lightbox-counter" id="demoLightboxCounter">1 / 5</span>
+          <span class="demo-lightbox-counter" id="demoLightboxCounter">1 / 6</span>
           <button type="button" class="demo-lightbox-btn" id="demoLightboxNextBtn" aria-label="下一个演示" title="下一个 (→)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </button>
@@ -1133,7 +892,7 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20261028_1"></script>
-  <script src="main.js?v=20261028_1"></script>
+  <script src="i18n.js?v=20261028_2"></script>
+  <script src="main.js?v=20261028_2"></script>
 </body>
 </html>

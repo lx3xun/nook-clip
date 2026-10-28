@@ -47,6 +47,8 @@
   *Inline diff of two entries (⌘D): compares any two entries with line- and word-level red/green highlights via `⌘D`, toolbar buttons, or the context menu; supports live row switching with `↑`/`↓`, inline/split/changes-only views, and per-block merge copy (`⌘C`) or paste (`⏎`).*
 - **鼠标拖动多选**：在列表按住鼠标上下拖动即可整段勾选（拖过边缘自动滚动，按住 `⇧` 追加选区），松手后可直接回车合并粘贴、`⌥⏎` 顺序粘贴或 `⌘⌫` 批量删除。
   *Drag to multi-select: press and drag across the list to select a range with edge auto-scrolling and `⇧`-drag additive selection.*
+- **局域网扫码免安装双向互传**：选中任意记录点击「手机互传」，手机用系统相机扫码即可在浏览器里免安装查看并复制电脑上的长文、下载原图/文件，也能直接把手机文字或相册图片传回电脑剪贴板并入库；移动端网页按手机语言自动切换简/繁/英，仅在同一局域网内传输、5 分钟自动失效、关闭弹窗立即释放端口，数据不经过任何云服务器。
+  *Scan-and-drop over LAN: select any item and tap "Send to Phone"; scan the QR code with your phone camera to view and copy long text or download images/files from your Mac, and push text or photos back to the Mac clipboard — no app install required. The mobile page adapts to the phone's language automatically, transfers stay on your local network, expire after 5 minutes, close the port the moment you dismiss the panel, and never touch any cloud server.*
 
 ### 🎨 细节打磨 (Polish)
 
@@ -54,6 +56,13 @@
   *Stable batch toolbar layout: uses fixed-width text actions alongside the primary Merge & Paste button so controls never shift under the pointer.*
 - **粘贴队列视觉区分**：顺序粘贴浮窗改用行首 `▶` 播放头标记下一条待粘贴项，与鼠标悬停底色解耦，进度与正倒序徽标固定宽度不再被长文本挤压。
   *Clearer Paste Stack playhead: marks the next item with a leading `▶` indicator distinct from hover states and locks badge widths against long text truncation.*
+- **预览工具栏精简，低频操作收进「更多」菜单**：预览区顶栏右侧常驻「钉在屏幕（`⌘P`）」、「收藏（`⌘S`）」与「⋯ 更多」三个按钮，「脱敏粘贴（`⌃⏎`）」仅在当前记录检测到敏感信息时按需展示；对比两条记录、手机互传、二维码、在访达中显示、编辑标签与删除记录统一收进「⋯ 更多」菜单（带文字说明与快捷键提示），最窄窗口宽度下也不会被挤压或误触删除。
+  *Slimmer preview toolbar: the right side keeps Pin to Screen (`⌘P`), Star (`⌘S`), and a labeled ⋯ More menu, with Scrub & Paste (`⌃⏎`) shown on the toolbar only when sensitive content is detected, while Diff, Send to Phone, QR code, Reveal in Finder, Edit Tags, and Delete live inside ⋯ More—preventing icon pile-up, crowded tag chips, and accidental deletes even at the narrowest window width.*
+### 🐛 问题修复 (Fixed)
+
+- **脱敏引擎误伤包管理器命令修复**：修复 `npx pkg@latest`、`npm i react@18.2.0`、`pnpm add lodash@4.17.21` 等包管理与版本语法被「用户名@主机」规则误识别为敏感信息触发脱敏的问题；新增语义版本、dist-tag 与包管理器命令行上下文校验，确保真实的 `user@ip`、`user@domain` 或 SSH/SCP 主机名仍受保护。
+  *Fix package specifiers misidentified by scrub engine: resolves an issue where package manager syntax like `npx pkg@latest`, `npm i react@18.2.0`, and `pnpm add lodash@4.17.21` was falsely flagged as sensitive by the user@host rule; adds SemVer, dist-tag, and package manager command context checks while keeping genuine `user@ip`, `user@domain`, and SSH/SCP hostnames protected.*
+
 ---
 
 ## [0.4.0] - 2026-10-24

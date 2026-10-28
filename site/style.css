@@ -824,68 +824,6 @@ body.mobile-nav-locked {
   margin-bottom: 18px;
   flex-wrap: wrap;
 }
-
-.mockup-view-mode-tabs {
-  display: flex;
-  align-items: center;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: 2px;
-  gap: 2px;
-}
-
-.view-mode-tab {
-  font-size: 0.75rem;
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  font-weight: 500;
-  transition: all 0.15s ease;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.view-mode-tab:hover {
-  color: var(--text-primary);
-}
-
-.view-mode-tab.is-active {
-  background-color: var(--color-accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-}
-
-.fullscreen-playground-link {
-  font-size: 0.75rem;
-  padding: 5px 12px;
-  border-radius: var(--radius-pill);
-  color: var(--text-secondary);
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  text-decoration: none;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
-}
-
-.fullscreen-playground-link:hover {
-  color: var(--text-primary);
-  border-color: var(--border-card);
-}
-
-.mockup-interactive-container {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
 .mockup-theme-switcher {
   display: flex;
   align-items: center;
@@ -1027,7 +965,7 @@ body.mobile-nav-locked {
 
 /* 9.5 核心功能动态演示 (Feature Demos) */
 .demos-section {
-  padding: 88px 0 36px 0;
+  padding: 64px 0 24px 0;
 }
 
 .demos-grid {
@@ -1220,7 +1158,7 @@ body.mobile-nav-locked {
 
 /* 10. 核心功能 Bento 卡片 (Features Bento) */
 .features-section {
-  padding: 88px 0;
+  padding: 64px 0;
 }
 
 .features-bento {
@@ -1252,25 +1190,22 @@ body.mobile-nav-locked {
   flex-direction: column;
 }
 
-@media (min-width: 860px) {
+@media (min-width: 760px) {
   .features-bento {
     grid-template-columns: repeat(2, 1fr);
-    gap: 24px;
+    gap: 20px;
   }
   .bento-card {
-    padding: 32px;
-  }
-  .bento-card:first-child {
-    grid-column: span 2;
+    padding: 26px;
   }
 }
 
 @media (min-width: 1080px) {
   .features-bento {
     grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
   }
   .bento-card,
-  .bento-card:first-child,
   .bento-wide {
     grid-column: span 1;
     display: flex;
@@ -1309,7 +1244,7 @@ body.mobile-nav-locked {
   font-size: 0.9375rem;
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .code-tag {
@@ -1415,7 +1350,7 @@ body.mobile-nav-locked {
 
 /* 12. 工具横向对比表 (Comparison Table) */
 .comparison-section {
-  padding: 88px 0;
+  padding: 64px 0;
 }
 
 .table-scroll-hint {
@@ -1481,7 +1416,7 @@ body.mobile-nav-locked {
 
 /* 13. 隐私安全白皮书 (Privacy Grid) */
 .privacy-section {
-  padding: 88px 0;
+  padding: 64px 0;
   background-color: var(--bg-surface);
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
@@ -1490,14 +1425,21 @@ body.mobile-nav-locked {
 .privacy-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  gap: 20px;
+}
+
+@media (min-width: 1080px) {
+  .privacy-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+  }
 }
 
 .privacy-card {
   background-color: var(--bg-surface-secondary);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-xl);
-  padding: 32px;
+  padding: 24px 22px;
   position: relative;
 }
 
@@ -1537,7 +1479,7 @@ body.mobile-nav-locked {
 
 /* 14. 下载安装与排错引导 (Download Box) */
 .download-section {
-  padding: 88px 0 100px 0;
+  padding: 64px 0 80px 0;
 }
 
 .download-box {

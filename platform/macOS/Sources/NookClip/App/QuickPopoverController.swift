@@ -182,6 +182,7 @@ final class QuickPopoverController: NSObject {
     func close(restoreFocus: Bool = true) {
         stopMonitoringOutsideClicks()
         panel?.orderOut(nil)
+        NotificationCenter.default.post(name: .quickPopoverDidClose, object: nil)
         scheduleIdleMemoryReclaim()
         guard restoreFocus else { return }
         // 前台（Esc/外部点击/快捷键收起），把焦点还给呼出前的目标应用——

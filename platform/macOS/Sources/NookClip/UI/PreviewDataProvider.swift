@@ -39,6 +39,12 @@ struct PreviewDataProvider {
         fileStore.thumbnail(for: path, maxPixelSize: maxPixelSize)
     }
 
+    /// 读取条目原始字节（手机快传下发图片/文件用；路径失效返回 nil）。
+    func payloadData(atPath path: String) -> Data? {
+        guard !path.isEmpty else { return nil }
+        return fileStore.load(path: path)
+    }
+
     // MARK: - 剪贴板出口（MainActor：ClipboardWriter 协议随实现隔离，003 警告清理）
 
     /// 敏感明文查看到期后的自毁入口：仅当系统剪贴板仍为该明文时清空

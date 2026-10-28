@@ -52,6 +52,12 @@ struct PreviewPane: View {
     var onDiff: (() -> Void)? = nil
     /// 当前列表状态是否满足对比前置条件（至少 2 条、未选超过 2 条）
     var canDiff: Bool = false
+    /// 手机快传（spec 014 · US1）：手机回传内容 → 宿主写剪贴板 + 入库
+    var onReceiveFromPhone: ((LanIncomingDrop) -> Void)? = nil
+    /// 手机快传浮层展开态（由 MainView 持有，便于接入 Esc 分层返回链）
+    var isPhoneDropPresented: Binding<Bool> = .constant(false)
+    /// 点击「手机快传」时一次性快照的分享载荷（避免每次 body 求值重复读盘）
+    @State private var phoneDropPayload: LanSharedPayload?
 
     // MARK: US3 脱敏状态（data-model §3.2：明文态持续 ≤30s，离开明文态必清剪贴板）
 
@@ -88,6 +94,120 @@ struct PreviewPane: View {
     private func entity(_ item: ClipboardRowModel) -> ClipboardItem? {
         guard loadedEntityID == item.id else { return nil }
         return loadedEntity
+    }
+
+    // MARK: - 手机快传：把当前条目快照为局域网分享载荷（spec 014 · US1）
+
+    /// 构建分享给手机的载荷快照。文本/链接走内存字符串；图片/文件读取原始字节。
+    /// 读取失败（路径失效）时返回 nil，面板不显示（避免出现「无内容可分享」的二维码）。
+    private func lanPayload(for item: ClipboardRowModel) -> LanSharedPayload? {
+        let entityItem = entity(item) ?? entityProvider?(item)
+        let resolvedPlain: String?
+        if item.kind == .sensitive || (item.isSensitive && item.kind != .file && item.kind != .image) {
+            if let revealed = revealedPlainText, !revealed.isEmpty {
+                resolvedPlain = revealed
+            } else {
+                switch Self.resolveSensitivePlainText(
+                    for: item,
+                    cachedEntity: entityItem,
+                    entityProvider: entityProvider
+                ) {
+                case .success(let plain) where !plain.isEmpty:
+                    resolvedPlain = plain
+                case .success:
+                    return nil
+                case .failure(let failure):
+                    revealFailure = failure
+                    return nil
+                }
+            }
+        } else {
+            resolvedPlain = nil
+        }
+        return Self.makeLanPayload(
+            for: item,
+            entityItem: entityItem,
+            revealedPlainText: resolvedPlain,
+            previewData: previewData
+        )
+    }
+
+    /// 纯函数组装分享载荷（可单测）：
+    /// - 敏感条目必须使用解密后的真实明文，绝不把 `••••••••` 掩码圆点发给手机；
+    /// - 文本条目优先取 `entityItem?.summary` 全文，避免异步加载完成前发截断预览；
+    /// - 图片/文件条目读取原始字节，路径失效时返回 `nil`。
+    static func makeLanPayload(
+        for item: ClipboardRowModel,
+        entityItem: ClipboardItem?,
+        revealedPlainText: String? = nil,
+        previewData: PreviewDataProvider
+    ) -> LanSharedPayload? {
+        let displayTitle = item.title.isEmpty ? item.fallbackTitle : item.title
+        switch item.kind {
+        case .sensitive:
+            guard let plain = revealedPlainText, !plain.isEmpty else { return nil }
+            return LanSharedPayload(
+                itemId: item.id.uuidString,
+                title: displayTitle,
+                kind: .text,
+                text: plain,
+                mimeType: "text/plain; charset=utf-8",
+                fileName: ""
+            )
+        case .text, .url, .code, .json, .color:
+            let text: String
+            if item.isSensitive {
+                guard let plain = revealedPlainText, !plain.isEmpty else { return nil }
+                text = plain
+            } else {
+                text = entityItem?.summary ?? item.summary
+            }
+            guard !text.isEmpty else { return nil }
+            return LanSharedPayload(
+                itemId: item.id.uuidString,
+                title: displayTitle,
+                kind: .text,
+                text: text,
+                mimeType: "text/plain; charset=utf-8",
+                fileName: ""
+            )
+        case .image, .file:
+            let firstPath: String
+            if item.kind == .file, let entityItem, entityItem.isSensitive {
+                firstPath = PasteService.referencedFilePaths(entityItem).first ?? ""
+            } else {
+                let path = entityItem?.payloadPath ?? item.payloadPath ?? ""
+                firstPath = path.components(separatedBy: "\n").first { !$0.isEmpty } ?? ""
+            }
+            guard !firstPath.isEmpty, let data = previewData.payloadData(atPath: firstPath) else { return nil }
+            let fileName = (firstPath as NSString).lastPathComponent
+            let ext = (firstPath as NSString).pathExtension
+            let isImage = item.kind == .image
+            return LanSharedPayload(
+                itemId: item.id.uuidString,
+                title: displayTitle,
+                kind: isImage ? .image : .file,
+                binary: data,
+                mimeType: Self.lanMimeType(forExtension: ext, isImage: isImage),
+                fileName: fileName
+            )
+        }
+    }
+
+    /// 依据扩展名推断 MIME（覆盖常见图片/文档，其余回退八位组流）。
+    static func lanMimeType(forExtension ext: String, isImage: Bool) -> String {
+        switch ext.lowercased() {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "heic": return "image/heic"
+        case "webp": return "image/webp"
+        case "tiff", "tif": return "image/tiff"
+        case "pdf": return "application/pdf"
+        case "txt", "md", "log": return "text/plain; charset=utf-8"
+        case "json": return "application/json"
+        default: return isImage ? "image/png" : "application/octet-stream"
+        }
     }
 
     /// 切换条目时按需加载完整实体（截断摘要场景必须查库取全文）。
@@ -149,6 +269,13 @@ struct PreviewPane: View {
         return scrubHint?.hasHits == true
     }
 
+    /// 当前条目是否包含可脱敏的敏感内容（加密敏感条目，或预检命中了敏感规则）。
+    /// 仅在存在敏感信息时才在顶栏展示「脱敏粘贴 (⌃⏎)」按钮，普通无敏感信息的记录不展示。
+    private var hasScrubbableContent: Bool {
+        guard canScrubPaste, let item else { return false }
+        if item.isSensitive { return true }
+        return scrubHint?.hasHits == true
+    }
     /// 当前预览条目是否可发起对比（文本类条目直接可比；图片/文件须已有 OCR 文本）
     private var canDiffCurrentItem: Bool {
         guard canDiff, let item else { return false }
@@ -166,7 +293,8 @@ struct PreviewPane: View {
     /// 延迟 120ms 足以滤掉连划，人眼又感觉不到。
     private func scheduleScrubHintScan(for item: ClipboardRowModel, entityItem: ClipboardItem?) {
         scrubHintTask?.cancel()
-        guard pasteHintEnabled, canScrubPaste else {
+        // 即使关闭了「粘贴前提醒」横幅，也要对普通文本跑预检，以便顶栏「脱敏粘贴」按钮按需显示
+        guard canScrubPaste, !item.isSensitive else {
             scrubHint = nil
             return
         }
@@ -187,7 +315,8 @@ struct PreviewPane: View {
 
     var body: some View {
         if let item {
-            VStack(spacing: 0) {
+            ZStack {
+                VStack(spacing: 0) {
                 PreviewToolbar(
                     isFavorite: item.isFavorite,
                     item: item,
@@ -204,9 +333,19 @@ struct PreviewPane: View {
                     onDeleteTag: onDeleteTag,
                     onScrubPaste: onScrubPaste,
                     onPinToScreen: onPinToScreen,
-                    canScrubPaste: canScrubPaste,
+                    canScrubPaste: hasScrubbableContent,
                     onDiff: onDiff,
-                    canDiff: canDiffCurrentItem
+                    canDiff: canDiffCurrentItem,
+                    onPhoneDrop: {
+                        if isPhoneDropPresented.wrappedValue {
+                            isPhoneDropPresented.wrappedValue = false
+                            phoneDropPayload = nil
+                        } else if let payload = lanPayload(for: item) {
+                            phoneDropPayload = payload
+                            isPhoneDropPresented.wrappedValue = true
+                        }
+                    },
+                    isPhoneDropActive: isPhoneDropPresented.wrappedValue
                 )
                 // 顶栏必须绘制在其下方内容之上：工具栏按钮的即时微气泡会向下偏移
                 // 探入内容区（offset y≈25），若此栏与下方 ScrollView 同层，后者作为
@@ -253,16 +392,37 @@ struct PreviewPane: View {
                     .padding(.bottom, 22)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                }
+                if isPhoneDropPresented.wrappedValue, let payload = phoneDropPayload {
+                    LanQuickDropPanel(
+                        payload: payload,
+                        onReceive: { drop in onReceiveFromPhone?(drop) },
+                        onClose: {
+                            isPhoneDropPresented.wrappedValue = false
+                            phoneDropPayload = nil
+                        }
+                    )
+                    .zIndex(10)
+                }
             }
             .onDisappear {
                 scrubHintTask?.cancel()
+                isPhoneDropPresented.wrappedValue = false
+                phoneDropPayload = nil
                 maskSensitive(clearClipboard: true, releaseEntity: true)
+            }
+            .onChange(of: isPhoneDropPresented.wrappedValue) { _, presented in
+                if !presented {
+                    phoneDropPayload = nil
+                }
             }
             .onChange(of: item.id) { _, _ in
                 // 切换选中：取消定时器并离开明文态（清剪贴板），收起二维码
                 maskSensitive(clearClipboard: true, releaseEntity: true)
                 revealFailure = nil
                 showQRCode = false
+                isPhoneDropPresented.wrappedValue = false
+                phoneDropPayload = nil
                 urlCopied = false
                 asyncTotalSize = nil
                 asyncHasMissingPath = false

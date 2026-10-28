@@ -10,7 +10,7 @@ import SwiftUI
 struct SearchHighlightAttribute: TextAttribute {}
 
 /// 搜索关键词圆角黄底渲染器（macOS 15+）
-/// 视觉对齐 site/prototype.css 中 mark.nook-highlight（#FFE633 黄底，2px 圆角，带内边距与外边距）。
+/// 视觉对齐 mark.nook-highlight（#FFE633 黄底，2px 圆角，带内边距与外边距）。
 /// 采用双阶段（Two-Pass）渲染：
 /// 1. 为高亮词计算左右内边距（padding）与外边距（margin），同步后移后续文本片段，彻底消除字形遮挡；
 /// 2. 底层绘制圆角黄色背景块，上层绘制文字 runs。

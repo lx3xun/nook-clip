@@ -62,7 +62,10 @@ final class TagVisualSnapshotTests: XCTestCase {
                 onEditTags: {},
                 tags: ["api", "deploy", "swift", "customer-reply"],
                 onSelectTag: { _ in }, onRemoveTag: { _ in },
-                onRenameTag: { _ in }, onDeleteTag: { _ in }
+                onRenameTag: { _ in }, onDeleteTag: { _ in },
+                onScrubPaste: {},
+                onPinToScreen: {},
+                canScrubPaste: true
             )
             Divider().opacity(0.3)
             PreviewToolbar(
@@ -70,7 +73,8 @@ final class TagVisualSnapshotTests: XCTestCase {
                 item: makeRow([], copyCount: 3),
                 contentText: "body",
                 onEditTags: {},
-                tags: []
+                tags: [],
+                onPinToScreen: {}
             )
             Divider().opacity(0.3)
             PreviewToolbar(
@@ -78,7 +82,8 @@ final class TagVisualSnapshotTests: XCTestCase {
                 item: makeRow([], copyCount: 1),
                 contentText: "body",
                 onEditTags: {},
-                tags: []
+                tags: [],
+                onPinToScreen: {}
             )
         }
         .background(NookClip.bgPreview)

@@ -68,6 +68,7 @@
 - **两条记录行内对比（`⌘ D`）**：按 `⌘ D` 或点击多选底栏、预览顶栏、右键菜单的「对比」，右侧即刻呈现行级与字词级红绿差异（支持行内 / 左右 / 只看差异三种视图）；对比中可按 `↑` / `↓` 实时切换记录、逐块挑选保留新旧版本，按 `⌘ C` 复制或 `⏎` 直接粘贴合并结果。
 - **批量操作与撤销**：支持按住 `⇧`、`⌘` 或用鼠标上下拖动整段勾选（拖到边缘自动滚动），一键合并粘贴或批量删除，删除后 10 秒内可按 `⌘ Z` 撤销。
 - **iCloud Drive 同步与备份导出**：通过个人 iCloud 云盘在多台 Mac 间同步（可选开启，无第三方服务器）；支持导出 JSON 或 Markdown 格式并排除或遮码敏感记录。
+- **手机互传（局域网扫码）**：选中任意记录，在预览区顶栏「⋯ 更多」里选「手机互传」，手机用系统相机扫码即可在浏览器里免安装查看并复制电脑长文、下载原图/文件，也能把手机文字或相册图片传回电脑剪贴板并入库；仅在同一局域网内传输、5 分钟自动失效、关闭弹窗立即释放端口，数据不经过任何云服务器。
 
 ---
 ## 🎬 核心功能动态演示
@@ -78,12 +79,12 @@
 |:---:|:---:|:---:|
 | [![顺序粘贴](site/assets/features/poster-paste-stack.jpg)](site/assets/features/paste-stack.gif) | [![语义脱敏粘贴](site/assets/features/poster-scrub-paste.jpg)](site/assets/features/scrub-paste.gif) | [![屏幕置顶贴条](site/assets/features/poster-pinned-note.jpg)](site/assets/features/pinned-note.gif) |
 
-| 类型与标签筛选（`⌘ ↓`） | 离线图片 OCR 识别与搜索 |
-|:---:|:---:|
-| [![类型与标签筛选](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![离线 OCR 搜图](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) |
+| 类型与标签筛选（`⌘ ↓`） | 离线图片 OCR 识别与搜索 | 手机互传（局域网扫码） |
+|:---:|:---:|:---:|
+| [![类型与标签筛选](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![离线 OCR 搜图](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) | [![手机互传](site/assets/features/poster-phone-drop.jpg)](site/assets/features/phone-drop.gif) |
 
-- 单功能 MP4：[顺序粘贴](site/assets/features/paste-stack.mp4) · [语义脱敏](site/assets/features/scrub-paste.mp4) · [贴条](site/assets/features/pinned-note.mp4) · [类型与标签筛选](site/assets/features/filter-tags.mp4) · [离线 OCR 搜图](site/assets/features/ocr-search.mp4)
-- 单功能 GIF：[顺序粘贴](site/assets/features/paste-stack.gif) · [语义脱敏](site/assets/features/scrub-paste.gif) · [贴条](site/assets/features/pinned-note.gif) · [类型与标签筛选](site/assets/features/filter-tags.gif) · [离线 OCR 搜图](site/assets/features/ocr-search.gif)
+- 单功能 MP4：[顺序粘贴](site/assets/features/paste-stack.mp4) · [语义脱敏](site/assets/features/scrub-paste.mp4) · [贴条](site/assets/features/pinned-note.mp4) · [类型与标签筛选](site/assets/features/filter-tags.mp4) · [离线 OCR 搜图](site/assets/features/ocr-search.mp4) · [手机互传](site/assets/features/phone-drop.mp4)
+- 单功能 GIF：[顺序粘贴](site/assets/features/paste-stack.gif) · [语义脱敏](site/assets/features/scrub-paste.gif) · [贴条](site/assets/features/pinned-note.gif) · [类型与标签筛选](site/assets/features/filter-tags.gif) · [离线 OCR 搜图](site/assets/features/ocr-search.gif) · [手机互传](site/assets/features/phone-drop.gif)
 - 粘贴三进阶三合一整片：[all-three.mp4](site/assets/features/all-three.mp4)（约 27 秒）
 - 带说明的展示页：[preview.html](site/assets/features/preview.html)（支持点击放大观看）
 
@@ -108,7 +109,7 @@
 | **`⌥ ⏎`** | 纯文本粘贴（自动剔除字体、颜色、背景等富文本格式）；多选态或选中表格/收件信息时启动顺序粘贴栈 |
 | **`⌘ ⏎`** | 粘贴且保持面板打开（适合连续填表与比对） |
 | **`⌘ C`** | 重新复制选中项到系统剪贴板（列表态复制整条，预览区支持划词复制） |
-| **`⌘ D`** | 对比两条记录 / 退出对比（也可点多选底栏、预览顶栏或右键菜单；单选第 N 条时与最新一条对比，在顶部时直接比最上面两条） |
+| **`⌘ D`** | 对比两条记录 / 退出对比（也可点多选底栏、预览顶栏「更多」或右键菜单；单选第 N 条时与最新一条对比，在顶部时直接比最上面两条） |
 | **`⌥ ↑` / `⌥ ↓`** | 对比态内跳到上一处 / 下一处改动 |
 | **`⌘ C`（对比态内）** | 复制按逐块选择拼好的合并版 |
 | **`⏎`（对比态内）** | 粘贴合并版并收起面板 |

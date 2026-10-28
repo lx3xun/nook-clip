@@ -37,6 +37,9 @@ extension MainView {
             listState.rowCache.invalidate()
             listState.refreshLocalizedOutput()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .quickPopoverDidClose)) { _ in
+            phoneDropPresented = false
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             accessibilityTrusted = PasteService.isAccessibilityTrusted
         }
@@ -149,6 +152,8 @@ extension MainView {
     }
 
     func handleEscapeKey() {
+        // 手机快传浮层优先关闭（同时触发面板 onDisappear → 立即释放监听端口）
+        if phoneDropPresented { phoneDropPresented = false; return }
         // 标签编辑器/重命名浮层优先关闭
         if tagEditorAnchor != nil { closeTagEditor(); return }
         if tagRenameTarget != nil { cancelTagRename(); return }

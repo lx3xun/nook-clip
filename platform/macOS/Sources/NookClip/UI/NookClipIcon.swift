@@ -111,6 +111,14 @@ enum NookClipIcon {
         static let diffClose = "xmark.circle.fill"
         /// 差异块跳转（⌥↑ / ⌥↓）
         static let diffJump = "arrow.down.to.line"
+        /// 手机快传（局域网扫码免安装双向快传）：手机语义
+        static let phoneDrop = "iphone"
+        /// 停止分享 / 关闭快传
+        static let stop = "stop.circle"
+        /// 关闭浮层（圆形叉）
+        static let closeCircle = "xmark.circle.fill"
+        /// 「更多」菜单（…）：把低频/类型动作收敛到一个入口
+        static let more = "ellipsis"
     }
 
     enum Badge {
@@ -193,6 +201,12 @@ enum NookClipIcon {
         static let sensitiveSync = "shield.checkered"
         static let tombstoneSync = "clock.arrow.circlepath"
         static let plaintextNotice = "lock.open"
+        /// 局域网连接（手机快传面板：当前网卡地址）
+        static let wifi = "wifi"
+        /// 无局域网连接（手机快传面板：请先连 Wi-Fi）
+        static let wifiSlash = "wifi.slash"
+        /// 处理中（手机快传面板：启动中）
+        static let loading = "hourglass"
     }
     enum TCC {
         static let trusted = "checkmark.circle.fill"

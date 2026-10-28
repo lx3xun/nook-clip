@@ -74,8 +74,24 @@ struct SourceAppModel: Equatable {
     /// 来源 App 的 bundle ID（用于解析真实应用图标）
     var bundleID: String?
 
+    /// 手机快传（局域网回传）来源的稳定标识：用于把来源图标固定渲染成「手机」符号，
+    /// 而不是未知应用的灰色兜底图标。真正落库时写入 `sourceAppBundleId`。
+    static let phoneDropBundleID = "com.lx3xun.nookclip.landrop"
+
     static func resolve(name: String?, bundleID: String? = nil) -> SourceAppModel {
         let raw = (name ?? "").trimmingCharacters(in: .whitespaces)
+        // 手机快传回传内容：来源图标统一显示为手机（不依赖本地化后的应用名）
+        if bundleID == phoneDropBundleID {
+            let displayName = raw.isEmpty ? L10n.tr("landrop.source_name") : raw
+            return SourceAppModel(
+                name: displayName,
+                color: NookClip.appColorNeutral,
+                symbol: NookClipIcon.Action.phoneDrop,
+                symbolColor: .white,
+                glyphOnLight: false,
+                bundleID: nil
+            )
+        }
         guard !raw.isEmpty else { return fallback(name: L10n.tr("source.unknown")) }
         var model = resolveKnown(raw)
         model.bundleID = bundleID?.isEmpty == false ? bundleID : nil

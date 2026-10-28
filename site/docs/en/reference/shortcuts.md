@@ -54,6 +54,8 @@ NookClip is built for a full-keyboard workflow. Almost every action can be perfo
 | **`⌘ ⌫`** | Delete Selected Entries | Press `⌘ Z` within 10s to undo; otherwise moves to Trash |
 | **`⌘ Z`** | Undo Last Delete | Restores deleted items in place within 10 seconds |
 
+> **The preview header is now cleaner**: the right side keeps Pin to Screen (`⌘ P`), Star (`⌘ S`), and the **⋯ More** menu, while Scrub & Paste (`⌃ ⏎`) appears on the toolbar only when sensitive content is detected; actions such as Compare Two Entries, Send to Phone, QR code, Reveal in Finder, Edit Tags, and Delete live inside **⋯ More** with shortcut hints. All keyboard shortcuts above work unchanged.
+
 ---
 
 ## 5. Main Panel: Search, Filter & Layered Return

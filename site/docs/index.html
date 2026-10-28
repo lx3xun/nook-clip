@@ -674,7 +674,6 @@
     </a>
     <div class="nook-docs-actions">
       <a href="../" class="nook-docs-link" id="docsBackHomeLink">← 产品主页</a>
-      <a href="../playground.html" class="nook-docs-link hide-mobile" id="docsPlaygroundLink">在线测试台</a>
 
       <!-- 多语言切换下拉菜单（简 / 繁 / EN） -->
       <div class="docs-lang-wrapper">
@@ -741,21 +740,15 @@
         short: '简',
         badge: '使用文档',
         backHome: '← 产品主页',
-        playground: '在线测试台',
         searchPlaceholder: '搜索文档（快捷键 / 功能 / 排查）…'
       },
       'zh-Hant': {
         short: '繁',
         badge: '使用手冊',
-        backHome: '← 產品首頁',
-        playground: '線上測試台',
         searchPlaceholder: '搜尋手冊（快捷鍵 / 功能 / 排查）…'
       },
       'en': {
         short: 'EN',
-        badge: 'Docs',
-        backHome: '← Home',
-        playground: 'Playground',
         searchPlaceholder: 'Search docs (shortcuts, features, FAQ)…'
       }
     };
@@ -773,7 +766,6 @@
       document.getElementById('docsLangLabel').textContent = ui.short;
       document.getElementById('docsTopBadge').textContent = ui.badge;
       document.getElementById('docsBackHomeLink').textContent = ui.backHome;
-      document.getElementById('docsPlaygroundLink').textContent = ui.playground;
 
       var searchInput = document.querySelector('.search input');
       if (searchInput) {
@@ -854,6 +846,7 @@
       '/advanced/pinned-note.md',
       '/advanced/terminal-safe-paste.md',
       '/advanced/inline-diff.md',
+      '/advanced/phone-drop.md',
       '/search-and-manage/search-and-launch.md',
       '/search-and-manage/ocr-image.md',
       '/search-and-manage/types-and-tags.md',

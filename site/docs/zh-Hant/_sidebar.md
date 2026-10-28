@@ -11,6 +11,7 @@
   - [螢幕置頂貼條（⌘ P）](/zh-Hant/advanced/pinned-note.md)
   - [終端機安全貼上護欄](/zh-Hant/advanced/terminal-safe-paste.md)
   - [兩筆記錄行內對比（⌘ D）](/zh-Hant/advanced/inline-diff.md)
+  - [手機互傳](/zh-Hant/advanced/phone-drop.md)
 
 - **搜尋與整理**
   - [全文搜尋與拼音啟動應用](/zh-Hant/search-and-manage/search-and-launch.md)

@@ -68,6 +68,7 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 - **Inline Diff of Two Entries (`⌘ D`)**: Press `⌘ D` or click Compare in the 2-item batch bar, preview toolbar, or right-click menu to view line- and word-level red/green diffs (Inline / Side-by-Side / Changes-Only); press `↑` / `↓` while diffing to live-swap entries, pick versions per block, and press `⌘ C` to copy or `⏎` to paste the merged result.
 - **Batch Actions & Undo**: Select multiple items with `⇧`, `⌘`, or by dragging the mouse down the list (with edge auto-scrolling) to merge-paste or bulk-delete; undo deletions within 10 seconds with `⌘ Z`.
 - **iCloud Drive Sync & Backup**: Optional sync across your Macs via personal iCloud Drive (no third-party servers), plus JSON and Markdown export with options to exclude or mask sensitive items.
+- **Phone Drop (LAN QR Code)**: Select any item and choose Send to Phone from the ⋯ More menu in the preview header; scan the QR code with your phone camera to view and copy long text or download original images/files from your Mac, and push text or photos from your phone back to the Mac clipboard and history—no app install needed. Transfers stay on your local network, expire after 5 minutes, close the port the moment you dismiss the panel, and never touch any cloud server.
 
 ---
 ## 🎬 Core Features, Animated
@@ -78,12 +79,12 @@ Clips reconstructed at the real interface's size and colors (click a thumbnail f
 |:---:|:---:|:---:|
 | [![Paste Stack](site/assets/features/poster-paste-stack.jpg)](site/assets/features/paste-stack.gif) | [![Semantic Redaction](site/assets/features/poster-scrub-paste.jpg)](site/assets/features/scrub-paste.gif) | [![Pin to Screen](site/assets/features/poster-pinned-note.jpg)](site/assets/features/pinned-note.gif) |
 
-| Type & Tag Filtering (`⌘ ↓`) | Offline Image OCR Recognition & Search |
-|:---:|:---:|
-| [![Type & Tag Filtering](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![Offline OCR Search](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) |
+| Type & Tag Filtering (`⌘ ↓`) | Offline Image OCR Recognition & Search | Phone Drop (LAN QR Code) |
+|:---:|:---:|:---:|
+| [![Type & Tag Filtering](site/assets/features/poster-filter-tags.jpg)](site/assets/features/filter-tags.gif) | [![Offline OCR Search](site/assets/features/poster-ocr-search.jpg)](site/assets/features/ocr-search.gif) | [![Phone Drop](site/assets/features/poster-phone-drop.jpg)](site/assets/features/phone-drop.gif) |
 
-- Per-feature MP4: [Paste Stack](site/assets/features/paste-stack.mp4) · [Redaction](site/assets/features/scrub-paste.mp4) · [Pin to Screen](site/assets/features/pinned-note.mp4) · [Type & Tag Filtering](site/assets/features/filter-tags.mp4) · [Offline OCR Search](site/assets/features/ocr-search.mp4)
-- Per-feature GIF: [Paste Stack](site/assets/features/paste-stack.gif) · [Redaction](site/assets/features/scrub-paste.gif) · [Pin to Screen](site/assets/features/pinned-note.gif) · [Type & Tag Filtering](site/assets/features/filter-tags.gif) · [Offline OCR Search](site/assets/features/ocr-search.gif)
+- Per-feature MP4: [Paste Stack](site/assets/features/paste-stack.mp4) · [Redaction](site/assets/features/scrub-paste.mp4) · [Pin to Screen](site/assets/features/pinned-note.mp4) · [Type & Tag Filtering](site/assets/features/filter-tags.mp4) · [Offline OCR Search](site/assets/features/ocr-search.mp4) · [Phone Drop](site/assets/features/phone-drop.mp4)
+- Per-feature GIF: [Paste Stack](site/assets/features/paste-stack.gif) · [Redaction](site/assets/features/scrub-paste.gif) · [Pin to Screen](site/assets/features/pinned-note.gif) · [Type & Tag Filtering](site/assets/features/filter-tags.gif) · [Offline OCR Search](site/assets/features/ocr-search.gif) · [Phone Drop](site/assets/features/phone-drop.gif)
 - Three advanced paste actions in one clip: [all-three.mp4](site/assets/features/all-three.mp4) (~27 s)
 - Annotated gallery page: [preview.html](site/assets/features/preview.html) (click any video to enlarge)
 
@@ -108,7 +109,7 @@ Clips reconstructed at the real interface's size and colors (click a thumbnail f
 | **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting); starts Paste Stack in multi-select mode or on structured table/contact items |
 | **`⌘ ⏎`** | Paste and keep panel open (great for filling multi-field forms) |
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
-| **`⌘ D`** | Compare two entries / leave the diff view (also clickable from the 2-item batch bar, preview toolbar, or right-click menu) |
+| **`⌘ D`** | Compare two entries / leave the diff view (also clickable from the 2-item batch bar, the preview header's More menu, or the right-click menu) |
 | **`⌥ ↑` / `⌥ ↓`** | Jump to the previous / next change while diffing |
 | **`⌘ C` (while diffing)** | Copy the merged result built from your per-block choices |
 | **`⏎` (while diffing)** | Paste the merged result and close the panel |

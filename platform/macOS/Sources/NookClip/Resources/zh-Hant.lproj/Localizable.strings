@@ -519,6 +519,8 @@
 "scrub.action.reveal_failed" = "無法讀取該項目，脫敏未執行";
 "preview.scrub.button" = "脫敏貼上";
 "preview.pin.button" = "釘在螢幕";
+"preview.more.button" = "更多操作";
+"preview.more.hint" = "展開對比、手機互傳、編輯標籤與刪除等更多操作";
 /* 順序貼上堆疊 */
 "batch.paste_stack" = "順序貼上";
 "batch.paste_stack_help" = "順序貼上（⌥⏎）";
@@ -728,3 +730,26 @@
 "preview.autoburn.keep" = "保留此筆";
 "preview.autoburn.burn" = "立即焚毀";
 "a11y.autoburn.badge" = "貼完即焚狀態";
+
+/* Phone Drop (手機互傳) */
+"preview.phone_drop.button" = "手機互傳";
+"landrop.title" = "手機互傳";
+"landrop.subtitle" = "同一 Wi-Fi 下掃碼，免裝 App 雙向傳文傳圖";
+"landrop.scan_hint" = "用手機相機掃碼開啟";
+"landrop.keep_open_hint" = "傳輸期間請保持此介面開啟，關閉或切換將立即中斷連線";
+"landrop.countdown" = "剩餘 %d 秒";
+"landrop.ip_label" = "區域網路位址";
+"landrop.stop" = "停止分享";
+"landrop.close" = "關閉";
+"landrop.received_count" = "已收到 %d 條回傳";
+"landrop.no_network" = "請先連接 Wi-Fi 或區域網路";
+"landrop.url_mode_hint" = "這是網址：可切換為連結 QR Code";
+"landrop.mode_link" = "連結 QR Code";
+"landrop.mode_drop" = "雙向互傳";
+"landrop.received_toast" = "已收到來自行動裝置的剪貼內容";
+"landrop.stopped" = "互傳已停止";
+"landrop.starting" = "正在啟動互傳服務…";
+"landrop.file_fallback_name" = "手機上傳檔案";
+"landrop.image_fallback_title" = "手機上傳圖片";
+"landrop.text_fallback_title" = "來自手機的文字";
+"landrop.source_name" = "手機互傳";

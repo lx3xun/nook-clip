@@ -11,6 +11,7 @@
   - [Pin to Screen (⌘ P)](/en/advanced/pinned-note.md)
   - [Terminal Safe-Paste](/en/advanced/terminal-safe-paste.md)
   - [Inline Diff (⌘ D)](/en/advanced/inline-diff.md)
+  - [Phone Drop](/en/advanced/phone-drop.md)
 
 - **Search & Organize**
   - [Full-Text Search & App Launcher](/en/search-and-manage/search-and-launch.md)

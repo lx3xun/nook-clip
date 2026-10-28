@@ -462,4 +462,47 @@ final class UIComponentTests: XCTestCase {
         XCTAssertNil(header.onSelectGroup)
         XCTAssertNotNil(renderView(header), "不传 allGroups 的吸顶分组头（如 indexRail 模式下）应正常渲染且不含下拉")
     }
+
+    // MARK: - PreviewToolbar 测试
+
+    func testPreviewToolbarCompactLayoutFitsNarrowColumn() {
+        var item = ClipboardItem(
+            type: .text,
+            title: "API Key Config",
+            summary: "sk-live-123456",
+            copyCount: 5,
+            sourceAppBundleId: "com.apple.dt.Xcode",
+            sourceAppName: "Xcode"
+        )
+        item.tags = ["api", "prod", "secret"]
+        let row = ClipboardRowModel(item: item)
+        var pinFired = false
+        var favFired = false
+        var deleteFired = false
+        let toolbar = PreviewToolbar(
+            isFavorite: true,
+            item: row,
+            contentText: row.summary,
+            onFavorite: { favFired = true },
+            onDelete: { deleteFired = true },
+            onEditTags: {},
+            tags: row.tags,
+            onScrubPaste: {},
+            onPinToScreen: { pinFired = true },
+            canScrubPaste: true,
+            onDiff: {},
+            canDiff: true,
+            onPhoneDrop: {}
+        )
+        let host = NSHostingView(rootView: toolbar)
+        host.frame = NSRect(x: 0, y: 0, width: 390, height: NookClip.heightToolbar)
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(host.fittingSize.height, NookClip.heightToolbar, accuracy: 0.5)
+        toolbar.onPinToScreen?()
+        toolbar.onFavorite?()
+        toolbar.onDelete?()
+        XCTAssertTrue(pinFired)
+        XCTAssertTrue(favFired)
+        XCTAssertTrue(deleteFired)
+    }
 }

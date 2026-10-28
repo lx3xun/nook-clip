@@ -11,6 +11,7 @@
   - [屏幕置顶贴条（⌘ P）](/advanced/pinned-note.md)
   - [终端安全粘贴护栏](/advanced/terminal-safe-paste.md)
   - [两条记录行内对比（⌘ D）](/advanced/inline-diff.md)
+  - [手机互传](/advanced/phone-drop.md)
 
 - **搜索与整理**
   - [全文搜索与拼音启动应用](/search-and-manage/search-and-launch.md)

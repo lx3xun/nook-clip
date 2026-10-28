@@ -32,6 +32,10 @@ struct PreviewToolbar: View {
     var onDiff: (() -> Void)? = nil
     /// 当前条目能否参与对比（列表至少 2 条且当前条目含文本或 OCR 文字）
     var canDiff: Bool = false
+    /// 手机快传：打开/收起局域网扫码免安装双向快传面板（spec 014 · US1）
+    var onPhoneDrop: (() -> Void)? = nil
+    /// 手机快传面板是否处于展开态（高亮顶栏按钮，再次点击可收起）
+    var isPhoneDropActive: Bool = false
 
 
     /// 磁盘派生元信息（trailingInfo 异步加载，body 内不做同步磁盘 IO · 契约 C8/FR-019）
@@ -45,7 +49,6 @@ struct PreviewToolbar: View {
     }
 
     @State private var diskMeta = DiskDerivedMeta.empty
-
     var body: some View {
         HStack(spacing: 8) {
             // 左侧：来源应用标识（App 图标 + 应用名）。
@@ -54,21 +57,21 @@ struct PreviewToolbar: View {
             if let item {
                 sourceLabel(item)
             }
-            // 类型相关的动作按钮（打开链接 / 二维码 / 打开文件 / 访达）。
+            // 类型相关的主操作（打开链接 / 打开文件）。二维码、在访达中显示等低频动作
+            // 收进「更多」菜单，避免顶栏堆一排纯图标。
             if let item {
                 leadingActions(item)
             }
-            Spacer(minLength: 8)
-            // 右侧：复制次数（列表无此信息，保留）→ 标签 chip → 收藏/删除
-            if let item {
-                copyCountPill(item)
-            }
+            // 标签紧邻来源展示：最多 1 个 chip + `+N`，其余在「更多 › 编辑标签」里管理。
             if item != nil {
                 tagChips
             }
+            Spacer(minLength: 8)
+            // 右侧：复制次数 → [含敏感内容时：脱敏粘贴] → 钉在屏幕 → 收藏 → 更多菜单
+            if let item {
+                copyCountPill(item)
+            }
             HStack(spacing: 4) {
-                // 脱敏粘贴：只在有可脱敏文本的条目上出现，避免图片/文件条目
-                // 挂一个永远点不动的按钮（控件可用性必须自解释）
                 if canScrubPaste, let onScrubPaste {
                     ToolbarActionButton(
                         title: L10n.tr("preview.scrub.button"),
@@ -76,15 +79,6 @@ struct PreviewToolbar: View {
                         icon: NookClipIcon.Action.scrub,
                         tooltipAlignment: .bottomTrailing,
                         action: onScrubPaste
-                    )
-                }
-                if canDiff, let onDiff {
-                    ToolbarActionButton(
-                        title: L10n.tr("preview.diff.button"),
-                        shortcut: "⌘D",
-                        icon: NookClipIcon.Action.diff,
-                        tooltipAlignment: .bottomTrailing,
-                        action: onDiff
                     )
                 }
                 if let onPinToScreen {
@@ -99,9 +93,8 @@ struct PreviewToolbar: View {
                 ToolbarFavoriteButton(isFavorite: isFavorite) {
                     onFavorite?()
                 }
-                // 别名（重命名）入口仅在列表行内（⌘R / 右键菜单），预览区不放
-                ToolbarDeleteButton {
-                    onDelete?()
+                if let item {
+                    moreMenu(item)
                 }
             }
         }
@@ -128,45 +121,28 @@ struct PreviewToolbar: View {
         .accessibilityLabel(item.sourceDisplayName)
     }
 
-    /// 顶栏左侧：类型相关的动作按钮（打开链接/二维码/打开文件/访达）。
-    /// 来源应用、相对时间、字符数等不再在此重复展示。
+    /// 顶栏左侧：类型相关的主操作(打开链接 / 打开文件)。
+    /// 二维码、在访达中显示等低频动作改由 `moreMenu` 承载。
     @ViewBuilder
     private func leadingActions(_ item: ClipboardRowModel) -> some View {
         switch item.kind {
         case .url:
-            if let urlString = contentText ?? (item.summary.isEmpty ? nil : item.summary),
-               let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
-               let scheme = url.scheme?.lowercased(),
-               scheme == "http" || scheme == "https" {
+            if let url = resolvedURL(item) {
                 ToolbarActionButton(
                     title: L10n.tr("preview.open_link"),
                     icon: NookClipIcon.Action.openExternal
                 ) {
                     NSWorkspace.shared.open(url)
                 }
-                ToolbarActionButton(
-                    title: L10n.tr("preview.qrcode.button"),
-                    icon: NookClipIcon.Action.qrcode,
-                    isActive: showQRCode
-                ) {
-                    onToggleQRCode?()
-                }
             }
         case .file:
-            let filePaths = (item.payloadPath ?? contentText)?
-                .components(separatedBy: "\n").filter { !$0.isEmpty } ?? []
+            let filePaths = resolvedFilePaths(item)
             if !filePaths.isEmpty, diskMeta.filesExist == true {
                 ToolbarActionButton(
                     title: L10n.tr("preview.action.open"),
                     icon: NookClipIcon.Action.openExternal
                 ) {
                     filePaths.map { URL(fileURLWithPath: $0) }.forEach { NSWorkspace.shared.open($0) }
-                }
-                ToolbarActionButton(
-                    title: L10n.tr("preview.action.reveal_in_finder"),
-                    icon: NookClipIcon.Action.revealInFinder
-                ) {
-                    NSWorkspace.shared.activateFileViewerSelecting(filePaths.map { URL(fileURLWithPath: $0) })
                 }
             } else if !filePaths.isEmpty, diskMeta.filesExist == false {
                 // 原文件已不存在：明示失效（不再提供打开/访达按钮）
@@ -175,6 +151,128 @@ struct PreviewToolbar: View {
         default:
             EmptyView()
         }
+    }
+
+    /// 解析链接类条目的可打开 URL（http/https 才视为有效）。
+    private func resolvedURL(_ item: ClipboardRowModel) -> URL? {
+        guard item.kind == .url,
+              let urlString = contentText ?? (item.summary.isEmpty ? nil : item.summary),
+              let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else { return nil }
+        return url
+    }
+
+    /// 解析文件类条目的路径列表（payloadPath 优先，其次 contentText 换行分隔）。
+    private func resolvedFilePaths(_ item: ClipboardRowModel) -> [String] {
+        guard item.kind == .file else { return [] }
+        return (item.payloadPath ?? contentText)?
+            .components(separatedBy: "\n").filter { !$0.isEmpty } ?? []
+    }
+
+    // MARK: - 「更多」菜单
+    //
+    // 顶栏右侧常驻「钉在屏幕 / 收藏 / 更多」（含敏感内容时额外显示「脱敏粘贴」）；
+    // 对比、手机快传、二维码、在访达中显示、编辑标签与删除等动作统一收进这里。
+    // 采用纯 SwiftUI Button + AppKit NSMenu 弹出（对齐 GroupHeaderView.showGroupMenu）：
+    // 1. 避免 SwiftUI Menu (NSPopUpButton) 在 ImageRenderer 快照中退化为 🚫 占位符；
+    // 2. 菜单关闭后主动调 DraggablePanel.restoreKeyboardFocus()，防止 LSUIElement 面板丢失键盘焦点；
+    // 3. 快捷键以文字形式附在标题后（如「脱敏粘贴 (⌃⏎)」），按键仍由 PanelKeyActions 统一分发。
+
+    @ViewBuilder
+    private func moreMenu(_ item: ClipboardRowModel) -> some View {
+        ToolbarMoreButton(
+            isActive: isPhoneDropActive || showQRCode,
+            buildActions: {
+                buildMoreMenuSections(for: item)
+            }
+        )
+    }
+
+    private func buildMoreMenuSections(for item: ClipboardRowModel) -> [[ToolbarMoreAction]] {
+        var sections: [[ToolbarMoreAction]] = []
+        let advanced = advancedActions(item)
+        if !advanced.isEmpty {
+            sections.append(advanced)
+        }
+        let typeSpecific = typeSpecificActions(item)
+        if !typeSpecific.isEmpty {
+            sections.append(typeSpecific)
+        }
+        var manage: [ToolbarMoreAction] = []
+        if let onEditTags {
+            manage.append(ToolbarMoreAction(
+                title: L10n.tr("tag.title"),
+                icon: NookClipIcon.Action.tag,
+                shortcut: "⌘L",
+                action: onEditTags
+            ))
+        }
+        if let onDelete {
+            manage.append(ToolbarMoreAction(
+                title: L10n.tr("hints.delete"),
+                icon: NookClipIcon.Action.delete,
+                shortcut: "⌘⌫",
+                isDestructive: true,
+                action: onDelete
+            ))
+        }
+        if !manage.isEmpty {
+            sections.append(manage)
+        }
+        return sections
+    }
+
+    /// 与当前条目无关、只要有文本/列表就能用的进阶动作。
+    private func advancedActions(_ item: ClipboardRowModel) -> [ToolbarMoreAction] {
+        var actions: [ToolbarMoreAction] = []
+        if canDiff, let onDiff {
+            actions.append(ToolbarMoreAction(
+                title: L10n.tr("preview.diff.button"),
+                icon: NookClipIcon.Action.diff,
+                shortcut: "⌘D",
+                action: onDiff
+            ))
+        }
+        if let onPhoneDrop, !(item.kind == .file && diskMeta.filesExist == false) {
+            actions.append(ToolbarMoreAction(
+                title: L10n.tr("preview.phone_drop.button"),
+                icon: NookClipIcon.Action.phoneDrop,
+                isActive: isPhoneDropActive,
+                action: onPhoneDrop
+            ))
+        }
+        return actions
+    }
+
+    /// 仅在特定内容类型下出现的动作（二维码 / 在访达中显示）。
+    private func typeSpecificActions(_ item: ClipboardRowModel) -> [ToolbarMoreAction] {
+        switch item.kind {
+        case .url:
+            if resolvedURL(item) != nil, let onToggleQRCode {
+                return [ToolbarMoreAction(
+                    title: L10n.tr("preview.qrcode.button"),
+                    icon: NookClipIcon.Action.qrcode,
+                    isActive: showQRCode,
+                    action: onToggleQRCode
+                )]
+            }
+        case .file:
+            let filePaths = resolvedFilePaths(item)
+            if !filePaths.isEmpty, diskMeta.filesExist == true {
+                return [ToolbarMoreAction(
+                    title: L10n.tr("preview.action.reveal_in_finder"),
+                    icon: NookClipIcon.Action.revealInFinder
+                ) {
+                    NSWorkspace.shared.activateFileViewerSelecting(
+                        filePaths.map { URL(fileURLWithPath: $0) }
+                    )
+                }]
+            }
+        default:
+            break
+        }
+        return []
     }
 
     /// 复制次数小 pill（预览区独有信息，列表行不展示）
@@ -190,8 +288,8 @@ struct PreviewToolbar: View {
         }
     }
 
-    /// 顶部标签 chip 区：单行展示前 N 个 + `+N`，末尾 `#` 按钮打开标签编辑器。
-    /// 无标签时仅显示 `#` 按钮。点击 chip 按标签过滤、悬停 × 移除、右键重命名/删除。
+    /// 顶部标签 chip 区：单行展示前 1 个 + `+N`。
+    /// 点击 chip 按标签过滤、悬停 × 移除、右键重命名/删除；编辑标签入口收进「更多」菜单。
     private var tagChips: some View {
         HStack(spacing: 4) {
             let visible = Array(tags.prefix(Self.maxVisibleChips))
@@ -206,12 +304,12 @@ struct PreviewToolbar: View {
                     Button {
                         onRenameTag?(tag)
                     } label: {
-                        Label(L10n.tr("tag.rename"), systemImage: "pencil")
+                        Label(L10n.tr("tag.rename"), systemImage: NookClipIcon.Context.rename)
                     }
                     Button(role: .destructive) {
                         onDeleteTag?(tag)
                     } label: {
-                        Label(L10n.tr("tag.delete"), systemImage: "trash")
+                        Label(L10n.tr("tag.delete"), systemImage: NookClipIcon.Context.delete)
                     }
                 }
             }
@@ -222,16 +320,12 @@ struct PreviewToolbar: View {
                     .lineLimit(1)
                     .fixedSize()
             }
-            // 末尾 `#` 按钮：打开标签编辑器，交互与收藏/删除按钮完全一致
-            if let onEditTags {
-                ToolbarTagButton(action: onEditTags)
-            }
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    /// 顶栏最多直接展示的标签数（超出显示 +N）
-    private static let maxVisibleChips = 3
+    /// 顶栏最多直接展示的标签数（超出显示 +N）。收窄为 1，避免标签本身把顶栏撑爆。
+    private static let maxVisibleChips = 1
 
     private var metaTaskKey: String {
         // 文件条目的可打开性取决于 contentText 中的路径列表（体积小）；其余类型的
@@ -383,24 +477,58 @@ private struct ToolbarActionButton: View {
     }
 }
 
-/// 预览区工具栏操作按钮：标签（Icon-Only · 24×24pt，`#` 图标，中性灰度，悬停微光，
-/// 带即时微气泡）——交互与收藏/删除按钮完全一致。
-private struct ToolbarTagButton: View {
+/// 「更多」菜单里的一项动作：文字标题 + 图标 + 可选快捷键提示 + 激活态 / 警示态。
+private struct ToolbarMoreAction {
+    let title: String
+    let icon: String
+    var shortcut: String? = nil
+    var isActive: Bool = false
+    var isDestructive: Bool = false
     let action: () -> Void
+}
+
+@MainActor
+private final class ToolbarMoreMenuTarget: NSObject {
+    static let shared = ToolbarMoreMenuTarget()
+    var actions: [Int: () -> Void] = [:]
+
+    @objc func invoke(_ sender: NSMenuItem) {
+        let action = actions[sender.tag]
+        actions.removeAll()
+        action?()
+    }
+}
+
+/// 预览区工具栏操作按钮：「更多」（Icon-Only · 24×24pt，点击弹出原生 NSMenu 并在关闭后恢复面板键盘焦点）
+private struct ToolbarMoreButton: View {
+    let isActive: Bool
+    let buildActions: () -> [[ToolbarMoreAction]]
 
     @State private var isHovered = false
     @State private var showTooltip = false
     @State private var tooltipTask: Task<Void, Never>?
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "number")
-                .font(.system(size: NookClipIconSize.compactMedium, weight: .medium))
-                .foregroundStyle(isHovered ? NookClip.textPrimary : NookClip.textSecondary)
+        Button {
+            tooltipTask?.cancel()
+            showTooltip = false
+            presentMenu()
+        } label: {
+            Image(systemName: NookClipIcon.Action.more)
+                .font(.system(size: NookClipIconSize.compactMedium, weight: .semibold))
+                .foregroundStyle(
+                    isActive
+                        ? NookClip.accent
+                        : (isHovered ? NookClip.textPrimary : NookClip.textSecondary)
+                )
                 .frame(width: 24, height: 24)
                 .background {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isHovered ? NookClip.bgRowOn : Color.clear)
+                        .fill(
+                            isActive
+                                ? NookClip.bgRowSelected
+                                : (isHovered ? NookClip.bgRowOn : Color.clear)
+                        )
                 }
                 .contentShape(Rectangle())
         }
@@ -428,10 +556,53 @@ private struct ToolbarTagButton: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if showTooltip {
-                InstantTooltipBubble(text: "\(L10n.tr("tag.title")) (⌘L)")
+                InstantTooltipBubble(text: L10n.tr("preview.more.button"))
             }
         }
-        .accessibilityLabel(L10n.tr("tag.action"))
+        .accessibilityLabel(L10n.tr("preview.more.button"))
+        .accessibilityHint(L10n.tr("preview.more.hint"))
+    }
+
+    private func presentMenu() {
+        let sections = buildActions()
+        guard !sections.isEmpty else { return }
+        let menu = NSMenu()
+        var callbacks: [Int: () -> Void] = [:]
+        var nextTag = 1
+        for (sectionIndex, section) in sections.enumerated() {
+            if sectionIndex > 0 {
+                menu.addItem(.separator())
+            }
+            for entry in section {
+                let label = entry.shortcut.map { "\(entry.title) (\($0))" } ?? entry.title
+                let item = NSMenuItem(
+                    title: label,
+                    action: #selector(ToolbarMoreMenuTarget.invoke(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = ToolbarMoreMenuTarget.shared
+                item.tag = nextTag
+                item.state = entry.isActive ? .on : .off
+                if let img = NSImage(systemSymbolName: entry.icon, accessibilityDescription: nil) {
+                    item.image = img
+                }
+                callbacks[nextTag] = entry.action
+                nextTag += 1
+                menu.addItem(item)
+            }
+        }
+        ToolbarMoreMenuTarget.shared.actions = callbacks
+        if let event = NSApp.currentEvent,
+           let window = NSApp.keyWindow ?? NSApp.mainWindow,
+           let contentView = window.contentView {
+            NSMenu.popUpContextMenu(menu, with: event, for: contentView)
+        } else if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: window.contentView)
+        }
+        DispatchQueue.main.async {
+            (NSApp.windows.first { $0 is DraggablePanel } as? DraggablePanel)?
+                .restoreKeyboardFocus()
+        }
     }
 }
 
@@ -492,54 +663,3 @@ private struct ToolbarFavoriteButton: View {
     }
 }
 
-/// 预览区工具栏操作按钮：删除（Icon-Only · 24×24pt，平时中性克制融入工具栏，悬停提供柔和警示红底与高亮，带即时微气泡）
-private struct ToolbarDeleteButton: View {
-    let action: () -> Void
-
-    @State private var isHovered = false
-    @State private var showTooltip = false
-    @State private var tooltipTask: Task<Void, Never>?
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: isHovered ? NookClipIcon.Action.deleteFilled : NookClipIcon.Action.delete)
-                .font(.system(size: NookClipIconSize.compactMedium))
-                .foregroundStyle(isHovered ? NookClip.colorDanger : NookClip.textSecondary)
-                .frame(width: 24, height: 24)
-                .background {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isHovered ? NookClip.bgDangerHover : Color.clear)
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .onHover { hovering in
-            withAnimation(NookClip.animHover) {
-                isHovered = hovering
-            }
-            tooltipTask?.cancel()
-            if hovering {
-                tooltipTask = Task {
-                    try? await Task.sleep(nanoseconds: 80_000_000)
-                    if !Task.isCancelled {
-                        withAnimation(.easeOut(duration: 0.12)) {
-                            showTooltip = true
-                        }
-                    }
-                }
-            } else {
-                withAnimation(.easeOut(duration: 0.08)) {
-                    showTooltip = false
-                }
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if showTooltip {
-                InstantTooltipBubble(text: "\(L10n.tr("hints.delete")) (⌘⌫)")
-            }
-        }
-        .accessibilityLabel(L10n.tr("hints.delete"))
-        .accessibilityHint(L10n.tr("preview.toolbar.delete.hint"))
-    }
-}

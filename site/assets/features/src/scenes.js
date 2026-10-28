@@ -76,6 +76,7 @@
     gripL: '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 8 2 2M4 8H2V6"/></svg>',
     ocr: '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H5M11 2h1.5A1.5 1.5 0 0 1 14 3.5V5M14 11v1.5a1.5 1.5 0 0 1-1.5 1.5H11M5 14H3.5A1.5 1.5 0 0 1 2 12.5V11"/><path d="M4.5 6.5h7M4.5 9.5h7"/></svg>',
     filter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4"/></svg>',
   };
 
   const CAT_COLOR = {
@@ -200,6 +201,7 @@
             <span class="sp"></span>
             ${o.showScrub === false ? '' : `<div class="tbtn" data-act="scrub">${I.scrub}<span>脱敏粘贴</span><span class="kb">⌃⏎</span></div>`}
             ${o.showPin === false ? '' : `<div class="tbtn" data-act="pin">${I.pin}<span>钉在屏幕</span><span class="kb">⌘P</span></div>`}
+            ${o.showPhoneDrop ? `<div class="tbtn" data-act="phonedrop">${I.phone}<span>手机互传</span></div>` : ''}
             <div class="ticon" data-act="star">${I.star}</div>
             <div class="ticon" data-act="del">${I.trash}</div>
           </div>
@@ -1527,9 +1529,297 @@
     return { duration: DUR, apply };
   }
 
-  // ---------------------------------------------------------------- 入口
-  const SCENES = { a: buildA, b: buildB, c: buildC, d: buildD, e: buildE };
+  // ---------------------------------------------------------------- 场景 F：手机快传（局域网扫码免安装双向收发）
+  const ROWS_F = [
+    { cat: 'text', title: '线上故障排查与回滚手册.md', app: 'notes', appName: '备忘录', detail: '运维手册 · 28 行', time: '今天 14:18', star: true },
+    { cat: 'code', title: 'kubectl rollout undo deployment/api', app: 'terminal', appName: 'Terminal', detail: 'Shell · 4 行', time: '今天 14:12' },
+    { cat: 'image', title: 'Grafana 延迟毛刺监控截图.png', app: 'screenshot', appName: '截图', detail: '1440 × 900', time: '今天 13:55' },
+    { cat: 'link', title: '内部值班 On-Call 协作看板', app: 'safari', appName: 'Safari', detail: 'oncall.internal', time: '今天 11:30' },
+    { cat: 'json', title: '网关限流策略 prod-rate-limit.json', app: 'vscode', appName: 'VS Code', detail: 'JSON', time: '昨天 19:05' },
+  ];
 
+  function qrSVG() {
+    // 确定性几何矩阵绘制高对比度二维码视觉
+    const size = 21;
+    const cells = [];
+    const isFinder = (r, c, r0, c0) => {
+      const dr = r - r0, dc = c - c0;
+      if (dr < 0 || dr > 6 || dc < 0 || dc > 6) return null;
+      if (dr === 0 || dr === 6 || dc === 0 || dc === 6) return true;
+      if (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4) return true;
+      return false;
+    };
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        const f1 = isFinder(r, c, 0, 0);
+        const f2 = isFinder(r, c, 0, size - 7);
+        const f3 = isFinder(r, c, size - 7, 0);
+        const f = f1 !== null ? f1 : f2 !== null ? f2 : f3;
+        if (f !== null) {
+          if (f) cells.push(`<rect x="${c}" y="${r}" width="1" height="1" fill="#111"/>`);
+          continue;
+        }
+        if ((r === 7 && (c < 8 || c >= size - 8)) || (c === 7 && (r < 8 || r >= size - 8))) continue;
+        const v = ((r * 37 + c * 19 + (r ^ c) * 11) % 7) < 3;
+        if (v) cells.push(`<rect x="${c}" y="${r}" width="1" height="1" fill="#111"/>`);
+      }
+    }
+    return `<svg viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges">${cells.join('')}</svg>`;
+  }
+
+  function buildF(stage) {
+    const DUR = 8800;
+    stage.innerHTML = shellHTML();
+    const world = q(stage, '.world');
+
+    world.innerHTML = panelHTML(ROWS_F, {
+      srcApp: 'notes',
+      srcName: '备忘录',
+      srcMeta: '今天 14:18 · 1,280 字符',
+      showScrub: false,
+      showPin: true,
+      showPhoneDrop: true,
+    });
+    world.style.transformOrigin = '0 0';
+
+    const panelEl = q(world, '.panel');
+    const rowsContainer = q(world, '.rows');
+    const rows = qa(world, '.rows .row');
+    const pvBody = q(world, '.pbody');
+    const pvDefault = q(world, '.pv-default');
+    const btnPhoneDrop = q(world, '.tbtn[data-act="phonedrop"]');
+
+    // 在列表顶部预置一条「来自手机快传」的新记录（默认高度 0 隐藏，收到手机回传时展开置顶）
+    const incomingRow = document.createElement('div');
+    incomingRow.className = 'row';
+    incomingRow.style.height = '0px';
+    incomingRow.style.opacity = '0';
+    incomingRow.style.overflow = 'hidden';
+    incomingRow.innerHTML = `
+      <div class="tick">${I.check}</div>
+      <div class="ico" style="background:${CAT_COLOR.image}">${I.image}
+        <div class="badge" style="display:flex;align-items:center;justify-content:center;background:#0A84FF;color:#fff">${I.phone}</div>
+      </div>
+      <div class="mid">
+        <div class="t1">现场白板架构草图.png</div>
+        <div class="t2"><span>📱 手机互传</span><span class="dot">·</span><span>1280 × 960 px · 420 KB</span></div>
+      </div>
+      <div class="meta"><span class="time">刚刚</span></div>`;
+    rowsContainer.insertBefore(incomingRow, rows[0]);
+
+    rows[0].classList.add('sel');
+
+    pvDefault.innerHTML = `
+      <div class="bodyhead">线上故障排查与回滚手册.md</div>
+      <div class="bodytext">1. 检查网关延迟与上游连接池水位（Grafana 面板 #14）
+2. 若连接池耗尽，先执行平滑回滚：
+   <span class="syn-fn">kubectl</span> rollout undo deployment/api-gateway -n prod
+3. 验证核心链路 P99 恢复至 &lt; 45ms 后，归档现场日志与白板照片。</div>`;
+
+    // 预览区内的手机快传二维码浮层
+    const dropMask = document.createElement('div');
+    dropMask.className = 'landrop-mask';
+    dropMask.innerHTML = `
+      <div class="landrop-card">
+        <div class="landrop-head">
+          <div class="ph-ico">${I.phone}</div>
+          <div style="flex:1">
+            <div class="ph-tt">手机互传</div>
+            <div class="ph-sub">同一 Wi-Fi 下扫码，免装 App 双向传文传图</div>
+          </div>
+        </div>
+        <div class="landrop-qr-row">
+          <div class="landrop-qr">${qrSVG()}</div>
+          <div class="landrop-info">
+            <div class="scan">用手机相机扫码打开</div>
+            <div class="url">http://192.168.1.24:51820/s/8f3a…e91c</div>
+            <div class="cd">⏱ <span class="cd-txt">剩余 298 秒</span></div>
+            <div class="rcv">${I.check}<span>已收到 1 条回传</span></div>
+          </div>
+        </div>
+        <div class="landrop-keep"><span class="warn">⚠</span><span>传输期间请保持此界面打开，关闭或切走将立即断开连接</span></div>
+        <div class="landrop-foot">
+          <div class="fbtn stop">停止分享</div>
+          <div class="fbtn close">关闭</div>
+        </div>
+      </div>`;
+    pvBody.appendChild(dropMask);
+
+    // 舞台右侧的手机浏览器端模拟卡片
+    const phoneEl = document.createElement('div');
+    phoneEl.className = 'phone-shell';
+    phoneEl.innerHTML = `
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="ph-brand">◇ NookClip · 手机互传</div>
+        <div class="ph-card">
+          <h4>线上故障排查与回滚手册.md</h4>
+          <div class="ph-muted">同一局域网点对点传输，不经过云服务器</div>
+          <div class="ph-pre">1. 检查网关延迟与连接池水位\n2. kubectl rollout undo deployment/api\n3. 验证 P99 &lt; 45ms 后归档照片</div>
+          <div class="ph-btn ph-copy-btn">一键复制文本</div>
+        </div>
+        <div class="ph-card">
+          <h4>发送到电脑剪贴板</h4>
+          <div class="ph-muted">选择手机相册图片或输入文字传回 Mac</div>
+          <div class="ph-filebox">
+            <div class="thumb">${I.image}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">现场白板架构草图.png</div>
+              <div style="font-size:9.5px;color:#98989D">1280 × 960 · 相册原图</div>
+            </div>
+          </div>
+          <div class="ph-btn ph-send-btn">发送到电脑剪贴板</div>
+          <div class="ph-status">✓ 已发送到电脑剪贴板</div>
+        </div>
+      </div>`;
+    world.appendChild(phoneEl);
+
+    const dropCardEl = q(dropMask, '.landrop-card');
+    const rcvBadgeEl = q(dropMask, '.rcv');
+    const cdTxtEl = q(dropMask, '.cd-txt');
+    const phCopyBtn = q(phoneEl, '.ph-copy-btn');
+    const phSendBtn = q(phoneEl, '.ph-send-btn');
+    const phStatusEl = q(phoneEl, '.ph-status');
+
+    const cur = makeCursor(stage);
+    const keyToast = makeKeyToast(stage);
+    const toast = makeToast(stage);
+    const caption = q(stage, '.caption');
+    const cam = camera(world);
+
+    const M = measureWorld(world, {
+      btnPhoneDrop,
+      phCopyBtn,
+      phSendBtn,
+      row0: rows[0],
+    });
+
+    const camAt = camTrack([
+      { t: 0, cx: 600, cy: 400, s: 1.04 },
+      { t: 1500, cx: 615, cy: 400, s: 1.04 },
+      { t: 2600, cx: 635, cy: 405, s: 1.00 },
+      { t: 6200, cx: 615, cy: 405, s: 1.00 },
+      { t: 8800, cx: 600, cy: 400, s: 1.03 },
+    ]);
+
+    function apply(t) {
+      const camNow = camAt(t);
+      cam(camNow);
+      world.style.opacity = 1;
+
+      const enter = tw(t, 0, 400, 'out');
+      panelEl.style.transform = `translateY(${(1 - enter) * -12}px) scale(${lerp(0.985, 1, enter)})`;
+      panelEl.style.left = `${lerp(150, 92, tw(t, 2100, 520, 'io') * (1 - tw(t, 7600, 420, 'io')))}px`;
+
+      // 顶栏按钮悬停与点击激活
+      const isDropOpen = t >= 1500 && t < 7600;
+      btnPhoneDrop.classList.toggle('hov', t >= 950 && t < 7600);
+      if (isDropOpen) {
+        btnPhoneDrop.style.background = 'rgba(10,132,255,0.22)';
+        btnPhoneDrop.style.color = '#4FA3FF';
+      } else {
+        btnPhoneDrop.style.background = '';
+        btnPhoneDrop.style.color = '';
+      }
+
+      // 二维码浮层展开与 Esc 关闭
+      const modalP = tw(t, 1500, 320, 'spring') * (1 - tw(t, 7550, 260, 'out'));
+      dropMask.style.opacity = clamp(modalP);
+      dropCardEl.style.transform = `scale(${lerp(0.92, 1, clamp(modalP))})`;
+
+      const secLeft = Math.max(292, 300 - Math.floor(Math.max(0, t - 1500) / 1000));
+      cdTxtEl.textContent = `剩余 ${secLeft} 秒`;
+
+      // 右侧手机端视图滑入 (2200ms ~ 7550ms)
+      const phoneP = tw(t, 2200, 460, 'out') * (1 - tw(t, 7550, 320, 'out'));
+      phoneEl.style.opacity = clamp(phoneP);
+      phoneEl.style.transform = `translateX(${(1 - phoneP) * 48}px) scale(${lerp(0.95, 1, phoneP)})`;
+
+      // 手机端动作 1：一键复制电脑长文 (t >= 3400ms)
+      if (t >= 3400) {
+        phCopyBtn.classList.add('ok');
+        phCopyBtn.innerHTML = `${I.check}<span>已复制到手机剪贴板</span>`;
+      } else {
+        phCopyBtn.classList.remove('ok');
+        phCopyBtn.textContent = '一键复制文本';
+      }
+      phCopyBtn.style.transform = `scale(${1 - win(t, 3320, 180, 50, 100) * 0.06})`;
+
+      // 手机端动作 2：把手机相册图片传回电脑剪贴板 (t >= 5200ms)
+      phSendBtn.style.transform = `scale(${1 - win(t, 5120, 180, 50, 100) * 0.06})`;
+      if (t >= 5200 && t < 5550) {
+        phSendBtn.textContent = '上传中…';
+        phStatusEl.style.opacity = 0;
+      } else if (t >= 5550) {
+        phSendBtn.textContent = '发送到电脑剪贴板';
+        phStatusEl.style.opacity = tw(t, 5550, 220, 'out');
+      } else {
+        phSendBtn.textContent = '发送到电脑剪贴板';
+        phStatusEl.style.opacity = 0;
+      }
+
+      // 电脑端收到手机回传：二维码面板显示计数 + 列表置顶插入新图片行 (t >= 5600ms)
+      const rcvP = tw(t, 5600, 340, 'out');
+      rcvBadgeEl.style.opacity = rcvP;
+      incomingRow.style.height = `${lerp(0, 54, rcvP)}px`;
+      incomingRow.style.opacity = rcvP;
+      if (t >= 5600) {
+        rows[0].classList.remove('sel');
+        incomingRow.classList.add('sel');
+      } else {
+        incomingRow.classList.remove('sel');
+        rows[0].classList.add('sel');
+      }
+
+      // 光标轨迹
+      const toV = (p) => ({
+        x: (p.x - camNow.cx) * camNow.s + W / 2,
+        y: (p.y - camNow.cy) * camNow.s + H / 2,
+      });
+      const cBtn = toV(M.btnPhoneDrop);
+      const cCopy = toV(M.phCopyBtn);
+      const cSend = toV(M.phSendBtn);
+
+      let cxp = cBtn.x - 120;
+      let cyp = cBtn.y + 80;
+      if (t > 600) {
+        const p = tw(t, 650, 720, 'io');
+        cxp = lerp(cxp, cBtn.x, p);
+        cyp = lerp(cyp, cBtn.y, p);
+      }
+      if (t > 2500) {
+        const p = tw(t, 2550, 700, 'io');
+        cxp = lerp(cBtn.x, cCopy.x, p);
+        cyp = lerp(cBtn.y, cCopy.y, p);
+      }
+      if (t > 4300) {
+        const p = tw(t, 4350, 700, 'io');
+        cxp = lerp(cCopy.x, cSend.x, p);
+        cyp = lerp(cCopy.y, cSend.y, p);
+      }
+
+      const cOp = Math.min(tw(t, 250, 280, 'out'), 1 - tw(t, 8300, 300, 'out'));
+      cur.at(cxp, cyp, cOp);
+      const rip1 = (t - 1460) / 380;
+      const rip2 = (t - 3360) / 380;
+      const rip3 = (t - 5160) / 380;
+      const activeRip = (rip1 >= 0 && rip1 <= 1) ? rip1 : (rip2 >= 0 && rip2 <= 1) ? rip2 : rip3;
+      cur.ripple(activeRip);
+
+      toast.show(`<span class="ok">${I.check}</span><span>已收到来自移动端的剪贴内容 · 已写入系统剪贴板</span>`, win(t, 5620, 1600, 180, 260));
+      keyToast.show(['Esc'], '关闭快传并立即释放端口', win(t, 7400, 850, 150, 220));
+
+      const capA = { num: '06', title: '手机互传 · 局域网免安装扫码', desc: '点「手机互传」，手机相机扫码即可免装 App 查看并复制电脑长文、下载原图' };
+      const capB = { num: '06', title: '双向互传 · 手机发回电脑剪贴板', desc: '手机文字与相册原图一键传回 Mac 剪贴板并入库 · 关闭即释放端口，零云端中转' };
+      const s = tw(t, 4500, 480, 'io');
+      setCaption(caption, capA.num, s < 1 ? capA.title : capB.title, s < 1 ? capA.desc : capB.desc, Math.min(tw(t, 450, 350, 'out'), 1));
+    }
+
+    return { duration: DUR, apply };
+  }
+
+  // ---------------------------------------------------------------- 入口
+  const SCENES = { a: buildA, b: buildB, c: buildC, d: buildD, e: buildE, f: buildF };
   function init() {
     const params = new URLSearchParams(location.search);
     const key = (params.get('scene') || 'a').toLowerCase();

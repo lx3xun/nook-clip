@@ -18,6 +18,7 @@ This guide covers everything from initial setup to advanced keyboard workflows s
 - **[Pin to Screen (⌘ P)](./advanced/pinned-note.md)**: Float code, text, images, or color swatches on top of all windows with adjustable opacity and click-through mode.
 - **[Terminal Safe-Paste](./advanced/terminal-safe-paste.md)**: Intercept multi-line commands and dangerous patterns (`sudo`, `rm -rf`, `curl | sh`) before they auto-execute in your terminal.
 - **[Inline Diff (⌘ D)](./advanced/inline-diff.md)**: Compare any two history entries with line- and word-level red/green highlights, live-swap rows with `↑↓`, and cherry-pick hunks to merge.
+- **[Phone Drop](./advanced/phone-drop.md)**: Select any item and tap Send to Phone; scan the QR code to view and copy long text or download original images/files from your Mac, and push text or photos from your phone back to the Mac clipboard—no app install. LAN-only, auto-expires in 5 minutes, and releases the port on close.
 
 ### 3. Search & Organize
 - **[Full-Text Search & App Launcher](./search-and-manage/search-and-launch.md)**: Sub-millisecond SQLite FTS5 search and instant app launching by name or initials.

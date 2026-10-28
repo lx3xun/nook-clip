@@ -3,6 +3,7 @@ import Foundation
 extension Notification.Name {
     static let openQuickPopover = Notification.Name("NookClip.openQuickPopover")
     static let quickPopoverDidOpen = Notification.Name("NookClip.quickPopoverDidOpen")
+    static let quickPopoverDidClose = Notification.Name("NookClip.quickPopoverDidClose")
     static let openSettings = Notification.Name("NookClip.openSettings")
     static let hotKeyDidChange = Notification.Name("NookClip.hotKeyDidChange")
     static let quickPopoverPreviewStateDidChange = Notification.Name("NookClip.quickPopoverPreviewStateDidChange")

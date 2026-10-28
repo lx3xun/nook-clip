@@ -360,6 +360,63 @@
 
   .search .sval{font-size:13px;color:var(--text-1);font-weight:500;white-space:nowrap}
   .search .scursor{display:inline-block;width:1.5px;height:14px;background:var(--accent);vertical-align:middle;margin-left:1px}
+
+  /* ---------- 场景 F：手机快传（二维码浮层 + 手机端双工卡片） ---------- */
+  .landrop-mask{position:absolute;inset:0;background:rgba(0,0,0,.38);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;z-index:35;opacity:0;pointer-events:none}
+  .landrop-card{width:376px;border-radius:14px;padding:18px;background:rgba(36,36,42,.985);
+    border:.5px solid rgba(255,255,255,.16);box-shadow:0 24px 64px rgba(0,0,0,.62);
+    display:flex;flex-direction:column;gap:13px;transform-origin:50% 50%}
+  .landrop-head{display:flex;align-items:flex-start;gap:10px}
+  .landrop-head .ph-ico{width:28px;height:28px;border-radius:8px;background:rgba(10,132,255,.18);
+    color:#4FA3FF;display:flex;align-items:center;justify-content:center;flex:0 0 28px}
+  .landrop-head .ph-ico svg{width:16px;height:16px}
+  .landrop-head .ph-tt{font-size:13.5px;font-weight:600;color:var(--text-1)}
+  .landrop-head .ph-sub{font-size:11px;color:var(--text-2);margin-top:2px;line-height:1.4}
+  .landrop-qr-row{display:flex;gap:14px;align-items:flex-start}
+  .landrop-qr{width:136px;height:136px;flex:0 0 136px;border-radius:10px;background:#fff;padding:9px;
+    box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+  .landrop-qr svg{width:100%;height:100%;display:block}
+  .landrop-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .landrop-info .scan{font-size:11.5px;color:var(--text-1);font-weight:500}
+  .landrop-info .url{font-family:var(--mono);font-size:10px;color:var(--text-3);
+    background:rgba(0,0,0,.28);padding:5px 7px;border-radius:6px;word-break:break-all;line-height:1.4}
+  .landrop-info .cd{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--warning);font-weight:500}
+  .landrop-info .rcv{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--success);font-weight:600;opacity:0}
+  .landrop-info .rcv svg{width:12px;height:12px}
+  .landrop-keep{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:7px;
+    background:rgba(0,0,0,.26);font-size:10.5px;color:var(--text-2);line-height:1.35}
+  .landrop-keep .warn{color:var(--warning);font-size:11px;flex:0 0 auto}
+  .landrop-foot{display:flex;gap:8px}
+  .landrop-foot .fbtn{flex:1;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:600}
+  .landrop-foot .fbtn.stop{background:rgba(255,255,255,.07);color:var(--danger)}
+  .landrop-foot .fbtn.close{background:#0A84FF;color:#fff}
+
+  .phone-shell{position:absolute;right:56px;top:92px;width:276px;height:556px;border-radius:36px;
+    background:#141418;border:3px solid #3A3A44;
+    box-shadow:0 30px 80px rgba(0,0,0,.72),0 0 0 1px rgba(255,255,255,.08);
+    padding:12px;z-index:55;opacity:0;transform-origin:50% 50%;display:flex;flex-direction:column}
+  .phone-notch{width:76px;height:18px;border-radius:99px;background:#000;margin:2px auto 10px;flex:0 0 18px}
+  .phone-screen{flex:1;border-radius:24px;background:#1C1C1E;padding:12px;display:flex;
+    flex-direction:column;gap:10px;overflow:hidden;border:.5px solid rgba(255,255,255,.07)}
+  .ph-brand{font-size:11px;font-weight:600;color:#4FA3FF;display:flex;align-items:center;gap:5px}
+  .ph-card{background:#2C2C2E;border-radius:11px;padding:11px;display:flex;flex-direction:column;gap:7px;
+    border:.5px solid rgba(255,255,255,.07)}
+  .ph-card h4{font-size:12.5px;font-weight:600;color:#F5F5F7;margin:0}
+  .ph-card .ph-muted{font-size:10px;color:#98989D;line-height:1.4}
+  .ph-pre{font-family:var(--mono);font-size:10px;line-height:1.5;color:#E5E5EA;background:#1C1C1E;
+    padding:8px;border-radius:7px;max-height:94px;overflow:hidden;white-space:pre-wrap}
+  .ph-btn{height:30px;border-radius:8px;background:#0A84FF;color:#fff;font-size:11.5px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+  .ph-btn svg{width:13px;height:13px;flex:0 0 13px}
+  .ph-btn.ok{background:#248A3D;color:#fff}
+  .ph-filebox{border:1px dashed rgba(255,255,255,.22);border-radius:8px;padding:8px;
+    font-size:10.5px;color:#E5E5EA;display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.22)}
+  .ph-filebox .thumb{width:26px;height:26px;border-radius:5px;background:linear-gradient(135deg,#BF5AF2,#0A84FF);
+    display:flex;align-items:center;justify-content:center;color:#fff;flex:0 0 26px}
+  .ph-filebox .thumb svg{width:14px;height:14px}
+  .ph-status{font-size:10.5px;color:#30D158;text-align:center;min-height:15px;font-weight:600;opacity:0}
 </style>
 </head>
 <body>

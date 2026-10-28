@@ -8,7 +8,7 @@ Comparing two config revisions, checking what an AI changed in your code, or ver
 
 ## 1. How to Trigger Inline Diff
 
-In addition to pressing **`⌘ D`**, you can click any of the 3 visible UI entry points: the **Diff button in the bottom batch toolbar** (when 2 items are selected), the **Diff icon in the top-right preview header**, or **Compare Two Entries (`⌘ D`) in the right-click context menu**.
+In addition to pressing **`⌘ D`**, you can click any of the 3 visible UI entry points: the **Diff button in the bottom batch toolbar** (when 2 items are selected), **Diff inside the ⋯ More menu of the top-right preview header**, or **Compare Two Entries (`⌘ D`) in the right-click context menu**.
 
 | Your Selection | What NookClip Compares |
 | :--- | :--- |

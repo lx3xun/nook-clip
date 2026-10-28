@@ -519,6 +519,8 @@
 "scrub.action.reveal_failed" = "Couldn't read this item, nothing was scrubbed";
 "preview.scrub.button" = "Scrub & Paste";
 "preview.pin.button" = "Pin to Screen";
+"preview.more.button" = "More actions";
+"preview.more.hint" = "Open more actions such as compare, send to phone, edit tags, and delete";
 /* Paste stack */
 "batch.paste_stack" = "Paste Stack";
 "batch.paste_stack_help" = "Paste Stack (⌥⏎)";
@@ -728,3 +730,26 @@
 "preview.autoburn.keep" = "Keep this";
 "preview.autoburn.burn" = "Burn now";
 "a11y.autoburn.badge" = "Auto-burn status";
+
+/* Phone Drop */
+"preview.phone_drop.button" = "Send to Phone";
+"landrop.title" = "Send to Phone";
+"landrop.subtitle" = "Scan on the same Wi-Fi to send text and images both ways — no app needed";
+"landrop.scan_hint" = "Scan with your phone camera";
+"landrop.keep_open_hint" = "Keep this view open during transfer — closing or switching disconnects immediately";
+"landrop.countdown" = "%d s left";
+"landrop.ip_label" = "LAN address";
+"landrop.stop" = "Stop Sharing";
+"landrop.close" = "Close";
+"landrop.received_count" = "Received %d item(s)";
+"landrop.no_network" = "Connect to Wi-Fi or a LAN first";
+"landrop.url_mode_hint" = "This is a URL — switch to link QR code";
+"landrop.mode_link" = "Link QR";
+"landrop.mode_drop" = "Two-way transfer";
+"landrop.received_toast" = "Received clipboard content from your phone";
+"landrop.stopped" = "Sharing stopped";
+"landrop.starting" = "Starting transfer service…";
+"landrop.file_fallback_name" = "Phone upload";
+"landrop.image_fallback_title" = "Image from phone";
+"landrop.text_fallback_title" = "Text from phone";
+"landrop.source_name" = "Phone Drop";
