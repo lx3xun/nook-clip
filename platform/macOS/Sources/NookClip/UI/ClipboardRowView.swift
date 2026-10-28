@@ -308,6 +308,10 @@ struct ClipboardRowView: View {
     var onRenameCommit: ((String) -> Void)? = nil
     /// 重命名放弃（Esc）
     var onRenameCancel: (() -> Void)? = nil
+    /// 粘完即焚状态徽章（nil = 不展示；由调度器决定后注入）
+    var autoBurnBadge: AutoBurnBadge.Style? = nil
+    /// `.clearing` 徽章展示的剩余秒数
+    var autoBurnSeconds: Int = 0
 
     var body: some View {
         NookClipRowShell(
@@ -342,12 +346,17 @@ struct ClipboardRowView: View {
                 sensitivePill(isSolidSelected: isSolidSelected)
             },
             subtitle: { isSolidSelected, isActive in
-                RowSubtitleView(
-                    item: item,
-                    isSolidSelected: isSolidSelected,
-                    isActive: isActive,
-                    highlightKeywords: highlightKeywords
-                )
+                HStack(spacing: 6) {
+                    RowSubtitleView(
+                        item: item,
+                        isSolidSelected: isSolidSelected,
+                        isActive: isActive,
+                        highlightKeywords: highlightKeywords
+                    )
+                    if let style = resolvedAutoBurnBadge {
+                        autoBurnBadgeView(style: style, isSolidSelected: isSolidSelected)
+                    }
+                }
             }
         )
     }
@@ -357,6 +366,37 @@ struct ClipboardRowView: View {
         [item.displayTitle, item.source.name, item.timestampText]
             .filter { !$0.isEmpty }
             .joined(separator: "、")
+    }
+
+    /// 倒计时徽章每秒刷新一次：`TimelineView` 只驱动徽章这一小块，
+    /// 不会让整行每秒重建；其余档位是静态文案，不需要计时。
+    @ViewBuilder
+    private func autoBurnBadgeView(style: AutoBurnBadge.Style, isSolidSelected: Bool) -> some View {
+        if style == .clearing {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                if AutoBurnController.shared.resident?.itemID == item.id,
+                   let remaining = AutoBurnController.shared.remainingSeconds(),
+                   remaining > 0 {
+                    AutoBurnBadge(
+                        style: style,
+                        seconds: remaining,
+                        isOnSolidAccent: isSolidSelected
+                    )
+                }
+            }
+        } else {
+            AutoBurnBadge(style: style, seconds: autoBurnSeconds, isOnSolidAccent: isSolidSelected)
+        }
+    }
+
+    /// 敏感行徽章样式：外部注入优先；没注入时，若正文本身已是 4~8 位纯数字
+    /// （验证码提纯后的形态），就显示「验证码」火焰徽章，其余敏感内容留白。
+    private var resolvedAutoBurnBadge: AutoBurnBadge.Style? {
+        if let autoBurnBadge { return autoBurnBadge }
+        guard item.isSensitive else { return nil }
+        let code = item.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (4...8).contains(code.count), code.allSatisfy({ $0.isNumber }) else { return nil }
+        return .otp
     }
 
     // MARK: 前置槽（缩略图 / 来源 App 图标 · 方案 1）

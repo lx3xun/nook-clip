@@ -86,6 +86,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             clipboardWriter: dependencies.clipboardWriter
         )
 
+        // 粘完即焚：验证码等敏感内容「粘完 5 秒」后从历史彻底销毁。
+        // 用回调接线而不是让剪贴板层直接依赖存储层——AutoBurnController 只决定
+        // 「什么时候该烧」，具体烧哪条记录交给历史库（不进回收站、不参与同步）。
+        AutoBurnController.shared.defaults = dependencies.defaults
+        AutoBurnController.shared.onHistoryBurn = { [weak self] id in
+            self?.historyStore.burnImmediately(id)
+        }
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(openSettings(_:)),

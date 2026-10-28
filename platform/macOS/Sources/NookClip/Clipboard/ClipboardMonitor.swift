@@ -183,6 +183,19 @@ final class ClipboardMonitor {
                 return
             }
 
+            // 5.1 粘完即焚：无论是否入库，都要处理「剪贴板里还留着敏感明文」这件事。
+            //     验证码会被原地提纯为纯码，敏感内容登记倒计时/粘贴监听；
+            //     普通内容则收掉上一次的监听（不常驻监听键盘）。
+            //     放在入库之后：历史库里要留原文，剪贴板里只留提纯值。
+            let savedItemID: UUID? = {
+                if case .saved(let s) = outcome { return UUID(uuidString: s.id) }
+                return nil
+            }()
+            let capturedText = snapshot.text ?? ""
+            await MainActor.run {
+                AutoBurnController.shared.handleCapturedText(capturedText, itemID: savedItemID)
+            }
+
             guard case .saved(let summary) = outcome else {
                 return
             }

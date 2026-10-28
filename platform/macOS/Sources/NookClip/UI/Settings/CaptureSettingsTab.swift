@@ -7,13 +7,21 @@ struct CaptureSettingsTab: View {
     @AppStorage("enableSensitiveProtection") private var enableSensitiveProtection = true
     @AppStorage("sensitiveClipboardTimeout") private var sensitiveClipboardTimeout = 30
     @AppStorage(UserDefaultsKey.formBurstAutoSuggestEnabled.rawValue) private var formBurstAutoSuggestEnabled = true
+    // MARK: 粘完即焚
+    @AppStorage(UserDefaultsKey.autoBurnOtpEnabled.rawValue) private var autoBurnOtpEnabled = true
+    @AppStorage(UserDefaultsKey.autoBurnClearOnPaste.rawValue) private var autoBurnClearOnPaste = true
+    @AppStorage(UserDefaultsKey.autoBurnHistoryBurnEnabled.rawValue) private var autoBurnHistoryBurnEnabled = false
 
+    private var isAutoBurnActive: Bool {
+        autoBurnOtpEnabled || autoBurnClearOnPaste
+    }
     var body: some View {
         SettingsPage(
             title: L10n.tr("settings.tab.capture"),
             subtitle: L10n.tr("settings.subtitle.capture"),
             status: [
                 (L10n.tr("settings.status.sensitive"), L10n.stateWord(enableSensitiveProtection)),
+                (L10n.tr("settings.status.auto_burn"), L10n.stateWord(isAutoBurnActive)),
                 (L10n.tr("settings.status.sensitive_clear"), sensitiveClipboardTimeout == 0
                     ? L10n.tr("settings.retention.unlimited")
                     : "\(sensitiveClipboardTimeout) " + L10n.tr("settings.general.seconds")),
@@ -37,7 +45,10 @@ struct CaptureSettingsTab: View {
                 }
 
                 if enableSensitiveProtection {
-                    SettingsRow(title: L10n.tr("settings.general.sensitive_timeout")) {
+                    SettingsRow(
+                        title: L10n.tr("settings.general.sensitive_timeout"),
+                        subtitle: L10n.tr("settings.general.sensitive_timeout_desc")
+                    ) {
                         Picker("", selection: $sensitiveClipboardTimeout) {
                             Text("10 " + L10n.tr("settings.general.seconds")).tag(10)
                             Text("30 " + L10n.tr("settings.general.seconds")).tag(30)
@@ -53,6 +64,43 @@ struct CaptureSettingsTab: View {
 
             SettingsFoldGroup(
                 index: 1,
+                title: L10n.tr("settings.capture.auto_burn_title"),
+                summary: isAutoBurnActive
+                    ? L10n.tr("settings.capture.auto_burn_summary")
+                    : L10n.stateWord(false)
+            ) {
+                SettingsRow(
+                    title: L10n.tr("settings.capture.auto_burn_otp"),
+                    subtitle: L10n.tr("settings.capture.auto_burn_otp_desc"),
+                    showDivider: true
+                ) {
+                    Toggle("", isOn: $autoBurnOtpEnabled)
+                        .toggleStyle(.nookSwitch)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    title: L10n.tr("settings.capture.auto_burn_clear"),
+                    subtitle: L10n.tr("settings.capture.auto_burn_clear_desc"),
+                    showDivider: true
+                ) {
+                    Toggle("", isOn: $autoBurnClearOnPaste)
+                        .toggleStyle(.nookSwitch)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    title: L10n.tr("settings.capture.auto_burn_history"),
+                    subtitle: L10n.tr("settings.capture.auto_burn_history_desc")
+                ) {
+                    Toggle("", isOn: $autoBurnHistoryBurnEnabled)
+                        .toggleStyle(.nookSwitch)
+                        .labelsHidden()
+                }
+            }
+
+            SettingsFoldGroup(
+                index: 2,
                 title: L10n.tr("settings.capture.form_burst_title"),
                 summary: L10n.stateWord(formBurstAutoSuggestEnabled)
             ) {
@@ -67,7 +115,7 @@ struct CaptureSettingsTab: View {
             }
 
             SettingsFoldGroup(
-                index: 2,
+                index: 3,
                 title: L10n.tr("excluded.title"),
                 summary: "\(excludedCount)"
             ) {

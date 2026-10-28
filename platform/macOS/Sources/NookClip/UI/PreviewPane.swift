@@ -396,12 +396,21 @@ struct PreviewPane: View {
                     .background(NookClip.bgRowOn, in: Capsule())
             }
 
+            // 只有「这条验证码此刻正等着被焚毁」时才给保留/焚毁两个动作，
+            // 普通长效密码不走历史自动焚毁，不显示与当下无关的按钮。
+            let isAutoBurnArmed = AutoBurnController.shared.resident?.itemID == item.id
+                && AutoBurnController.shared.resident?.kind == .otp
+            let canKeepHistory = isAutoBurnArmed && !AutoBurnController.shared.isKept(itemID: item.id)
+
             SensitiveMaskCard(
                 maskedText: item.summary.isEmpty ? item.displayTitle : item.summary,
                 revealedText: revealedPlainText,
                 isRevealed: isRevealed,
                 countdownSeconds: countdownSeconds,
-                revealFailure: revealFailure
+                revealFailure: revealFailure,
+                autoBurnSeconds: AutoBurnController.shared.configuredCountdownSeconds,
+                onKeep: canKeepHistory ? { AutoBurnController.shared.keep(itemID: item.id) } : nil,
+                onBurn: isAutoBurnArmed ? { AutoBurnController.shared.burnNow(itemID: item.id) } : nil
             ) {
                 toggleReveal(item)
             }

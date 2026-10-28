@@ -365,6 +365,13 @@ final class DraggablePanel: NSPanel {
             return true
         }
 
+        // ⌘D：进入/退出一键行内对比（两条记录的字词级差异）。
+        // 面板内无「添加书签/Dock」类系统语义，可安全占用
+        if modifiers == .command && keyCode == kVK_ANSI_D {
+            actions.toggleDiff()
+            return true
+        }
+
         // ⌘[ / ⌘]：分类循环（⌘[ 上一个，⌘] 下一个）
         if modifiers == .command, (keyCode == kVK_ANSI_LeftBracket || keyCode == kVK_ANSI_RightBracket) {
             actions.cycleCategory(keyCode == kVK_ANSI_LeftBracket ? -1 : 1)
@@ -377,6 +384,8 @@ final class DraggablePanel: NSPanel {
             if modifiers.contains(.command) || (isSearchFocused && (modifiers.contains(.option) || modifiers.contains(.control))) {
                 return false
             }
+            // 对比态 ⌥↑：跳到上一个差异块（搜索框未聚焦时生效；⌥ 不参与列表移动，安全）
+            if modifiers == [.option], actions.moveDiffHunk(false) { return true }
             actions.arrow(-1, modifiers.contains(.shift))
             return true
         }
@@ -392,6 +401,8 @@ final class DraggablePanel: NSPanel {
             if isSearchFocused && (modifiers.contains(.option) || modifiers.contains(.control)) {
                 return false
             }
+            // 对比态 ⌥↓：跳到下一个差异块（搜索框未聚焦时生效）
+            if modifiers == [.option], actions.moveDiffHunk(true) { return true }
             actions.arrow(1, modifiers.contains(.shift))
             return true
         }
@@ -403,6 +414,10 @@ final class DraggablePanel: NSPanel {
         // ⌃⏎ 与 ⌃⇧⏎ 必须在通用 confirm 之前判定：两者都是 ⏎ 系列，
         // 若不先分流会被 confirm 吞掉，脱敏与还原入口即失效（contracts phase1 C1）
         if keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter {
+            // 对比态：⏎ 粘贴合并版（优先级最高，此时其余粘贴语义都不适用）
+            if modifiers.isEmpty, actions.pasteMergedDiff() {
+                return true
+            }
             if modifiers == [.control] {
                 actions.scrubConfirm()
                 return true
@@ -459,6 +474,8 @@ final class DraggablePanel: NSPanel {
             switch keyCode {
             case kVK_ANSI_C:
                 if !isSearchFocused {
+                    // 对比态：⌘C 复制合并版（而非单条原文）；搜索态归还输入框复制选中文本
+                    if actions.copyMergedDiff() { return true }
                     actions.copySelection()
                     return true
                 }

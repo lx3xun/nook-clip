@@ -1,4 +1,6 @@
+pub mod auto_burn;
 pub mod color;
+pub mod diff;
 pub mod form_burst;
 pub mod highlight;
 pub mod kind;

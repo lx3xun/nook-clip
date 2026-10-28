@@ -415,6 +415,22 @@ fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt16: FfiConverterPrimitive {
+    typealias FfiType = UInt16
+    typealias SwiftType = UInt16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -2064,6 +2080,103 @@ public func FfiConverterTypeDetectionResult_lower(_ value: DetectionResult) -> R
 
 
 /**
+ * 一次「要不要焚」的判定结果（与 Rust `AutoBurnSignal` 一一对应）。
+ */
+public struct FfiAutoBurnSignal {
+    /**
+     * 判定档位；`None` 时客户端原样粘贴，不做任何焚毁处理
+     */
+    public var kind: FfiAutoBurnKind
+    /**
+     * Otp 时为应写入剪贴板的提纯验证码（如 "482910"）；Secret / None 时为空串
+     */
+    public var extractedCode: String
+    /**
+     * 稳定标识：Otp 固定为 "otp_code"，Secret 为命中规则名（如 "mnemonic_phrase" /
+     * "openai_key"），None 为空。客户端拿它查本地化文案，**不要随意改名**
+     */
+    public var sensitiveType: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 判定档位；`None` 时客户端原样粘贴，不做任何焚毁处理
+         */kind: FfiAutoBurnKind, 
+        /**
+         * Otp 时为应写入剪贴板的提纯验证码（如 "482910"）；Secret / None 时为空串
+         */extractedCode: String, 
+        /**
+         * 稳定标识：Otp 固定为 "otp_code"，Secret 为命中规则名（如 "mnemonic_phrase" /
+         * "openai_key"），None 为空。客户端拿它查本地化文案，**不要随意改名**
+         */sensitiveType: String?) {
+        self.kind = kind
+        self.extractedCode = extractedCode
+        self.sensitiveType = sensitiveType
+    }
+}
+
+
+
+extension FfiAutoBurnSignal: Equatable, Hashable {
+    public static func ==(lhs: FfiAutoBurnSignal, rhs: FfiAutoBurnSignal) -> Bool {
+        if lhs.kind != rhs.kind {
+            return false
+        }
+        if lhs.extractedCode != rhs.extractedCode {
+            return false
+        }
+        if lhs.sensitiveType != rhs.sensitiveType {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(extractedCode)
+        hasher.combine(sensitiveType)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiAutoBurnSignal: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiAutoBurnSignal {
+        return
+            try FfiAutoBurnSignal(
+                kind: FfiConverterTypeFfiAutoBurnKind.read(from: &buf), 
+                extractedCode: FfiConverterString.read(from: &buf), 
+                sensitiveType: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiAutoBurnSignal, into buf: inout [UInt8]) {
+        FfiConverterTypeFfiAutoBurnKind.write(value.kind, into: &buf)
+        FfiConverterString.write(value.extractedCode, into: &buf)
+        FfiConverterOptionString.write(value.sensitiveType, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAutoBurnSignal_lift(_ buf: RustBuffer) throws -> FfiAutoBurnSignal {
+    return try FfiConverterTypeFfiAutoBurnSignal.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAutoBurnSignal_lower(_ value: FfiAutoBurnSignal) -> RustBuffer {
+    return FfiConverterTypeFfiAutoBurnSignal.lower(value)
+}
+
+
+/**
  * 用户自定义脱敏规则（与 Rust 侧 `CustomScrubRule` 一一对应）。
  */
 public struct FfiCustomScrubRule {
@@ -2173,6 +2286,470 @@ public func FfiConverterTypeFfiCustomScrubRule_lift(_ buf: RustBuffer) throws ->
 #endif
 public func FfiConverterTypeFfiCustomScrubRule_lower(_ value: FfiCustomScrubRule) -> RustBuffer {
     return FfiConverterTypeFfiCustomScrubRule.lower(value)
+}
+
+
+/**
+ * 差异块（Hunk）：连续的改动，或一段未改动的上下文
+ */
+public struct FfiDiffHunk {
+    /**
+     * 块序号，从 0 起（合并时按此顺序取选择）
+     */
+    public var id: UInt32
+    /**
+     * true = 有改动（可选择保留旧版/新版/双方）；false = 未改动的上下文块
+     */
+    public var isChange: Bool
+    /**
+     * 旧版起始行号（1 起），0 表示旧版没有对应行
+     */
+    public var oldLineStart: UInt32
+    /**
+     * 新版起始行号（1 起），0 表示新版没有对应行
+     */
+    public var newLineStart: UInt32
+    public var oldLines: [String]
+    public var newLines: [String]
+    /**
+     * 逐行渲染数据。契约：改动块填充此字段，未改动上下文块为空数组
+     * （调用方直接用 `new_lines` 平铺渲染，可自行折叠长上下文）
+     */
+    public var lines: [FfiDiffLine]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * 块序号，从 0 起（合并时按此顺序取选择）
+         */id: UInt32, 
+        /**
+         * true = 有改动（可选择保留旧版/新版/双方）；false = 未改动的上下文块
+         */isChange: Bool, 
+        /**
+         * 旧版起始行号（1 起），0 表示旧版没有对应行
+         */oldLineStart: UInt32, 
+        /**
+         * 新版起始行号（1 起），0 表示新版没有对应行
+         */newLineStart: UInt32, oldLines: [String], newLines: [String], 
+        /**
+         * 逐行渲染数据。契约：改动块填充此字段，未改动上下文块为空数组
+         * （调用方直接用 `new_lines` 平铺渲染，可自行折叠长上下文）
+         */lines: [FfiDiffLine]) {
+        self.id = id
+        self.isChange = isChange
+        self.oldLineStart = oldLineStart
+        self.newLineStart = newLineStart
+        self.oldLines = oldLines
+        self.newLines = newLines
+        self.lines = lines
+    }
+}
+
+
+
+extension FfiDiffHunk: Equatable, Hashable {
+    public static func ==(lhs: FfiDiffHunk, rhs: FfiDiffHunk) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.isChange != rhs.isChange {
+            return false
+        }
+        if lhs.oldLineStart != rhs.oldLineStart {
+            return false
+        }
+        if lhs.newLineStart != rhs.newLineStart {
+            return false
+        }
+        if lhs.oldLines != rhs.oldLines {
+            return false
+        }
+        if lhs.newLines != rhs.newLines {
+            return false
+        }
+        if lhs.lines != rhs.lines {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(isChange)
+        hasher.combine(oldLineStart)
+        hasher.combine(newLineStart)
+        hasher.combine(oldLines)
+        hasher.combine(newLines)
+        hasher.combine(lines)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiDiffHunk: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiDiffHunk {
+        return
+            try FfiDiffHunk(
+                id: FfiConverterUInt32.read(from: &buf), 
+                isChange: FfiConverterBool.read(from: &buf), 
+                oldLineStart: FfiConverterUInt32.read(from: &buf), 
+                newLineStart: FfiConverterUInt32.read(from: &buf), 
+                oldLines: FfiConverterSequenceString.read(from: &buf), 
+                newLines: FfiConverterSequenceString.read(from: &buf), 
+                lines: FfiConverterSequenceTypeFfiDiffLine.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiDiffHunk, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.id, into: &buf)
+        FfiConverterBool.write(value.isChange, into: &buf)
+        FfiConverterUInt32.write(value.oldLineStart, into: &buf)
+        FfiConverterUInt32.write(value.newLineStart, into: &buf)
+        FfiConverterSequenceString.write(value.oldLines, into: &buf)
+        FfiConverterSequenceString.write(value.newLines, into: &buf)
+        FfiConverterSequenceTypeFfiDiffLine.write(value.lines, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffHunk_lift(_ buf: RustBuffer) throws -> FfiDiffHunk {
+    return try FfiConverterTypeFfiDiffHunk.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffHunk_lower(_ value: FfiDiffHunk) -> RustBuffer {
+    return FfiConverterTypeFfiDiffHunk.lower(value)
+}
+
+
+/**
+ * 一行差异的渲染数据
+ */
+public struct FfiDiffLine {
+    public var tag: FfiDiffTag
+    /**
+     * 旧版行号（1 起），0 表示该行不在旧版中
+     */
+    public var oldLineNo: UInt32
+    /**
+     * 新版行号（1 起），0 表示该行不在新版中
+     */
+    public var newLineNo: UInt32
+    public var spans: [FfiDiffSpan]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(tag: FfiDiffTag, 
+        /**
+         * 旧版行号（1 起），0 表示该行不在旧版中
+         */oldLineNo: UInt32, 
+        /**
+         * 新版行号（1 起），0 表示该行不在新版中
+         */newLineNo: UInt32, spans: [FfiDiffSpan]) {
+        self.tag = tag
+        self.oldLineNo = oldLineNo
+        self.newLineNo = newLineNo
+        self.spans = spans
+    }
+}
+
+
+
+extension FfiDiffLine: Equatable, Hashable {
+    public static func ==(lhs: FfiDiffLine, rhs: FfiDiffLine) -> Bool {
+        if lhs.tag != rhs.tag {
+            return false
+        }
+        if lhs.oldLineNo != rhs.oldLineNo {
+            return false
+        }
+        if lhs.newLineNo != rhs.newLineNo {
+            return false
+        }
+        if lhs.spans != rhs.spans {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(tag)
+        hasher.combine(oldLineNo)
+        hasher.combine(newLineNo)
+        hasher.combine(spans)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiDiffLine: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiDiffLine {
+        return
+            try FfiDiffLine(
+                tag: FfiConverterTypeFfiDiffTag.read(from: &buf), 
+                oldLineNo: FfiConverterUInt32.read(from: &buf), 
+                newLineNo: FfiConverterUInt32.read(from: &buf), 
+                spans: FfiConverterSequenceTypeFfiDiffSpan.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiDiffLine, into buf: inout [UInt8]) {
+        FfiConverterTypeFfiDiffTag.write(value.tag, into: &buf)
+        FfiConverterUInt32.write(value.oldLineNo, into: &buf)
+        FfiConverterUInt32.write(value.newLineNo, into: &buf)
+        FfiConverterSequenceTypeFfiDiffSpan.write(value.spans, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffLine_lift(_ buf: RustBuffer) throws -> FfiDiffLine {
+    return try FfiConverterTypeFfiDiffLine.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffLine_lower(_ value: FfiDiffLine) -> RustBuffer {
+    return FfiConverterTypeFfiDiffLine.lower(value)
+}
+
+
+/**
+ * 行内片段：一段连续同类型的文本
+ */
+public struct FfiDiffSpan {
+    public var tag: FfiDiffTag
+    /**
+     * 片段原文（拼接全部片段 = 该行原文）
+     */
+    public var text: String
+    /**
+     * true = 行内精确改动的字词（高亮强调）；
+     * false = 未改动的上下文，或整行新增/删除（弱化显示）
+     */
+    public var emphasized: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(tag: FfiDiffTag, 
+        /**
+         * 片段原文（拼接全部片段 = 该行原文）
+         */text: String, 
+        /**
+         * true = 行内精确改动的字词（高亮强调）；
+         * false = 未改动的上下文，或整行新增/删除（弱化显示）
+         */emphasized: Bool) {
+        self.tag = tag
+        self.text = text
+        self.emphasized = emphasized
+    }
+}
+
+
+
+extension FfiDiffSpan: Equatable, Hashable {
+    public static func ==(lhs: FfiDiffSpan, rhs: FfiDiffSpan) -> Bool {
+        if lhs.tag != rhs.tag {
+            return false
+        }
+        if lhs.text != rhs.text {
+            return false
+        }
+        if lhs.emphasized != rhs.emphasized {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(tag)
+        hasher.combine(text)
+        hasher.combine(emphasized)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiDiffSpan: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiDiffSpan {
+        return
+            try FfiDiffSpan(
+                tag: FfiConverterTypeFfiDiffTag.read(from: &buf), 
+                text: FfiConverterString.read(from: &buf), 
+                emphasized: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiDiffSpan, into buf: inout [UInt8]) {
+        FfiConverterTypeFfiDiffTag.write(value.tag, into: &buf)
+        FfiConverterString.write(value.text, into: &buf)
+        FfiConverterBool.write(value.emphasized, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffSpan_lift(_ buf: RustBuffer) throws -> FfiDiffSpan {
+    return try FfiConverterTypeFfiDiffSpan.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffSpan_lower(_ value: FfiDiffSpan) -> RustBuffer {
+    return FfiConverterTypeFfiDiffSpan.lower(value)
+}
+
+
+/**
+ * 差异统计摘要（预览区顶部胶囊显示）
+ */
+public struct FfiDiffStats {
+    public var addedLines: UInt32
+    public var removedLines: UInt32
+    public var changedHunks: UInt32
+    public var addedWords: UInt32
+    public var removedWords: UInt32
+    /**
+     * 相似度千分比（1000 = 完全相同）
+     */
+    public var similarityPermille: UInt16
+    /**
+     * 两侧文本逐字节相同
+     */
+    public var isIdentical: Bool
+    /**
+     * 因超出 max_lines 而截断，只对比了前 N 行
+     */
+    public var isTruncated: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(addedLines: UInt32, removedLines: UInt32, changedHunks: UInt32, addedWords: UInt32, removedWords: UInt32, 
+        /**
+         * 相似度千分比（1000 = 完全相同）
+         */similarityPermille: UInt16, 
+        /**
+         * 两侧文本逐字节相同
+         */isIdentical: Bool, 
+        /**
+         * 因超出 max_lines 而截断，只对比了前 N 行
+         */isTruncated: Bool) {
+        self.addedLines = addedLines
+        self.removedLines = removedLines
+        self.changedHunks = changedHunks
+        self.addedWords = addedWords
+        self.removedWords = removedWords
+        self.similarityPermille = similarityPermille
+        self.isIdentical = isIdentical
+        self.isTruncated = isTruncated
+    }
+}
+
+
+
+extension FfiDiffStats: Equatable, Hashable {
+    public static func ==(lhs: FfiDiffStats, rhs: FfiDiffStats) -> Bool {
+        if lhs.addedLines != rhs.addedLines {
+            return false
+        }
+        if lhs.removedLines != rhs.removedLines {
+            return false
+        }
+        if lhs.changedHunks != rhs.changedHunks {
+            return false
+        }
+        if lhs.addedWords != rhs.addedWords {
+            return false
+        }
+        if lhs.removedWords != rhs.removedWords {
+            return false
+        }
+        if lhs.similarityPermille != rhs.similarityPermille {
+            return false
+        }
+        if lhs.isIdentical != rhs.isIdentical {
+            return false
+        }
+        if lhs.isTruncated != rhs.isTruncated {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(addedLines)
+        hasher.combine(removedLines)
+        hasher.combine(changedHunks)
+        hasher.combine(addedWords)
+        hasher.combine(removedWords)
+        hasher.combine(similarityPermille)
+        hasher.combine(isIdentical)
+        hasher.combine(isTruncated)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiDiffStats: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiDiffStats {
+        return
+            try FfiDiffStats(
+                addedLines: FfiConverterUInt32.read(from: &buf), 
+                removedLines: FfiConverterUInt32.read(from: &buf), 
+                changedHunks: FfiConverterUInt32.read(from: &buf), 
+                addedWords: FfiConverterUInt32.read(from: &buf), 
+                removedWords: FfiConverterUInt32.read(from: &buf), 
+                similarityPermille: FfiConverterUInt16.read(from: &buf), 
+                isIdentical: FfiConverterBool.read(from: &buf), 
+                isTruncated: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiDiffStats, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.addedLines, into: &buf)
+        FfiConverterUInt32.write(value.removedLines, into: &buf)
+        FfiConverterUInt32.write(value.changedHunks, into: &buf)
+        FfiConverterUInt32.write(value.addedWords, into: &buf)
+        FfiConverterUInt32.write(value.removedWords, into: &buf)
+        FfiConverterUInt16.write(value.similarityPermille, into: &buf)
+        FfiConverterBool.write(value.isIdentical, into: &buf)
+        FfiConverterBool.write(value.isTruncated, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffStats_lift(_ buf: RustBuffer) throws -> FfiDiffStats {
+    return try FfiConverterTypeFfiDiffStats.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffStats_lower(_ value: FfiDiffStats) -> RustBuffer {
+    return FfiConverterTypeFfiDiffStats.lower(value)
 }
 
 
@@ -2818,6 +3395,75 @@ public func FfiConverterTypeFfiTerminalPasteAssessment_lift(_ buf: RustBuffer) t
 #endif
 public func FfiConverterTypeFfiTerminalPasteAssessment_lower(_ value: FfiTerminalPasteAssessment) -> RustBuffer {
     return FfiConverterTypeFfiTerminalPasteAssessment.lower(value)
+}
+
+
+/**
+ * 对比结果
+ */
+public struct FfiTextDiffResult {
+    public var hunks: [FfiDiffHunk]
+    public var stats: FfiDiffStats
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(hunks: [FfiDiffHunk], stats: FfiDiffStats) {
+        self.hunks = hunks
+        self.stats = stats
+    }
+}
+
+
+
+extension FfiTextDiffResult: Equatable, Hashable {
+    public static func ==(lhs: FfiTextDiffResult, rhs: FfiTextDiffResult) -> Bool {
+        if lhs.hunks != rhs.hunks {
+            return false
+        }
+        if lhs.stats != rhs.stats {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(hunks)
+        hasher.combine(stats)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiTextDiffResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiTextDiffResult {
+        return
+            try FfiTextDiffResult(
+                hunks: FfiConverterSequenceTypeFfiDiffHunk.read(from: &buf), 
+                stats: FfiConverterTypeFfiDiffStats.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: FfiTextDiffResult, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeFfiDiffHunk.write(value.hunks, into: &buf)
+        FfiConverterTypeFfiDiffStats.write(value.stats, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiTextDiffResult_lift(_ buf: RustBuffer) throws -> FfiTextDiffResult {
+    return try FfiConverterTypeFfiTextDiffResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiTextDiffResult_lower(_ value: FfiTextDiffResult) -> RustBuffer {
+    return FfiConverterTypeFfiTextDiffResult.lower(value)
 }
 
 
@@ -4499,6 +5145,163 @@ public func FfiConverterTypeTimeGroupSummary_lower(_ value: TimeGroupSummary) ->
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 粘完即焚的判定档位（与 Rust `AutoBurnKind` 一一对应）。
+ */
+
+public enum FfiAutoBurnKind {
+    
+    case none
+    case otp
+    case secret
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiAutoBurnKind: FfiConverterRustBuffer {
+    typealias SwiftType = FfiAutoBurnKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiAutoBurnKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .none
+        
+        case 2: return .otp
+        
+        case 3: return .secret
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiAutoBurnKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .none:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .otp:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .secret:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAutoBurnKind_lift(_ buf: RustBuffer) throws -> FfiAutoBurnKind {
+    return try FfiConverterTypeFfiAutoBurnKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiAutoBurnKind_lower(_ value: FfiAutoBurnKind) -> RustBuffer {
+    return FfiConverterTypeFfiAutoBurnKind.lower(value)
+}
+
+
+
+extension FfiAutoBurnKind: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * 差异片段类型（与 Rust `DiffTag` 一一对应）
+ */
+
+public enum FfiDiffTag {
+    
+    /**
+     * 两侧都有（未改动）
+     */
+    case equal
+    /**
+     * 仅旧版有（会被删除）
+     */
+    case delete
+    /**
+     * 仅新版有（新增）
+     */
+    case insert
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeFfiDiffTag: FfiConverterRustBuffer {
+    typealias SwiftType = FfiDiffTag
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FfiDiffTag {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .equal
+        
+        case 2: return .delete
+        
+        case 3: return .insert
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FfiDiffTag, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .equal:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .delete:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .insert:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffTag_lift(_ buf: RustBuffer) throws -> FfiDiffTag {
+    return try FfiConverterTypeFfiDiffTag.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeFfiDiffTag_lower(_ value: FfiDiffTag) -> RustBuffer {
+    return FfiConverterTypeFfiDiffTag.lower(value)
+}
+
+
+
+extension FfiDiffTag: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
 public enum IngestOutcome {
     
@@ -5531,6 +6334,81 @@ fileprivate struct FfiConverterSequenceTypeFfiCustomScrubRule: FfiConverterRustB
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeFfiDiffHunk: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiDiffHunk]
+
+    public static func write(_ value: [FfiDiffHunk], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiDiffHunk.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiDiffHunk] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiDiffHunk]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiDiffHunk.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiDiffLine: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiDiffLine]
+
+    public static func write(_ value: [FfiDiffLine], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiDiffLine.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiDiffLine] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiDiffLine]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiDiffLine.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeFfiDiffSpan: FfiConverterRustBuffer {
+    typealias SwiftType = [FfiDiffSpan]
+
+    public static func write(_ value: [FfiDiffSpan], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFfiDiffSpan.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FfiDiffSpan] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FfiDiffSpan]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFfiDiffSpan.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeFfiExternalEntitySpan: FfiConverterRustBuffer {
     typealias SwiftType = [FfiExternalEntitySpan]
 
@@ -5791,6 +6669,28 @@ public func clearScrubSessionVault() {try! rustCall() {
 }
 }
 /**
+ * 对比两段文本，返回「差异块 → 行 → 行内片段」三级结构。
+ *
+ * - `ignore_whitespace`：忽略空白差异（缩进、行内多空格、行尾空格都不算改动）
+ * - `ignore_case`：忽略大小写差异
+ * - `max_lines`：参与对比的最大行数，0 = 用默认值 1500
+ * - `max_inline_tokens`：单行内 token 上限，0 = 用默认值 2000
+ *
+ * 返回的 `hunks` 中，未改动上下文块的 `lines` 为空数组（用 `new_lines` 渲染即可）。
+ */
+public func computeTextDiff(oldText: String, newText: String, ignoreWhitespace: Bool, ignoreCase: Bool, maxLines: UInt32, maxInlineTokens: UInt32) -> FfiTextDiffResult {
+    return try!  FfiConverterTypeFfiTextDiffResult.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_compute_text_diff(
+        FfiConverterString.lower(oldText),
+        FfiConverterString.lower(newText),
+        FfiConverterBool.lower(ignoreWhitespace),
+        FfiConverterBool.lower(ignoreCase),
+        FfiConverterUInt32.lower(maxLines),
+        FfiConverterUInt32.lower(maxInlineTokens),$0
+    )
+})
+}
+/**
  * 统计文本中当前仍可还原的占位符个数（会话池未过期）。
  */
 public func countRestorablePlaceholders(text: String) -> UInt32 {
@@ -5806,6 +6706,21 @@ public func countRestorablePlaceholders(text: String) -> UInt32 {
 public func defaultEnabledScrubRules() -> [String] {
     return try!  FfiConverterSequenceString.lift(try! rustCall() {
     uniffi_nookclip_ffi_fn_func_default_enabled_scrub_rules($0
+    )
+})
+}
+/**
+ * 判定一段文本要不要「粘完即焚」，并给出粘贴用的提纯验证码。
+ *
+ * 纯判定：不碰剪贴板、不写盘。客户端按 `kind` 决定后续动作：
+ * - `None`：原样粘贴，走原有路径；
+ * - `Otp`：把 `extracted_code` 写进剪贴板后粘贴，原文不进历史；
+ * - `Secret`：原样粘贴后立刻焚掉历史与剪贴板。
+ */
+public func detectAutoBurn(text: String) -> FfiAutoBurnSignal {
+    return try!  FfiConverterTypeFfiAutoBurnSignal.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_detect_auto_burn(
+        FfiConverterString.lower(text),$0
     )
 })
 }
@@ -5857,6 +6772,26 @@ public func matchSearchHighlightRanges(text: String, keywords: [String]) -> [Hig
     uniffi_nookclip_ffi_fn_func_match_search_highlight_ranges(
         FfiConverterString.lower(text),
         FfiConverterSequenceString.lower(keywords),$0
+    )
+})
+}
+/**
+ * 按每个差异块的合并选择拼出完整文本（「一键复制合并版」）。
+ *
+ * `choices` 与 `hunks` 按序号对应：`0` = 保留新版（默认），`1` = 保留旧版，
+ * `2` = 两者都保留（旧版在前）；缺省或越界的块按「保留新版」处理。
+ * 传空数组即得到纯新版文本，传全 `1` 即得到纯旧版文本。
+ */
+public func mergeTextDiff(oldText: String, newText: String, ignoreWhitespace: Bool, ignoreCase: Bool, maxLines: UInt32, maxInlineTokens: UInt32, choices: Data) -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_nookclip_ffi_fn_func_merge_text_diff(
+        FfiConverterString.lower(oldText),
+        FfiConverterString.lower(newText),
+        FfiConverterBool.lower(ignoreWhitespace),
+        FfiConverterBool.lower(ignoreCase),
+        FfiConverterUInt32.lower(maxLines),
+        FfiConverterUInt32.lower(maxInlineTokens),
+        FfiConverterData.lower(choices),$0
     )
 })
 }
@@ -6015,10 +6950,16 @@ private var initializationResult: InitializationResult = {
     if (uniffi_nookclip_ffi_checksum_func_clear_scrub_session_vault() != 13661) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_nookclip_ffi_checksum_func_compute_text_diff() != 15960) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_nookclip_ffi_checksum_func_count_restorable_placeholders() != 48619) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_default_enabled_scrub_rules() != 25075) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_detect_auto_burn() != 32598) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_detect_form_burst_kind() != 53186) {
@@ -6037,6 +6978,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_match_search_highlight_ranges() != 25427) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_nookclip_ffi_checksum_func_merge_text_diff() != 15686) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_nookclip_ffi_checksum_func_parse_color_hex() != 48406) {

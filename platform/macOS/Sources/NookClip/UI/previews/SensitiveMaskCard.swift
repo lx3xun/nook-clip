@@ -10,7 +10,14 @@ struct SensitiveMaskCard: View {
     var countdownSeconds: Int = 0
     /// 查看失败原因（授权被拒 ≠ 密文损坏）：正文位置改显对应提示
     var revealFailure: ClipboardItem.RevealFailure?
+    /// 粘完即焚提示里展示的兜底秒数（默认 30，调用方传入 sensitiveClipboardTimeout）
+    var autoBurnSeconds: Int = 30
+    /// 「保留此条」动作（nil = 不渲染该按钮，保证既有调用点无需改动）
+    var onKeep: (() -> Void)? = nil
+    /// 「立即焚毁」动作（nil = 不渲染该按钮）
+    var onBurn: (() -> Void)? = nil
     let onToggle: () -> Void
+    @State private var didKeep = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,6 +78,8 @@ struct SensitiveMaskCard: View {
             .buttonStyle(.plain)
             .focusable(false)
             .padding(.top, 12)
+
+            autoBurnHint
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
@@ -79,6 +88,71 @@ struct SensitiveMaskCard: View {
                 .fill(NookClip.bgCode)
         }
     }
+    /// 卡片底部的「粘完即焚」说明条：
+    /// 一句说明（秒数由调用方传入），外加可选的两个动作按钮。
+    /// 两个闭包都为 nil 时整行按钮不渲染，既有调用点外观保持不变。
+    @ViewBuilder
+    private var autoBurnHint: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: NookClipIcon.AutoBurn.burn)
+                    .font(.system(size: NookClipIconSize.micro, weight: .semibold))
+                    .foregroundStyle(NookClip.colorSensitive)
+                Text(L10n.tr("preview.autoburn.hint", autoBurnSeconds))
+                    .font(.nookClipCaption)
+                    .foregroundStyle(NookClip.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            let activeOnKeep = didKeep ? nil : onKeep
+            if activeOnKeep != nil || onBurn != nil {
+                HStack(spacing: 10) {
+                    if let activeOnKeep {
+                        autoBurnButton(
+                            title: L10n.tr("preview.autoburn.keep"),
+                            isDanger: false,
+                            action: {
+                                didKeep = true
+                                activeOnKeep()
+                            }
+                        )
+                    }
+                    if let onBurn {
+                        autoBurnButton(
+                            title: L10n.tr("preview.autoburn.burn"),
+                            isDanger: true,
+                            action: onBurn
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.top, 14)
+        .padding(.horizontal, 16)
+    }
+
+    private func autoBurnButton(
+        title: String,
+        isDanger: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.nookClipSubheadMedium)
+                .foregroundStyle(isDanger ? NookClip.colorDanger : NookClip.textSecondary)
+                .padding(.horizontal, 12)
+                .frame(height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
+                        .fill(isDanger ? NookClip.bgDangerSubtle : NookClip.bgRowOn)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+    }
+
     private var buttonTitle: String {
         guard isRevealed else { return L10n.tr("preview.mask.reveal") }
         if countdownSeconds > 0 {

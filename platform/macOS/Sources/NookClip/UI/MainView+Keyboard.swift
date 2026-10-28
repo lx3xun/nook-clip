@@ -55,6 +55,13 @@ extension MainView {
     var panelKeyActions: PanelKeyActions {
         PanelKeyActions(
             arrow: { step, extend in
+                // 对比态下按普通 ↑/↓ 视为「看完了，继续浏览」：先退出对比再移动列表。
+                // 不能把按键静默吞掉——否则左侧不动、右侧不变，用户会以为键盘坏了；
+                // 也不能边比边移——右侧展示的是一对固定的两条，左侧高亮一移动就错位。
+                // 块间跳转是 ⌥↑/⌥↓，与这里不冲突。
+                if diffSession.isActive || diffSession.failure != nil {
+                    exitDiff()
+                }
                 if extend {
                     extendSelection(offset: step)
                 } else {
@@ -77,6 +84,7 @@ extension MainView {
             pinToScreen: { pinSelectedToScreen() },
             escape: { handleEscapeKey() },
             cycleCategory: { step in
+                exitDiff()
                 closeMenus()
                 cycleCategory(step)
             },
@@ -88,12 +96,25 @@ extension MainView {
             },
             cycleTimeAnchor: { cycleTimeAnchor() },
             undoDelete: { undoDelete() },
-            deleteSelection: { deleteSelection() },
+            deleteSelection: {
+                exitDiff()
+                deleteSelection()
+            },
             focusSearch: {
+                exitDiff()
                 searchFieldFocused = true
                 filterState.filterPanelOpen = true
             },
+            toggleDiff: { toggleDiff() },
+            moveDiffHunk: { forward in
+                guard diffSession.isActive else { return false }
+                _ = diffSession.focusNextChangeHunk(forward: forward)
+                return true
+            },
+            copyMergedDiff: { copyMergedDiff() },
+            pasteMergedDiff: { pasteMergedDiff() },
             typeToSearch: { event in
+                exitDiff()
                 searchFieldFocused = true
                 filterState.filterPanelOpen = false
                 DispatchQueue.main.async { NSApp.sendEvent(event) }
@@ -135,6 +156,12 @@ extension MainView {
         // 过滤面板展开态：Esc 先收起浮层（搜索框仍聚焦也不重新撑开——由 filterPanelOpen 驱动）
         if showsFilterPanel {
             filterState.filterPanelOpen = false
+            return
+        }
+        // 对比态（含只显示了失败原因的情形）：Esc 先退出对比，回到常规预览；
+        // 下方其余层级保持原语义。失败态也要能被 Esc 关掉，否则右列会一直卡着提示。
+        if diffSession.isActive || diffSession.failure != nil {
+            exitDiff()
             return
         }
         if isBatchMode { listState.selectionIDs.removeAll(); return }

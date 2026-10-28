@@ -275,8 +275,18 @@ final class InMemoryHistoryStore {
         publishMutation()
     }
 
-    func deleteMultiple(_ ids: Set<UUID>) {
-        let toTrash = items.filter { ids.contains($0.id) }.map { item -> ClipboardItem in
+    /// 粘完即焚：立即彻底删除，**不进回收站、不留撤销窗口、不调度云同步**。
+    ///
+    /// 为什么不用 `delete`：软删除会保留 30 秒撤销窗口，验证码这类内容
+    /// 「看过就该消失」，给撤销窗口等于让它多留一会儿；而且云端同步会把
+    /// 墓碑同步出去，敏感内容反而扩散。这里直接物理删除。
+    func burnImmediately(_ id: UUID) {
+        guard let item = items.first(where: { $0.id == id }) ?? item(withID: id) else { return }
+        items.removeAll { $0.id == id }
+        hardDelete([item])
+    }
+
+    func deleteMultiple(_ ids: Set<UUID>) {        let toTrash = items.filter { ids.contains($0.id) }.map { item -> ClipboardItem in
             var trashed = item
             if trashed.deletedAt == nil { trashed.deletedAt = .now }
             return trashed

@@ -44,4 +44,12 @@ enum UserDefaultsKey: String {
     case terminalSafePasteEnabled
     /// 是否同时保护 VS Code / Cursor / Xcode / JetBrains 等编辑器与 AI 工具的内置终端（默认开启）
     case terminalSafePasteIdeEnabled
+
+    // MARK: 粘完即焚（Auto-Burn Clipboard）
+    /// 复制验证码时自动提纯为纯数字（默认开启）
+    case autoBurnOtpEnabled
+    /// 敏感内容粘贴 1 次后立即清空系统剪贴板（默认开启；关闭则仅按 sensitiveClipboardTimeout 倒计时擦除）
+    case autoBurnClearOnPaste
+    /// 验证码类记录粘贴 5 秒后从历史彻底删除（默认关闭）
+    case autoBurnHistoryBurnEnabled
 }

@@ -211,11 +211,23 @@ extension MainView {
             onDoubleTap: { handleRowDoubleTap(item) },
             isRenaming: item.id == renamingItemID,
             onRenameCommit: { commitRename($0, for: item.id) },
-            onRenameCancel: { cancelRename(for: item.id) }
+            onRenameCancel: { cancelRename(for: item.id) },
+            autoBurnBadge: autoBurnBadgeStyle(for: item),
+            autoBurnSeconds: AutoBurnController.shared.remainingSeconds() ?? 0
         )
         // 右键选择同步先于菜单弹出（Finder 语义），菜单动作恒作用于当前选区
         .background(RightClickObserver { handleRowRightClick(item) })
         .contextMenu { rowContextMenu(item) }
+    }
+
+    /// 粘完即焚徽章：这一行此刻正驻留在系统剪贴板里时，才显示倒计时擦除态。
+    /// 验证码（已提纯）显示火焰「验证码」；长效密码/密钥显示「剪贴板 N 秒后擦除」；
+    /// 配置成「不自动擦除」时不显示倒计时，避免出现「0 秒后擦除」这种假话。
+    func autoBurnBadgeStyle(for item: ClipboardRowModel) -> AutoBurnBadge.Style? {
+        let controller = AutoBurnController.shared
+        guard let resident = controller.resident, resident.itemID == item.id else { return nil }
+        if resident.kind == .otp { return .otp }
+        return controller.remainingSeconds() != nil ? .clearing : nil
     }
 
     /// 右键选择同步：点在勾选集内 → 保留多选；集外/单选态点其他行 → 收敛为

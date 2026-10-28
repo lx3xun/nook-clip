@@ -104,6 +104,13 @@ enum NookClipIcon {
         static let tag = "number"
         /// 合并粘贴（⏎）：多选工具栏让位收起时的图标形态
         static let merge = "arrow.triangle.merge"
+        /// 行内对比（⌘D）：上下两条线段的对照，比通用的 `rectangle.split.2x1`
+        /// 更能表达「两段文本对齐后发现差异」
+        static let diff = "arrow.left.arrow.right.square"
+        /// 退出对比：复用「关闭」语义
+        static let diffClose = "xmark.circle.fill"
+        /// 差异块跳转（⌥↑ / ⌥↓）
+        static let diffJump = "arrow.down.to.line"
     }
 
     enum Badge {
@@ -115,6 +122,28 @@ enum NookClipIcon {
         static let shieldOk = "checkmark.shield"
         static let reveal = "eye"
         static let remask = "eye.slash"
+    }
+
+    // MARK: - 粘完即焚（Auto-Burn Clipboard）
+    //
+    // 语义锚点就是「火」：贴完即焚的直觉是纸被烧掉，所以燃烧用火焰（flame）。
+    // 验证码提纯与倒计时都落在「计时」上——一次性验证码天然有有效期，
+    // 计时器（timer）比抽象的数字更让用户一眼明白「这条留不久」；
+    // 完整倒计时的状态用带对勾的时钟（clock.badge.checkmark）收束，读作「到点就安全擦掉」。
+    // 「已保留」用手掌（hand.raised）：抬起手把内容按住、不让它烧，动作与火焰相反。
+    enum AutoBurn {
+        /// 火焰：粘完即焚主符号
+        static let burn = "flame"
+        /// 实心火焰：需要强调「正在焚」的状态
+        static let burnFilled = "flame.fill"
+        /// 计时器：验证码自动提纯
+        static let otp = "timer"
+        /// 手掌：已保留、暂不焚毁
+        static let keep = "hand.raised"
+        /// 橡皮擦：清空剪贴板
+        static let clear = "eraser"
+        /// 带对勾的时钟：倒计时擦除
+        static let countdown = "clock.badge.checkmark"
     }
 
     enum Feedback {

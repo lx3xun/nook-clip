@@ -131,6 +131,9 @@ struct MainView: View {
     /// 脱敏/还原/贴条等「即时动作」的短暂反馈文案（nil = 不显示）。
     /// 与 staleFileMessage 的 alert 形态区分：这些动作多为成功反馈，用 toast 更轻
     @State var scrubFeedbackMessage: String?
+    /// ⌘D 行内对比会话（差异结果、视图模式、逐块合并选择）。
+    /// 会话自持全部状态，退出即 reset，不污染列表/预览的常规状态
+    @State var diffSession = DiffSessionState()
     /// 辅助功能权限状态（未授权时在列表底部展示引导横幅，支持一键跳转系统设置）
     @State var accessibilityTrusted = PasteService.isAccessibilityTrusted
 
@@ -494,7 +497,14 @@ struct MainView: View {
 
                 // 列表级提示栏（列表列内）：条目级操作（收藏/删除）的提示在
                 // 预览区工具栏；呼出/隐藏快捷键在菜单栏「打开 NookClip」菜单项上展示
-                if isBatchMode {
+                if diffSession.isActive {
+                    // 对比态：多选栏整体让位（⏎ 语义已被「粘贴合并版」接管，见 DiffSessionHintsBar）
+                    DiffSessionHintsBar(
+                        onPasteMerged: { pasteMergedDiff() },
+                        onCopyMerged: { copyMergedDiff() },
+                        onClose: { exitDiff() }
+                    )
+                } else if isBatchMode {
                     // T038：批量工具栏抽为 BatchBar 组件（纯移动）
                     BatchBar(
                         selectedCount: selectionCoordinator.selectionIDs.count,
@@ -525,6 +535,7 @@ struct MainView: View {
                             .init(kbds: ["⌘\u{200A}⏎"], label: L10n.tr("hints.paste_keep")),
                             .init(kbds: ["⌘\u{200A}T"], label: L10n.tr("hints.time_jump")),
                             .init(kbds: ["⌘\u{200A}R"], label: L10n.tr("hints.rename")),
+                            .init(kbds: ["⌘\u{200A}D"], label: L10n.tr("hints.diff")),
                             .init(kbds: ["Esc"], label: L10n.tr("hints.dismiss"))
                         ]
                     )
@@ -560,9 +571,23 @@ struct MainView: View {
             .coordinateSpace(name: "nookListColumn")
             .zIndex(10)
 
-            // 右列：详细预览区（应用预览或条目级预览）
+            // 右列：详细预览区（对比态 / 应用预览 / 条目级预览）
             Group {
-                if let selectedApp = matchedApps.first(where: { $0.id == selectedAppID }) {
+                if diffSession.isActive || diffSession.failure != nil {
+                    DiffPreviewCard(
+                        session: diffSession,
+                        onSetChoice: { choice, hunkID in
+                            diffSession.setChoice(choice, forHunk: hunkID)
+                        },
+                        onSetAllChoices: { diffSession.setAllChoices($0) },
+                        onSetViewMode: { diffSession.viewMode = $0 },
+                        onToggleIgnoreWhitespace: { toggleDiffIgnoreWhitespace() },
+                        onToggleIgnoreCase: { toggleDiffIgnoreCase() },
+                        onCopyMerged: { copyMergedDiff() },
+                        onPasteMerged: { pasteMergedDiff() },
+                        onClose: { exitDiff() }
+                    )
+                } else if let selectedApp = matchedApps.first(where: { $0.id == selectedAppID }) {
                     AppPreviewPane(app: selectedApp) {
                         openApplication(selectedApp)
                     }
@@ -1096,6 +1121,9 @@ struct MainView: View {
         resetTimeAnchor()
         closeMenus()
         renamingItemID = nil
+        // 面板重新呼出即丢弃上一轮对比会话：用户按 ⌘⇧V 是想粘贴，
+        // 不该带着上次的对比态打开
+        diffSession.reset()
         if !hadActiveSearch {
             selectionCoordinator.selectedID = flatRows.first?.id
         }

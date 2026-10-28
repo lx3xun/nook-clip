@@ -1764,3 +1764,240 @@ pub fn should_suggest_form_burst(text: String) -> bool {
 pub fn detect_form_burst_kind(text: String) -> String {
     algorithms::form_burst::detect_form_burst_kind(&text).to_string()
 }
+// ---------------------------------------------------------------------------
+// 文本差异对比（Inline Diff / `⌘D` 一键对比）
+// ---------------------------------------------------------------------------
+
+/// 差异片段类型（与 Rust `DiffTag` 一一对应）
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FfiDiffTag {
+    /// 两侧都有（未改动）
+    Equal,
+    /// 仅旧版有（会被删除）
+    Delete,
+    /// 仅新版有（新增）
+    Insert,
+}
+
+impl From<algorithms::diff::DiffTag> for FfiDiffTag {
+    fn from(tag: algorithms::diff::DiffTag) -> Self {
+        match tag {
+            algorithms::diff::DiffTag::Equal => FfiDiffTag::Equal,
+            algorithms::diff::DiffTag::Delete => FfiDiffTag::Delete,
+            algorithms::diff::DiffTag::Insert => FfiDiffTag::Insert,
+        }
+    }
+}
+
+/// 行内片段：一段连续同类型的文本
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiDiffSpan {
+    pub tag: FfiDiffTag,
+    /// 片段原文（拼接全部片段 = 该行原文）
+    pub text: String,
+    /// true = 行内精确改动的字词（高亮强调）；
+    /// false = 未改动的上下文，或整行新增/删除（弱化显示）
+    pub emphasized: bool,
+}
+
+impl From<algorithms::diff::DiffSpan> for FfiDiffSpan {
+    fn from(span: algorithms::diff::DiffSpan) -> Self {
+        Self {
+            tag: span.tag.into(),
+            text: span.text,
+            emphasized: span.emphasized,
+        }
+    }
+}
+
+/// 一行差异的渲染数据
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiDiffLine {
+    pub tag: FfiDiffTag,
+    /// 旧版行号（1 起），0 表示该行不在旧版中
+    pub old_line_no: u32,
+    /// 新版行号（1 起），0 表示该行不在新版中
+    pub new_line_no: u32,
+    pub spans: Vec<FfiDiffSpan>,
+}
+
+impl From<algorithms::diff::DiffLine> for FfiDiffLine {
+    fn from(line: algorithms::diff::DiffLine) -> Self {
+        Self {
+            tag: line.tag.into(),
+            old_line_no: line.old_line_no,
+            new_line_no: line.new_line_no,
+            spans: line.spans.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// 差异块（Hunk）：连续的改动，或一段未改动的上下文
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiDiffHunk {
+    /// 块序号，从 0 起（合并时按此顺序取选择）
+    pub id: u32,
+    /// true = 有改动（可选择保留旧版/新版/双方）；false = 未改动的上下文块
+    pub is_change: bool,
+    /// 旧版起始行号（1 起），0 表示旧版没有对应行
+    pub old_line_start: u32,
+    /// 新版起始行号（1 起），0 表示新版没有对应行
+    pub new_line_start: u32,
+    pub old_lines: Vec<String>,
+    pub new_lines: Vec<String>,
+    /// 逐行渲染数据。契约：改动块填充此字段，未改动上下文块为空数组
+    /// （调用方直接用 `new_lines` 平铺渲染，可自行折叠长上下文）
+    pub lines: Vec<FfiDiffLine>,
+}
+
+impl From<algorithms::diff::DiffHunk> for FfiDiffHunk {
+    fn from(hunk: algorithms::diff::DiffHunk) -> Self {
+        Self {
+            id: hunk.id,
+            is_change: hunk.is_change,
+            old_line_start: hunk.old_line_start,
+            new_line_start: hunk.new_line_start,
+            old_lines: hunk.old_lines,
+            new_lines: hunk.new_lines,
+            lines: hunk.lines.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// 差异统计摘要（预览区顶部胶囊显示）
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiDiffStats {
+    pub added_lines: u32,
+    pub removed_lines: u32,
+    pub changed_hunks: u32,
+    pub added_words: u32,
+    pub removed_words: u32,
+    /// 相似度千分比（1000 = 完全相同）
+    pub similarity_permille: u16,
+    /// 两侧文本逐字节相同
+    pub is_identical: bool,
+    /// 因超出 max_lines 而截断，只对比了前 N 行
+    pub is_truncated: bool,
+}
+
+impl From<algorithms::diff::DiffStats> for FfiDiffStats {
+    fn from(stats: algorithms::diff::DiffStats) -> Self {
+        Self {
+            added_lines: stats.added_lines,
+            removed_lines: stats.removed_lines,
+            changed_hunks: stats.changed_hunks,
+            added_words: stats.added_words,
+            removed_words: stats.removed_words,
+            similarity_permille: stats.similarity_permille,
+            is_identical: stats.is_identical,
+            is_truncated: stats.is_truncated,
+        }
+    }
+}
+
+/// 对比结果
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiTextDiffResult {
+    pub hunks: Vec<FfiDiffHunk>,
+    pub stats: FfiDiffStats,
+}
+
+/// 对比两段文本，返回「差异块 → 行 → 行内片段」三级结构。
+///
+/// - `ignore_whitespace`：忽略空白差异（缩进、行内多空格、行尾空格都不算改动）
+/// - `ignore_case`：忽略大小写差异
+/// - `max_lines`：参与对比的最大行数，0 = 用默认值 1500
+/// - `max_inline_tokens`：单行内 token 上限，0 = 用默认值 2000
+///
+/// 返回的 `hunks` 中，未改动上下文块的 `lines` 为空数组（用 `new_lines` 渲染即可）。
+#[uniffi::export]
+pub fn compute_text_diff(
+    old_text: String,
+    new_text: String,
+    ignore_whitespace: bool,
+    ignore_case: bool,
+    max_lines: u32,
+    max_inline_tokens: u32,
+) -> FfiTextDiffResult {
+    let options = algorithms::diff::DiffOptions {
+        ignore_whitespace,
+        ignore_case,
+        max_lines,
+        max_inline_tokens,
+    };
+    let result = algorithms::diff::diff_texts(&old_text, &new_text, options);
+    FfiTextDiffResult {
+        hunks: result.hunks.into_iter().map(Into::into).collect(),
+        stats: result.stats.into(),
+    }
+}
+
+/// 按每个差异块的合并选择拼出完整文本（「一键复制合并版」）。
+///
+/// `choices` 与 `hunks` 按序号对应：`0` = 保留新版（默认），`1` = 保留旧版，
+/// `2` = 两者都保留（旧版在前）；缺省或越界的块按「保留新版」处理。
+/// 传空数组即得到纯新版文本，传全 `1` 即得到纯旧版文本。
+#[uniffi::export]
+pub fn merge_text_diff(
+    old_text: String,
+    new_text: String,
+    ignore_whitespace: bool,
+    ignore_case: bool,
+    max_lines: u32,
+    max_inline_tokens: u32,
+    choices: Vec<u8>,
+) -> String {
+    let options = algorithms::diff::DiffOptions {
+        ignore_whitespace,
+        ignore_case,
+        max_lines,
+        max_inline_tokens,
+    };
+    let result = algorithms::diff::diff_texts(&old_text, &new_text, options);
+    algorithms::diff::merge_diff_text(&result.hunks, &choices)
+}
+
+// ---------------------------------------------------------------------------
+// 粘完即焚（Auto-Burn Clipboard）
+// ---------------------------------------------------------------------------
+
+/// 粘完即焚的判定档位（与 Rust `AutoBurnKind` 一一对应）。
+#[derive(uniffi::Enum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FfiAutoBurnKind { None, Otp, Secret }
+
+/// 一次「要不要焚」的判定结果（与 Rust `AutoBurnSignal` 一一对应）。
+#[derive(uniffi::Record, Clone, Debug, PartialEq, Eq)]
+pub struct FfiAutoBurnSignal {
+    /// 判定档位；`None` 时客户端原样粘贴，不做任何焚毁处理
+    pub kind: FfiAutoBurnKind,
+    /// Otp 时为应写入剪贴板的提纯验证码（如 "482910"）；Secret / None 时为空串
+    pub extracted_code: String,
+    /// 稳定标识：Otp 固定为 "otp_code"，Secret 为命中规则名（如 "mnemonic_phrase" /
+    /// "openai_key"），None 为空。客户端拿它查本地化文案，**不要随意改名**
+    pub sensitive_type: Option<String>,
+}
+
+impl From<algorithms::auto_burn::AutoBurnSignal> for FfiAutoBurnSignal {
+    fn from(signal: algorithms::auto_burn::AutoBurnSignal) -> Self {
+        Self {
+            kind: match signal.kind {
+                algorithms::auto_burn::AutoBurnKind::None => FfiAutoBurnKind::None,
+                algorithms::auto_burn::AutoBurnKind::Otp => FfiAutoBurnKind::Otp,
+                algorithms::auto_burn::AutoBurnKind::Secret => FfiAutoBurnKind::Secret,
+            },
+            extracted_code: signal.extracted_code,
+            sensitive_type: signal.sensitive_type,
+        }
+    }
+}
+
+/// 判定一段文本要不要「粘完即焚」，并给出粘贴用的提纯验证码。
+///
+/// 纯判定：不碰剪贴板、不写盘。客户端按 `kind` 决定后续动作：
+/// - `None`：原样粘贴，走原有路径；
+/// - `Otp`：把 `extracted_code` 写进剪贴板后粘贴，原文不进历史；
+/// - `Secret`：原样粘贴后立刻焚掉历史与剪贴板。
+#[uniffi::export]
+pub fn detect_auto_burn(text: String) -> FfiAutoBurnSignal {
+    algorithms::auto_burn::detect_auto_burn(&text).into()
+}

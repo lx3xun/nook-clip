@@ -46,6 +46,15 @@ struct PanelKeyActions {
     var deleteSelection: () -> Void
     /// ⌘F：聚焦搜索框
     var focusSearch: () -> Void
+    /// ⌘D：进入/退出一键行内对比（两条记录的字词级差异）
+    var toggleDiff: () -> Void = {}
+    /// 对比态下 ↑/↓：在当前与上一个/下一个差异块之间跳转。
+    /// 返回 true 表示已消费该按键（未进入对比态时返回 false，回落普通上下移动）
+    var moveDiffHunk: (_ forward: Bool) -> Bool = { _ in false }
+    /// 对比态下 ⌘C 与 ⏎ 分别对应「复制合并版」「粘贴合并版」。
+    /// 返回 true 表示已消费该按键（由对比态接管），false 回落常规语义
+    var copyMergedDiff: () -> Bool = { false }
+    var pasteMergedDiff: () -> Bool = { false }
     /// 列表态打字即搜索（Spotlight 式）：聚焦搜索框并把该字符事件重投递进输入框
     var typeToSearch: (_ event: NSEvent) -> Void
     /// ⌫（搜索框为空且有过滤条件胶囊时）：删除最近一枚条件胶囊（标签优先）

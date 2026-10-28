@@ -581,6 +581,11 @@ void uniffi_nookclip_ffi_fn_func_clear_scrub_session_vault(RustCallStatus *_Nonn
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_COMPUTE_TEXT_DIFF
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_COMPUTE_TEXT_DIFF
+RustBuffer uniffi_nookclip_ffi_fn_func_compute_text_diff(RustBuffer old_text, RustBuffer new_text, int8_t ignore_whitespace, int8_t ignore_case, uint32_t max_lines, uint32_t max_inline_tokens, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
 uint32_t uniffi_nookclip_ffi_fn_func_count_restorable_placeholders(RustBuffer text, RustCallStatus *_Nonnull out_status
@@ -590,6 +595,11 @@ uint32_t uniffi_nookclip_ffi_fn_func_count_restorable_placeholders(RustBuffer te
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DEFAULT_ENABLED_SCRUB_RULES
 RustBuffer uniffi_nookclip_ffi_fn_func_default_enabled_scrub_rules(RustCallStatus *_Nonnull out_status
     
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DETECT_AUTO_BURN
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DETECT_AUTO_BURN
+RustBuffer uniffi_nookclip_ffi_fn_func_detect_auto_burn(RustBuffer text, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_DETECT_FORM_BURST_KIND
@@ -620,6 +630,11 @@ RustBuffer uniffi_nookclip_ffi_fn_func_mask_sensitive_text(RustBuffer text, Rust
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_MATCH_SEARCH_HIGHLIGHT_RANGES
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_MATCH_SEARCH_HIGHLIGHT_RANGES
 RustBuffer uniffi_nookclip_ffi_fn_func_match_search_highlight_ranges(RustBuffer text, RustBuffer keywords, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_MERGE_TEXT_DIFF
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_MERGE_TEXT_DIFF
+RustBuffer uniffi_nookclip_ffi_fn_func_merge_text_diff(RustBuffer old_text, RustBuffer new_text, int8_t ignore_whitespace, int8_t ignore_case, uint32_t max_lines, uint32_t max_inline_tokens, RustBuffer choices, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_FN_FUNC_PARSE_COLOR_HEX
@@ -1003,6 +1018,12 @@ uint16_t uniffi_nookclip_ffi_checksum_func_clear_scrub_session_vault(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_COMPUTE_TEXT_DIFF
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_COMPUTE_TEXT_DIFF
+uint16_t uniffi_nookclip_ffi_checksum_func_compute_text_diff(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_COUNT_RESTORABLE_PLACEHOLDERS
 uint16_t uniffi_nookclip_ffi_checksum_func_count_restorable_placeholders(void
@@ -1012,6 +1033,12 @@ uint16_t uniffi_nookclip_ffi_checksum_func_count_restorable_placeholders(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DEFAULT_ENABLED_SCRUB_RULES
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DEFAULT_ENABLED_SCRUB_RULES
 uint16_t uniffi_nookclip_ffi_checksum_func_default_enabled_scrub_rules(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DETECT_AUTO_BURN
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_DETECT_AUTO_BURN
+uint16_t uniffi_nookclip_ffi_checksum_func_detect_auto_burn(void
     
 );
 #endif
@@ -1048,6 +1075,12 @@ uint16_t uniffi_nookclip_ffi_checksum_func_mask_sensitive_text(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_MATCH_SEARCH_HIGHLIGHT_RANGES
 #define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_MATCH_SEARCH_HIGHLIGHT_RANGES
 uint16_t uniffi_nookclip_ffi_checksum_func_match_search_highlight_ranges(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_MERGE_TEXT_DIFF
+#define UNIFFI_FFIDEF_UNIFFI_NOOKCLIP_FFI_CHECKSUM_FUNC_MERGE_TEXT_DIFF
+uint16_t uniffi_nookclip_ffi_checksum_func_merge_text_diff(void
     
 );
 #endif

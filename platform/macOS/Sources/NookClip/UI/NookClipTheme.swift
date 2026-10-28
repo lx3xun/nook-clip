@@ -398,6 +398,44 @@ enum NookClip {
     static let colorDanger = dynamicHex(light: 0xD70015, dark: 0xFF453A)
     static let colorSuccess = dynamicHex(light: 0x248A3D, dark: 0x30D158)
 
+    // MARK: 2.3c 行内对比（⌘D）色板 · 双层高亮
+    //
+    // 双层是这一屏的核心表达：整行的底色回答「哪些行变了」，
+    // 行内字词的深底色回答「这一行里到底哪几个字变了」。
+    // 两层若用同一浓度，行内精确改动会被整行底色吃掉，用户仍要逐字找。
+    // 增删都刻意避开正红正绿高饱和：深色模式下正红正绿底会盖住文字本身。
+
+    /// 删除行整行底色（浅色模式淡红，深色模式半透明红）
+    static let diffRemovedLineBg = dynamicColor(
+        light: nsColorHex(0xFF3B30, alpha: 0.10),
+        dark: nsColorHex(0xFF453A, alpha: 0.16)
+    )
+    /// 新增行整行底色
+    static let diffAddedLineBg = dynamicColor(
+        light: nsColorHex(0x34C759, alpha: 0.12),
+        dark: nsColorHex(0x30D158, alpha: 0.16)
+    )
+    /// 行内精确删除的字词底色（比整行深一档 + 删除线）
+    static let diffRemovedWordBg = dynamicColor(
+        light: nsColorHex(0xFF3B30, alpha: 0.26),
+        dark: nsColorHex(0xFF453A, alpha: 0.38)
+    )
+    /// 行内精确新增的字词底色（比整行深一档 + 加粗）
+    static let diffAddedWordBg = dynamicColor(
+        light: nsColorHex(0x34C759, alpha: 0.30),
+        dark: nsColorHex(0x30D158, alpha: 0.38)
+    )
+    /// 删除内容的文字色（整行删除时用；行内字词保留原文色，靠底色区分）
+    static let diffRemovedText = dynamicHex(light: 0xB3261E, dark: 0xFF8A80)
+    /// 新增内容的文字色
+    static let diffAddedText = dynamicHex(light: 0x1B6E2A, dark: 0x7EE787)
+    /// 行号栏删除侧数字色
+    static let diffRemovedGutter = dynamicHex(light: 0xC0554D, dark: 0xE0857C)
+    /// 行号栏新增侧数字色
+    static let diffAddedGutter = dynamicHex(light: 0x3F8F52, dark: 0x77C98A)
+    /// 当前聚焦差异块的高亮外框
+    static let diffFocusedHunkBorder = dynamicAccentColor(lightAlpha: 0.55, darkAlpha: 0.65)
+
     // MARK: 2.3b 内容分类与来源 App 专属语义色 Token（浅/深双模和谐饱和度）
     static let tintCategoryText = dynamicHex(light: 0x007AFF, dark: 0x0A84FF)
     static let tintCategoryImage = dynamicHex(light: 0xAF52DE, dark: 0xBF5AF2)
