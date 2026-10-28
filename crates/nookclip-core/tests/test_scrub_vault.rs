@@ -969,3 +969,67 @@ fn id_card_with_invalid_birth_date_is_rejected() {
     let res = scrub_text(&format!("order {}", fake_id), &config(), &[]);
     assert!(!res.scrubbed_text.contains("<ID_CARD_"), "got: {}", res.scrubbed_text);
 }
+
+#[test]
+fn user_at_host_does_not_falsely_match_package_specifiers() {
+    let _guard = setup();
+    let package_cases = [
+        "npx rea-agents@latest setup",
+        "npm i rea-agents@latest",
+        "npm i react@18.2.0",
+        "pnpm add lodash@4.17.21",
+        "yarn add @types/node@latest",
+        "bun add vue@next",
+        "deno add @std/assert@1.0.0",
+        "react@18.2.0",
+        "tailwindcss@latest",
+        "docker pull redis@sha256:1234567890abcdef",
+    ];
+
+    for cmd in package_cases {
+        let scan = scan_text(cmd, &config(), &[]);
+        assert_eq!(
+            scan.hit_count, 0,
+            "{} 不应被脱敏命中，实际命中: {:?}",
+            cmd, scan.rule_keys
+        );
+        let scrub = scrub_text(cmd, &config(), &[]);
+        assert_eq!(scrub.scrubbed_text, cmd);
+    }
+}
+
+#[test]
+fn user_at_host_correctly_matches_real_ssh_and_hostnames() {
+    let _guard = setup();
+
+    // 1. IP 地址主机
+    let ip_target = "root@192.168.1.1";
+    let res_ip = scrub_text(ip_target, &config(), &[]);
+    assert_eq!(res_ip.scrubbed_text, "<USER_HOST_1>");
+
+    // 2. 具有合法 TLD 域名的主机（邮箱规则关闭时由 user_at_host 兜底）
+    clear_vault();
+    let mut no_email_cfg = config();
+    no_email_cfg.enabled_builtin_rules.retain(|k| k != "email");
+    let domain_target = "deploy@bastion.internal";
+    let res_domain = scrub_text(domain_target, &no_email_cfg, &[]);
+    assert_eq!(res_domain.scrubbed_text, "<USER_HOST_1>");
+
+    // 3. 本地回环 localhost
+    clear_vault();
+    let local_target = "admin@localhost";
+    let res_local = scrub_text(local_target, &config(), &[]);
+    assert_eq!(res_local.scrubbed_text, "<USER_HOST_1>");
+
+    // 4. 处于远程命令（如 ssh）中的单段主机名
+    clear_vault();
+    let ssh_cmd = "ssh pi@raspberrypi";
+    let res_ssh = scrub_text(ssh_cmd, &config(), &[]);
+    assert_eq!(res_ssh.scrubbed_text, "ssh <USER_HOST_1>");
+
+    // 5. 带有远程路径的 scp 目标
+    clear_vault();
+    let scp_cmd = "scp app.tar.gz admin@nas:/volume1/backup";
+    let res_scp = scrub_text(scp_cmd, &config(), &[]);
+    assert_eq!(res_scp.scrubbed_text, "scp app.tar.gz <USER_HOST_1>:/volume1/backup");
+}

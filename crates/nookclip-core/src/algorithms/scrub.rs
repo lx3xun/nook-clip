@@ -542,8 +542,8 @@ fn build_rules() -> Vec<CompiledRule> {
                 r"\b[a-z_][a-z0-9_.\-]{0,31}@[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?",
             ]),
             capture_group: None,
-            validator: None,
-            context_filter: None,
+            validator: Some(user_at_host_valid),
+            context_filter: Some(user_at_host_context_ok),
         },
         CompiledRule {
             rule: BuiltinScrubRule::Phone,
@@ -785,6 +785,111 @@ fn date_valid(s: &str) -> bool {
     false
 }
 
+fn is_ipv4_address(s: &str) -> bool {
+    let octets: Vec<u32> = s.split('.').filter_map(|p| p.parse().ok()).collect();
+    octets.len() == 4 && octets.iter().all(|o| *o <= 255)
+}
+
+/// 用户名@主机 校验：排除包版本号、dist-tag 与 Docker 摘要，保证主机为合法 IP、localhost、含点域名或合规单段主机名。
+fn user_at_host_valid(s: &str) -> bool {
+    let Some((user, host)) = s.split_once('@') else {
+        return false;
+    };
+    if user.is_empty() || host.is_empty() {
+        return false;
+    }
+
+    // 用户名规范：必须以小写字母或下划线开头
+    if !user.starts_with(|c: char| c.is_ascii_lowercase() || c == '_') {
+        return false;
+    }
+    if !user.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-') {
+        return false;
+    }
+
+    let host_lower = host.to_ascii_lowercase();
+
+    // 1. 明确排除包管理器的 tag / 分支 / 摘要前缀
+    const NON_HOST_TAGS: &[&str] = &[
+        "latest", "next", "beta", "alpha", "canary", "rc", "dev",
+        "nightly", "insiders", "stable", "preview", "experimental",
+        "release", "lts", "edge", "current", "head", "patch", "draft",
+        "sha256", "sha512",
+    ];
+    for tag in NON_HOST_TAGS {
+        if host_lower == *tag
+            || host_lower.starts_with(&format!("{tag}."))
+            || host_lower.starts_with(&format!("{tag}-"))
+        {
+            return false;
+        }
+    }
+
+    // 2. 排除语义化版本号（SemVer）与版本前缀
+    // 以数字或 v+数字 开头：如果不是合法的 IPv4 地址，则判定为版本号排除
+    if host.starts_with(|c: char| c.is_ascii_digit())
+        || (host_lower.starts_with('v')
+            && host[1..].starts_with(|c: char| c.is_ascii_digit()))
+    {
+        return is_ipv4_address(host);
+    }
+
+    // 排除以版本运算符开头的情况（^1.0, ~2.0 等）
+    if host.starts_with(['^', '~', '>', '<', '=']) {
+        return false;
+    }
+
+    // 3. 排除 Docker digest 格式（如 sha256:xxx）
+    if host.contains(':') {
+        return false;
+    }
+
+    // 4. 合法主机类型判定：
+    // 4a. 本地回环主机名
+    if host_lower == "localhost" {
+        return true;
+    }
+
+    // 4b. IPv4 地址
+    if is_ipv4_address(host) {
+        return true;
+    }
+
+    // 4c. 含点的主机名/域名（如 server.local, bastion.internal, host.corp, github.com）
+    if host.contains('.') {
+        let parts: Vec<&str> = host.split('.').collect();
+        if parts.len() >= 2 {
+            if let Some(tld) = parts.last() {
+                // TLD 必须至少 2 个纯英文字母（排除 1.2.3 这类纯数字伪域名）
+                if tld.len() >= 2 && tld.chars().all(|c| c.is_ascii_alphabetic()) {
+                    let valid_labels = parts.iter().all(|p| {
+                        !p.is_empty()
+                            && !p.starts_with('-')
+                            && !p.ends_with('-')
+                            && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+                    });
+                    if valid_labels {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    // 4d. 单段主机名必须由合法的字母、数字和短横线构成，且不能全为数字
+    if host.len() >= 2
+        && !host.starts_with('-')
+        && !host.ends_with('-')
+        && host.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !host.chars().all(|c| c.is_ascii_digit())
+    {
+        return true;
+    }
+
+    false
+}
+
 // ---------------------------------------------------------------------------
 // 6. 上下文过滤
 // ---------------------------------------------------------------------------
@@ -861,6 +966,88 @@ fn date_context_ok(text: &str, _start: usize, end: usize) -> bool {
             }
         }
     }
+    true
+}
+
+/// 用户名@主机 上下文过滤：
+/// 1. 排除包作用域前缀（如 @types/node@latest 中 node 紧跟在 / 后面）
+/// 2. 排除包管理器命令行（npx, npm, pnpm, yarn, bun 等）中的参数
+/// 3. 无点单段主机名必须具备明确的远程命令上下文、远程路径标记或服务器命名特征
+fn user_at_host_context_ok(text: &str, start: usize, end: usize) -> bool {
+    // 1. 前缀字符限制：不能紧贴字母、数字、下划线、斜杠或 @ 符号
+    if let Some(c) = prev_char(text, start) {
+        if c.is_alphanumeric() || c == '_' || c == '/' || c == '@' {
+            return false;
+        }
+    }
+
+    // 2. 后缀字符限制：不能紧贴 @ 符号；如果紧贴 / 必须以 : 开头（如 : /path 是合法远程路径，裸 / 属于包路径或 URL）
+    if let Some(c) = next_char(text, end) {
+        if c == '@' || c == '/' {
+            return false;
+        }
+    }
+
+    // 3. 提取当前行前缀判断是否为包管理器或开发工具命令
+    let line_start = text[..start].rfind('\n').map(|idx| idx + 1).unwrap_or(0);
+    let line_prefix = &text[line_start..start];
+    let tokens: Vec<&str> = line_prefix.split_whitespace().collect();
+
+    // 如果所在行由包管理器主导（如 npx, npm, pnpm, yarn, bun 等），则该行上的 pkg@version 属于包参数
+    const PKG_MANAGERS: &[&str] = &[
+        "npx", "npm", "pnpm", "pnpx", "yarn", "bun", "bunx", "deno", "vfox", "ni", "nr",
+    ];
+    let in_pkg_manager_cmd = tokens.iter().any(|t| {
+        let base = t.rsplit('/').next().unwrap_or(t);
+        PKG_MANAGERS.contains(&base)
+    });
+
+    if in_pkg_manager_cmd {
+        return false;
+    }
+
+    // 4. 无点单段主机名（如 user@nas, pi@raspberrypi）的严格上下文校验：
+    // 如果匹配的主机名不包含点，也不是 localhost，且不是 IP 地址，
+    // 则必须位于明确的远程登录/传输命令中，或后接 : 路径，或符合明确的服务器命名规范
+    let Some(matched) = text.get(start..end) else {
+        return false;
+    };
+    let Some((_, host)) = matched.split_once('@') else {
+        return false;
+    };
+
+    let host_lower = host.to_ascii_lowercase();
+    let has_dot = host.contains('.');
+    let is_localhost = host_lower == "localhost";
+    let is_ip = is_ipv4_address(host);
+
+    if !has_dot && !is_localhost && !is_ip {
+        const REMOTE_CMDS: &[&str] = &[
+            "ssh", "scp", "rsync", "sftp", "mosh", "ssh-copy-id",
+        ];
+        let has_remote_cmd = tokens.iter().any(|t| {
+            let base = t.rsplit('/').next().unwrap_or(t);
+            REMOTE_CMDS.contains(&base)
+        });
+        let has_remote_path = text.get(end..).map(|tail| tail.starts_with(':')).unwrap_or(false);
+        let has_server_naming = host_lower.ends_with("-server")
+            || host_lower.ends_with("-host")
+            || host_lower.ends_with("-node")
+            || host_lower.ends_with("-vm")
+            || host_lower.ends_with("-box")
+            || host_lower.ends_with("-nas")
+            || host_lower.ends_with("-bastion")
+            || host_lower.ends_with("-db")
+            || host_lower.starts_with("srv-")
+            || host_lower.starts_with("node-")
+            || host_lower.starts_with("vm-")
+            || host_lower.starts_with("db-");
+
+        if !has_remote_cmd && !has_remote_path && !has_server_naming {
+            return false;
+        }
+    }
+
     true
 }
 
