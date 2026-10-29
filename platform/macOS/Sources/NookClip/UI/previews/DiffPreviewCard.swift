@@ -55,11 +55,7 @@ private extension Color {
 @MainActor
 struct DiffPreviewCard: View {
     let session: DiffSessionState
-    var onSetChoice: (DiffHunkKeep, UInt32) -> Void = { _, _ in }
-    var onSetAllChoices: (DiffHunkKeep) -> Void = { _ in }
     var onSetViewMode: (DiffViewMode) -> Void = { _ in }
-    var onToggleIgnoreWhitespace: () -> Void = {}
-    var onToggleIgnoreCase: () -> Void = {}
     var onCopyMerged: () -> Void = {}
     var onPasteMerged: () -> Void = {}
     var onClose: () -> Void = {}
@@ -72,9 +68,6 @@ struct DiffPreviewCard: View {
         VStack(spacing: 0) {
             DiffToolbar(
                 session: session,
-                onSetViewMode: onSetViewMode,
-                onToggleIgnoreWhitespace: onToggleIgnoreWhitespace,
-                onToggleIgnoreCase: onToggleIgnoreCase,
                 onPinSide: onPinSide,
                 onClose: onClose
             )
@@ -101,7 +94,7 @@ struct DiffPreviewCard: View {
                         VStack(alignment: .leading, spacing: 10) {
                             DiffSummaryBanner(
                                 session: session,
-                                onSetAllChoices: onSetAllChoices
+                                onSetViewMode: onSetViewMode
                             )
 
                             LazyVStack(alignment: .leading, spacing: 8) {
@@ -109,10 +102,8 @@ struct DiffPreviewCard: View {
                                     DiffHunkView(
                                         hunk: hunk,
                                         mode: session.viewMode,
-                                        choice: session.choice(forHunk: hunk.id),
                                         isFocused: session.focusedHunkID == hunk.id,
-                                        palette: palette,
-                                        onSetChoice: { onSetChoice($0, hunk.id) }
+                                        palette: palette
                                     )
                                     .id("diff-hunk-\(hunk.id)")
                                 }
@@ -168,9 +159,6 @@ struct DiffPreviewCard: View {
 
 private struct DiffToolbar: View {
     let session: DiffSessionState
-    let onSetViewMode: (DiffViewMode) -> Void
-    let onToggleIgnoreWhitespace: () -> Void
-    let onToggleIgnoreCase: () -> Void
     let onPinSide: (UUID) -> Void
     let onClose: () -> Void
     @State private var isCloseHovered = false
@@ -202,22 +190,7 @@ private struct DiffToolbar: View {
             )
             Spacer(minLength: 4)
 
-            // 三段式视图切换：行内（Inline） / 左右（Split） / 只看差异（Changes Only）
-            viewModeSegment
 
-            togglePill(
-                isOn: session.ignoreWhitespace,
-                label: L10n.tr("diff.ignore_whitespace"),
-                help: L10n.tr("diff.ignore_whitespace.help"),
-                action: onToggleIgnoreWhitespace
-            )
-
-            togglePill(
-                isOn: session.ignoreCase,
-                label: L10n.tr("diff.ignore_case"),
-                help: L10n.tr("diff.ignore_case.help"),
-                action: onToggleIgnoreCase
-            )
             Button(action: onClose) {
                 Image(systemName: NookClipIcon.Action.diffClose)
                     .font(.system(size: NookClipIconSize.regular, weight: .regular))
@@ -238,41 +211,7 @@ private struct DiffToolbar: View {
         }
     }
 
-    private var viewModeSegment: some View {
-        HStack(spacing: 1) {
-            modeButton(.inline, label: L10n.tr("diff.view.inline"))
-            modeButton(.sideBySide, label: L10n.tr("diff.view.side_by_side"))
-            modeButton(.changesOnly, label: L10n.tr("diff.view.changes_only"))
-        }
-        .padding(2)
-        .background(NookClip.bgInset, in: RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous))
-    }
 
-    private func modeButton(_ mode: DiffViewMode, label: String) -> some View {
-        let isSelected = session.viewMode == mode
-        return Button {
-            onSetViewMode(mode)
-        } label: {
-            Text(label)
-                .font(.nookClipCaption)
-                .fontWeight(isSelected ? .medium : .regular)
-                .foregroundStyle(isSelected ? NookClip.textPrimary : NookClip.textTertiary)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
-                .frame(height: 17)
-                .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
-                            .fill(NookClip.bgControlElevated)
-                    }
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help(label)
-        .accessibilityLabel(label)
-    }
 
     private func sidePill(
         side: DiffSide?,
@@ -317,37 +256,14 @@ private struct DiffToolbar: View {
         .accessibilityLabel("\(tag) \(title)")
     }
 
-    private func togglePill(
-        isOn: Bool,
-        label: String,
-        help: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.nookClipCaption)
-                .foregroundStyle(isOn ? NookClip.accent : NookClip.textSecondary)
-                .lineLimit(1)
-                .padding(.horizontal, 7)
-                .frame(height: 20)
-                .background {
-                    RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous)
-                        .fill(isOn ? NookClip.bgChipSelected : NookClip.bgInset)
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .help(help)
-        .accessibilityLabel(label)
-    }
+
 }
 
 // MARK: - 统计与快捷全选副栏（随内容滚动，清爽单行）
 
 private struct DiffSummaryBanner: View {
     let session: DiffSessionState
-    let onSetAllChoices: (DiffHunkKeep) -> Void
+    let onSetViewMode: (DiffViewMode) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -369,21 +285,45 @@ private struct DiffSummaryBanner: View {
 
             Spacer(minLength: 4)
 
-            if session.changeHunks.count > 1 {
-                HStack(spacing: 4) {
-                    Text(L10n.tr("diff.action.all"))
-                        .font(.nookClipCaption)
-                        .foregroundStyle(NookClip.textTertiary)
-                    quickAllButton(L10n.tr("diff.action.keep_new"), tint: NookClip.diffAddedText) {
-                        onSetAllChoices(.new)
-                    }
-                    quickAllButton(L10n.tr("diff.action.keep_old"), tint: NookClip.diffRemovedText) {
-                        onSetAllChoices(.old)
-                    }
-                }
-            }
+            viewModeSegment
         }
         .padding(.horizontal, 2)
+    }
+
+    private var viewModeSegment: some View {
+        HStack(spacing: 1) {
+            modeButton(.inline, label: L10n.tr("diff.view.inline"))
+            modeButton(.sideBySide, label: L10n.tr("diff.view.side_by_side"))
+            modeButton(.changesOnly, label: L10n.tr("diff.view.changes_only"))
+        }
+        .padding(2)
+        .background(NookClip.bgInset, in: RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous))
+    }
+
+    private func modeButton(_ mode: DiffViewMode, label: String) -> some View {
+        let isSelected = session.viewMode == mode
+        return Button {
+            onSetViewMode(mode)
+        } label: {
+            Text(label)
+                .font(.nookClipCaption)
+                .fontWeight(isSelected ? .medium : .regular)
+                .foregroundStyle(isSelected ? NookClip.textPrimary : NookClip.textTertiary)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .frame(height: 17)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
+                            .fill(NookClip.bgControlElevated)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .help(label)
+        .accessibilityLabel(label)
     }
 
     private func badge(_ text: String, tint: Color) -> some View {
@@ -398,25 +338,6 @@ private struct DiffSummaryBanner: View {
                 in: RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
             )
     }
-
-    private func quickAllButton(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.nookClipCaption)
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .padding(.horizontal, 6)
-                .frame(height: 18)
-                .background(
-                    tint.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .accessibilityLabel(title)
-    }
 }
 
 // MARK: - 单个差异块
@@ -424,10 +345,8 @@ private struct DiffSummaryBanner: View {
 private struct DiffHunkView: View {
     let hunk: FfiDiffHunk
     let mode: DiffViewMode
-    let choice: DiffHunkKeep
     let isFocused: Bool
     let palette: DiffPalette
-    let onSetChoice: (DiffHunkKeep) -> Void
 
     var body: some View {
         if hunk.isChange {
@@ -439,29 +358,6 @@ private struct DiffHunkView: View {
 
     private var changeCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 改动块表头：仅在右端放置紧凑的三选一胶囊，去掉冗余的「旧 X 行 → 新 Y 行」（下方行号栏已清晰标出）
-            HStack(spacing: 6) {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(choiceTint)
-                        .frame(width: 5, height: 5)
-                    Text(choiceLabel)
-                        .font(.nookClipCaption)
-                        .foregroundStyle(NookClip.textSecondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                DiffChoiceButtons(choice: choice, onSelect: onSetChoice)
-                    .help(L10n.tr("diff.action.choice_help"))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(NookClip.bgInset.opacity(0.55))
-
-            Rectangle()
-                .fill(NookClip.borderHairline)
-                .frame(height: 0.5)
-
             if mode == .sideBySide {
                 sideBySideBody
             } else {
@@ -482,21 +378,6 @@ private struct DiffHunkView: View {
         }
     }
 
-    private var choiceTint: Color {
-        switch choice {
-        case .new: return NookClip.diffAddedText
-        case .old: return NookClip.diffRemovedText
-        case .both: return NookClip.accent
-        }
-    }
-
-    private var choiceLabel: String {
-        switch choice {
-        case .new: return L10n.tr("diff.action.keep_new")
-        case .old: return L10n.tr("diff.action.keep_old")
-        case .both: return L10n.tr("diff.action.keep_both")
-        }
-    }
 
     // MARK: 行内视图（默认）
 
@@ -726,46 +607,7 @@ private struct DiffLineRow: View {
     }
 }
 
-// MARK: - 逐块选择按钮
 
-private struct DiffChoiceButtons: View {
-    let choice: DiffHunkKeep
-    let onSelect: (DiffHunkKeep) -> Void
-
-    var body: some View {
-        HStack(spacing: 2) {
-            button(.new, key: "diff.action.keep_new", tint: NookClip.diffAddedText)
-            button(.old, key: "diff.action.keep_old", tint: NookClip.diffRemovedText)
-            button(.both, key: "diff.action.keep_both", tint: NookClip.accent)
-        }
-        .padding(2)
-        .background(NookClip.bgInset, in: RoundedRectangle(cornerRadius: NookClip.radiusControl, style: .continuous))
-    }
-
-    private func button(_ value: DiffHunkKeep, key: String, tint: Color) -> some View {
-        let isOn = choice == value
-        return Button {
-            onSelect(value)
-        } label: {
-            Text(L10n.tr(key))
-                .font(.nookClipCaption)
-                .fontWeight(isOn ? .semibold : .regular)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(isOn ? tint : NookClip.textTertiary)
-                .padding(.horizontal, 6)
-                .frame(height: 17)
-                .background {
-                    RoundedRectangle(cornerRadius: NookClip.radiusThumb, style: .continuous)
-                        .fill(isOn ? tint.opacity(0.16) : Color.clear)
-                }
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .accessibilityLabel(L10n.tr(key))
-    }
-}
 
 // MARK: - 行内富文本构建（字词级深底色 + 删除线 / 加粗）
 

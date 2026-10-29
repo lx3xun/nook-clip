@@ -581,13 +581,7 @@ struct MainView: View {
                 if diffSession.isInSession {
                     DiffPreviewCard(
                         session: diffSession,
-                        onSetChoice: { choice, hunkID in
-                            diffSession.setChoice(choice, forHunk: hunkID)
-                        },
-                        onSetAllChoices: { diffSession.setAllChoices($0) },
                         onSetViewMode: { diffSession.viewMode = $0 },
-                        onToggleIgnoreWhitespace: { toggleDiffIgnoreWhitespace() },
-                        onToggleIgnoreCase: { toggleDiffIgnoreCase() },
                         onCopyMerged: { copyMergedDiff() },
                         onPasteMerged: { pasteMergedDiff() },
                         onClose: { exitDiff() },

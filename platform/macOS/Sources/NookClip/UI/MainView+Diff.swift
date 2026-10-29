@@ -311,20 +311,6 @@ extension MainView {
         )
     }
 
-    // MARK: - 顶栏的两个忽略开关
-
-    /// 忽略空白：改完必须重算差异 + 重算合并文本。
-    /// 两个都要重算，否则顶部统计变了、底部合并版还是按旧规则拼的，用户会拿到错的行。
-    func toggleDiffIgnoreWhitespace() {
-        diffSession.ignoreWhitespace.toggle()
-        diffSession.recompute()
-    }
-
-    /// 忽略大小写：同上
-    func toggleDiffIgnoreCase() {
-        diffSession.ignoreCase.toggle()
-        diffSession.recompute()
-    }
 
     // MARK: - 合并结果的两个出口（⌘C 复制 / ⏎ 粘贴）
 

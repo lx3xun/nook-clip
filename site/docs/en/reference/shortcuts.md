@@ -38,7 +38,7 @@ NookClip is built for a full-keyboard workflow. Almost every action can be perfo
 | **`⌘ ⏎`** | Paste & Keep Panel Open | Pastes into active window without hiding NookClip |
 | **`⌘ C`** | Copy to System Clipboard | Updates clipboard without pasting |
 | **`⌘ D`** | Inline Diff / Exit Diff | Also available in batch bar, preview header, and context menu; press `↑↓` while diffing to live-swap rows |
-| **`⌘ C` (in Diff)** | Copy Merged Result | Copies text assembled from your Keep New / Old / Both choices |
+| **`⌘ C` (in Diff)** | Copy Merged Result | Copies text assembled from the diff into clipboard |
 | **`⏎` (in Diff)** | Paste Merged Result | Pastes merged text into active window and closes panel |
 
 ---

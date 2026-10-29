@@ -43,8 +43,8 @@
   *Smart form & table splitting: detects copied spreadsheet rows, multi-column text, JSON, or contact info and splits fields into a Paste Stack with one click or `⌥⏎` for sequential `⌘V` form filling.*
 - **屏幕置顶贴条（⌘P）**：按 `⌘P` 将选中记录钉成置顶悬浮小窗（再钉一条自动原位替换），支持 `⌥+滚轮` 调透明度、折叠、鼠标点击穿透（`⌘⌥P` 恢复）、行内编辑、代码高亮与图片 OCR 文字提取。
   *Pin to Screen (⌘P): pins any entry as a floating note with opacity control (`⌥+scroll`), collapse, click-through lock (`⌘⌥P` to restore), inline editing, syntax highlighting, and one-click OCR text copy.*
-- **两条记录行内对比（⌘D）**：按 `⌘D` 或点击多选底栏、预览顶栏、右键菜单的「对比」，右侧即刻呈现行级与字词级红绿差异视图；支持对比中按 `↑`/`↓` 实时切换记录、切换行内/左右/只看差异视图、逐块挑选保留新旧版本，并按 `⌘C` 复制或 `⏎` 直接粘贴合并结果。
-  *Inline diff of two entries (⌘D): compares any two entries with line- and word-level red/green highlights via `⌘D`, toolbar buttons, or the context menu; supports live row switching with `↑`/`↓`, inline/split/changes-only views, and per-block merge copy (`⌘C`) or paste (`⏎`).*
+- **两条记录行内对比（⌘D）**：按 `⌘D` 或点击多选底栏、预览顶栏、右键菜单的「对比」，右侧即刻呈现行级与字词级红绿差异视图；支持对比中按 `↑`/`↓` 实时切换记录、行内/左右/只看差异三种视图自由切换，并按 `⌘C` 复制或 `⏎` 直接粘贴合并结果。
+  *Inline diff of two entries (⌘D): compares any two entries with line- and word-level red/green highlights via `⌘D`, toolbar buttons, or the context menu; supports live row switching with `↑`/`↓`, inline/split/changes-only views, and quick copy (`⌘C`) or paste (`⏎`).*
 - **鼠标拖动多选**：在列表按住鼠标上下拖动即可整段勾选（拖过边缘自动滚动，按住 `⇧` 追加选区），松手后可直接回车合并粘贴、`⌥⏎` 顺序粘贴或 `⌘⌫` 批量删除。
   *Drag to multi-select: press and drag across the list to select a range with edge auto-scrolling and `⇧`-drag additive selection.*
 - **局域网扫码免安装双向互传**：选中任意记录点击「手机互传」，手机用系统相机扫码即可在浏览器里免安装查看并复制电脑上的长文、下载原图/文件，也能直接把手机文字或相册图片传回电脑剪贴板并入库；移动端网页按手机语言自动切换简/繁/英，仅在同一局域网内传输、5 分钟自动失效、关闭弹窗立即释放端口，数据不经过任何云服务器。
@@ -58,6 +58,8 @@
   *Clearer Paste Stack playhead: marks the next item with a leading `▶` indicator distinct from hover states and locks badge widths against long text truncation.*
 - **预览工具栏精简，低频操作收进「更多」菜单**：预览区顶栏右侧常驻「钉在屏幕（`⌘P`）」、「收藏（`⌘S`）」与「⋯ 更多」三个按钮，「脱敏粘贴（`⌃⏎`）」仅在当前记录检测到敏感信息时按需展示；对比两条记录、手机互传、二维码、在访达中显示、编辑标签与删除记录统一收进「⋯ 更多」菜单（带文字说明与快捷键提示），最窄窗口宽度下也不会被挤压或误触删除。
   *Slimmer preview toolbar: the right side keeps Pin to Screen (`⌘P`), Star (`⌘S`), and a labeled ⋯ More menu, with Scrub & Paste (`⌃⏎`) shown on the toolbar only when sensitive content is detected, while Diff, Send to Phone, QR code, Reveal in Finder, Edit Tags, and Delete live inside ⋯ More—preventing icon pile-up, crowded tag chips, and accidental deletes even at the narrowest window width.*
+- **对比视图结构优化与精简**：精简改动块冗余的保留新/保留旧/两者都留选择器与顶栏忽略空白/忽略大小写开关；将行内、左右、只看差异三段式视图切换移至内容区顶部的统计摘要栏右侧，顶栏与块级界面更纯粹紧凑。
+  *Streamlined diff view layout: removed redundant hunk retention toggles and ignore whitespace/case pills; moved the inline, split, and changes-only segmented control directly into the diff summary banner.*
 ### 🐛 问题修复 (Fixed)
 
 - **脱敏引擎误伤包管理器命令修复**：修复 `npx pkg@latest`、`npm i react@18.2.0`、`pnpm add lodash@4.17.21` 等包管理与版本语法被「用户名@主机」规则误识别为敏感信息触发脱敏的问题；新增语义版本、dist-tag 与包管理器命令行上下文校验，确保真实的 `user@ip`、`user@domain` 或 SSH/SCP 主机名仍受保护。

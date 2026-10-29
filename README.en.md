@@ -65,7 +65,7 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 - **Paste Stack (`⌥ ⏎` / `⌃ ⌥ V`)**: Select multiple items and press `⌥ ⏎` (or press `⌃ ⌥ V` to record copies across apps) to queue them in copy order inside a non-activating bottom panel; press native `⌘ V` repeatedly in the target window to paste one by one, click any row to jump, or press `Esc` to exit.
 - **Smart Form & Table Splitting**: Copying spreadsheet rows, multi-column text, JSON, or contact details (name, phone, address) pops a suggestion to split fields into a Paste Stack with one click or `⌥ ⏎`, letting you fill form inputs sequentially with `⌘ V`.
 - **Pin to Screen (`⌘ P`)**: Pin any entry as a floating note (pinning another replaces it in place) with `⌥ + scroll` opacity control, collapse, click-through lock (`⌘ ⌥ P` to restore), inline editing, syntax highlighting, and one-click OCR text copy.
-- **Inline Diff of Two Entries (`⌘ D`)**: Press `⌘ D` or click Compare in the 2-item batch bar, preview toolbar, or right-click menu to view line- and word-level red/green diffs (Inline / Side-by-Side / Changes-Only); press `↑` / `↓` while diffing to live-swap entries, pick versions per block, and press `⌘ C` to copy or `⏎` to paste the merged result.
+- **Inline Diff of Two Entries (`⌘ D`)**: Press `⌘ D` or click Compare in the 2-item batch bar, preview toolbar, or right-click menu to view line- and word-level red/green diffs (Inline / Side-by-Side / Changes-Only); press `↑` / `↓` while diffing to live-swap entries, and press `⌘ C` to copy or `⏎` to paste the merged result.
 - **Batch Actions & Undo**: Select multiple items with `⇧`, `⌘`, or by dragging the mouse down the list (with edge auto-scrolling) to merge-paste or bulk-delete; undo deletions within 10 seconds with `⌘ Z`.
 - **iCloud Drive Sync & Backup**: Optional sync across your Macs via personal iCloud Drive (no third-party servers), plus JSON and Markdown export with options to exclude or mask sensitive items.
 - **Phone Drop (LAN QR Code)**: Select any item and choose Send to Phone from the ⋯ More menu in the preview header; scan the QR code with your phone camera to view and copy long text or download original images/files from your Mac, and push text or photos from your phone back to the Mac clipboard and history—no app install needed. Transfers stay on your local network, expire after 5 minutes, close the port the moment you dismiss the panel, and never touch any cloud server.
@@ -111,7 +111,7 @@ Clips reconstructed at the real interface's size and colors (click a thumbnail f
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
 | **`⌘ D`** | Compare two entries / leave the diff view (also clickable from the 2-item batch bar, the preview header's More menu, or the right-click menu) |
 | **`⌥ ↑` / `⌥ ↓`** | Jump to the previous / next change while diffing |
-| **`⌘ C` (while diffing)** | Copy the merged result built from your per-block choices |
+| **`⌘ C` (while diffing)** | Copy the merged result |
 | **`⏎` (while diffing)** | Paste the merged result and close the panel |
 | **`⌘ [` / `⌘ ]`** | Cycle content types (`⌘ ]` next, `⌘ [` previous, empty types skipped) |
 | **`⌘ ↓`** | Expand / collapse the filter panel under the search field (type grid + tag flow) |

@@ -43,41 +43,25 @@ You don't need to exit diff mode to compare against another history entry:
 
 ---
 
-## 3. Unified vs. Side-by-Side Layout
+## 3. Three Diff Views
 
-Toggle anytime in the diff header:
+Switch anytime using the segmented control on the right of the summary banner:
 
-- **Unified (Default)**: Deleted and added lines stacked vertically for compact reading.
-- **Side-by-Side**: **Old** on the left and **New** on the right with horizontal alignment.
-- **Fold Unchanged Lines**: Collapses long identical sections into a clickable `⋯ N unchanged lines folded ⋯` divider, keeping 3 context lines around each change.
-
----
-
-## 4. Hunk Cherry-Picking & Merge Output
-
-Every change block has three quick toggle buttons in its top-right corner:
-
-| Option | Result |
-| :--- | :--- |
-| **Keep New** (Default) | Uses the green `+` version for this block |
-| **Keep Old** | Reverts this block to the red `-` version |
-| **Keep Both** | Includes the old block followed by the new block |
-
-Use the **All → Keep New / Keep Old** buttons in the header to reset all blocks at once.
-
-Once chosen:
-- Click **Copy Merged (`⌘ C`)** to write the merged text to your system clipboard;
-- Click **Paste Merged (`⏎`)** to close the panel and paste the merged result directly into your active app.
+- **Inline (Default)**: Deleted and added lines stacked vertically for compact, natural reading.
+- **Side-by-Side**: **Old** on the left and **New** on the right with horizontal line alignment.
+- **Changes Only**: Folds large unchanged context sections so you can focus strictly on modifications.
 
 ---
 
-## 5. Swap Old ↔ New (`⇄`)
+## 4. Copy or Paste Merged Output
 
-If you copied the older version after the newer version, click the **`⇄ Swap`** button in the diff header to flip Old and New in place.
+The bottom action bar provides two primary exits:
+
+- Click **Copy Merged (`⌘ C`)**: Writes the diff output text to your system clipboard;
+- Click **Paste Merged (`⏎`)**: Pastes the merged result directly into your active window and closes the panel.
 
 ---
-
-## 6. Shortcuts Inside Diff Mode
+## 5. Shortcuts Inside Diff Mode
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -90,8 +74,7 @@ If you copied the older version after the newer version, click the **`⇄ Swap`*
 
 ---
 
-## 7. Edge Cases & Options
+## 6. Edge Cases & Safeguards
 
 - **Unrecognized Images**: If one entry is an image without OCR text, NookClip prompts you to run **Recognize Text (OCR)** first.
 - **Encrypted Sensitive Entries**: Requires clicking **Unlock & Compare** before decrypting; plaintext is wiped from memory as soon as you exit diff mode or close the panel.
-- **Ignore Whitespace / Case**: Toggle **Ignore Whitespace** or **Ignore Case** in the diff header (or under **Settings → Preview**) to recompute both the diff view and merged output simultaneously.
