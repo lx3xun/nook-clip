@@ -62,6 +62,13 @@
   *Streamlined diff view layout: removed redundant hunk retention toggles and ignore whitespace/case pills; moved the inline, split, and changes-only segmented control directly into the diff summary banner.*
 ### 🐛 问题修复 (Fixed)
 
+- **屏幕置顶贴条复制敏感内容时自动擦除失效修复**：修复在贴条上点击复制敏感凭证（密码、API Key 等）时，因敏感标记判断颠倒导致剪贴板防窥标记与 30 秒自动擦除均未生效、敏感明文长期滞留系统剪贴板的问题；贴条现在会完整继承来源条目的敏感状态。
+  *Fix pinned note copy bypassing auto-wipe: copying sensitive credentials from a pinned note no longer skips the clipboard concealment flag and 30-second auto-clear due to an inverted sensitive flag; pinned notes now inherit the source entry's sensitive state.*
+- **局域网快传文件名报头注入防护**：修复文件名包含换行符时可能截断 HTTP 响应头的问题，下载文件名中的回车、换行与引号现会被统一过滤。
+  *LAN drop header hardening: carriage returns, line feeds, and quotes in filenames are now stripped before building the Content-Disposition header, preventing HTTP response splitting.*
+- **官网落地页三语词条补齐**：补齐繁体中文与英文界面缺失的 4 处翻译（导航演示、文档链接、Gitee 镜像链接等），切换语言后不再出现未翻译的简体中文残留。
+  *Landing page i18n completeness: added the 4 missing Traditional Chinese and English strings (nav demos, docs link, Gitee mirror link, etc.) so no Simplified Chinese remnants remain after switching languages.*
+
 - **脱敏引擎误伤包管理器命令修复**：修复 `npx pkg@latest`、`npm i react@18.2.0`、`pnpm add lodash@4.17.21` 等包管理与版本语法被「用户名@主机」规则误识别为敏感信息触发脱敏的问题；新增语义版本、dist-tag 与包管理器命令行上下文校验，确保真实的 `user@ip`、`user@domain` 或 SSH/SCP 主机名仍受保护。
   *Fix package specifiers misidentified by scrub engine: resolves an issue where package manager syntax like `npx pkg@latest`, `npm i react@18.2.0`, and `pnpm add lodash@4.17.21` was falsely flagged as sensitive by the user@host rule; adds SemVer, dist-tag, and package manager command context checks while keeping genuine `user@ip`, `user@domain`, and SSH/SCP hostnames protected.*
 
