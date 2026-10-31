@@ -398,4 +398,17 @@ final class LanQuickDropServerTests: XCTestCase {
         let twHTML = String(decoding: twResponse.body, as: UTF8.self)
         XCTAssertTrue(twHTML.contains(#"<html lang="zh-Hant">"#))
     }
+
+    func testPayloadResponseSanitizesCRLFAndQuotesInFileName() {
+        let response = LanHTTPResponse.payload(
+            Data([0x01, 0x02]),
+            mimeType: "application/octet-stream",
+            fileName: "report\"\r\nX-Injected: yes.pdf",
+            inline: false
+        )
+        let disposition = response.headers["Content-Disposition"] ?? ""
+        XCTAssertFalse(disposition.contains("\r"), "Content-Disposition 不得包含回车符")
+        XCTAssertFalse(disposition.contains("\n"), "Content-Disposition 不得包含换行符")
+        XCTAssertTrue(disposition.contains("filename=\"reportX-Injected: yes.pdf\""))
+    }
 }

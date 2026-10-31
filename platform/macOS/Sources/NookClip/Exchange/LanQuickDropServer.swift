@@ -148,8 +148,12 @@ public struct LanHTTPResponse: Equatable {
     public static func payload(_ data: Data, mimeType: String, fileName: String, inline: Bool) -> LanHTTPResponse {
         var disposition = inline ? "inline" : "attachment"
         if !fileName.isEmpty {
-            let encoded = fileName.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "download"
-            disposition += "; filename=\"\(fileName.replacingOccurrences(of: "\"", with: ""))\"; filename*=UTF-8''\(encoded)"
+            let sanitizedName = fileName
+                .replacingOccurrences(of: "\"", with: "")
+                .replacingOccurrences(of: "\r", with: "")
+                .replacingOccurrences(of: "\n", with: "")
+            let encoded = sanitizedName.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "download"
+            disposition += "; filename=\"\(sanitizedName)\"; filename*=UTF-8''\(encoded)"
         }
         return LanHTTPResponse(
             status: 200,

@@ -207,6 +207,7 @@ window.I18N_DATA = {
     meta_desc: 'NookClip 是專為 macOS 打造的原生剪貼簿與歷史記錄管理工具。Rust 引擎驅動，常駐記憶體僅約 20MB，支援順序貼上佇列、語義脫敏貼上與螢幕置頂貼條，資料 100% 保留在本機。',
     nav_demos: '動態演示',
     nav_features: '核心能力',
+    nav_shortcuts: '快速鍵指南',
     nav_docs: '使用手冊',
     nav_comparison: '方案比較',
     nav_privacy: '隱私安全',
@@ -226,7 +227,7 @@ window.I18N_DATA = {
     hero_gitee_tip: '下載速度較慢？',
     hero_gitee_link: '前往 Gitee 鏡像加速下載',
     hero_guide_link: '首次安裝與權限說明',
-
+    hero_docs_link: '完整使用手冊',
     preview_dark: '深色模式',
     preview_light: '淺色模式',
     chip_search: '打字直接搜，即時命中',
@@ -400,6 +401,7 @@ window.I18N_DATA = {
   'en': {
     meta_title: 'NookClip - Lightweight, Fast & Privacy-First macOS Clipboard Manager',
     meta_desc: 'NookClip is a native clipboard & history manager for macOS. Powered by Rust, ~20MB RAM, featuring Paste Stack, Semantic Redaction, and Pin to Screen, 100% on-device.',
+    nav_demos: 'Demos',
     nav_features: 'Features',
     nav_shortcuts: 'Shortcuts',
     nav_docs: 'Docs',
@@ -419,6 +421,7 @@ window.I18N_DATA = {
     hero_dl_sub: 'macOS 14.0+ · Apple Silicon & Intel Universal',
     hero_github_title: 'View GitHub Source',
     hero_gitee_tip: 'Slow in China?',
+    hero_gitee_link: 'Download via Gitee Mirror',
     hero_guide_link: 'Installation & Gatekeeper Guide',
     hero_docs_link: 'User Guide',
 

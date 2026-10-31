@@ -83,6 +83,8 @@ final class PinnedNoteModel: Identifiable {
     /// 代码语言 id（`item.metadata.language`，如 swift/json）。nil = 交给 highlight.js 自动检测。
     /// 有了它，代码贴条才能和主面板渲染出同一套语法高亮，而不是只有等宽字体。
     let language: String?
+    /// 来源条目是否为敏感凭证（用于贴条内点击复制时触发防窥标记与 30 秒自动擦除）
+    let isSensitive: Bool
     /// 敏感条目明文解密失败、已降级为脱敏摘要展示的标记（用于 UI 弱提示）
     let isDegraded: Bool
     /// 窗口不透明度（0.20 ~ 1.00，默认 0.96）
@@ -108,6 +110,7 @@ final class PinnedNoteModel: Identifiable {
         ocrText: String?,
         isCode: Bool,
         language: String? = nil,
+        isSensitive: Bool = false,
         isDegraded: Bool
     ) {
         self.id = id
@@ -122,6 +125,7 @@ final class PinnedNoteModel: Identifiable {
         self.ocrText = ocrText
         self.isCode = isCode
         self.language = language
+        self.isSensitive = isSensitive
         self.isDegraded = isDegraded
         self.isCollapsed = false
         self.isClickThrough = false
@@ -795,6 +799,7 @@ final class PinnedWindowManager {
             ocrText: item.ocrText,
             isCode: item.persistedKind == "code",
             language: item.metadata.language,
+            isSensitive: item.isSensitive,
             isDegraded: resolved.degraded
         )
 
@@ -990,7 +995,7 @@ final class PinnedWindowManager {
             close: { [weak self] in self?.unpin(id: note.id) },
             copy: { text in
                 // 剪贴板写入统一走 PasteService（内部标记 + 敏感自毁调度都在它那里）
-                _ = PasteService.shared.copyText(text, containsSensitive: note.isDegraded)
+                _ = PasteService.shared.copyText(text, containsSensitive: note.isSensitive || note.isDegraded)
             },
             copyOCR: { text in
                 _ = PasteService.shared.copyText(text)

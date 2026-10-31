@@ -142,7 +142,7 @@ final class PasteStackPillPanel: NSPanel {
     static let bottomInset: CGFloat = 120
     /// 用户拖出来的位置（屏幕坐标；跨会话保留）。
     /// 缺省即「没拖过」，此时走底部居中。
-    private static let originKey = "pasteStack.panelOrigin"
+    private static let originKey = UserDefaultsKey.pasteStackPanelOrigin.rawValue
     /// 显隐补间时长（与 SwiftUI 侧 `.easeOut(duration: 0.16)` 保持一致）
     private static let fadeDuration: TimeInterval = 0.16
 

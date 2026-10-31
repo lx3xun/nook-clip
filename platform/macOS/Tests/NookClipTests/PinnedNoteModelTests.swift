@@ -546,6 +546,18 @@ final class PinnedNoteModelTests: XCTestCase {
     func testNonCodeNoteHasNoLanguage() {
         XCTAssertNil(makeNote(text: "普通文字").language)
     }
+
+    func testPinningSensitiveItemPreservesSensitiveFlagOnNote() {
+        let sensitiveItem = ClipboardItem(
+            type: .text,
+            title: "密钥",
+            summary: "sk-proj-123456",
+            isSensitive: true
+        )
+        manager.pin(item: sensitiveItem)
+        XCTAssertEqual(manager.notes.first?.isSensitive, true, "钉住敏感条目时必须保留 isSensitive 标记以便复制时触发防窥与自动擦除")
+        manager.unpinAll()
+    }
 }
 
 // MARK: - 外观跟随（贴条是独立 NSPanel，不吃主面板的 preferredColorScheme）

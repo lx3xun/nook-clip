@@ -52,4 +52,8 @@ enum UserDefaultsKey: String {
     case autoBurnClearOnPaste
     /// 验证码类记录粘贴 5 秒后从历史彻底删除（默认关闭）
     case autoBurnHistoryBurnEnabled
+
+    // MARK: 顺序粘贴栈（Paste Stack）
+    /// 粘贴栈浮窗用户拖拽后的屏幕坐标（"x,y"）
+    case pasteStackPanelOrigin = "pasteStack.panelOrigin"
 }
