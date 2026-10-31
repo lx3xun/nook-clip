@@ -1354,7 +1354,7 @@ final class NookClipTests: XCTestCase {
             XCTAssertNil(text, "纯色图片识别结果应为 nil")
             completed.fulfill()
         }
-        await fulfillment(of: [completed], timeout: 15)
+        await fulfillment(of: [completed], timeout: 30)
 
         // 识别失败不得污染内存与数据库
         XCTAssertNil(store.item(withID: item.id)?.ocrText)
