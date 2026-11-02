@@ -73,6 +73,34 @@ pub fn ingest_clipboard_snapshot(
     Ok(IngestOutcome::SkippedEmpty)
 }
 
+/// 来源设备信息回填：快照自带值优先，缺失时回退采集端配置（同步/多端场景）。
+/// 三个 ingest 分支共用，消除重复的 clone+or_else 链。
+struct SourceOrigin {
+    device_id: Option<String>,
+    device_name: Option<String>,
+    platform: Option<String>,
+}
+
+fn resolve_source_origin(
+    snapshot: &RawClipboardSnapshot,
+    config: &IngestConfig,
+) -> SourceOrigin {
+    SourceOrigin {
+        device_id: snapshot
+            .source_device_id
+            .clone()
+            .or_else(|| config.source_device_id.clone()),
+        device_name: snapshot
+            .source_device_name
+            .clone()
+            .or_else(|| config.source_device_name.clone()),
+        platform: snapshot
+            .source_platform
+            .clone()
+            .or_else(|| config.source_platform.clone()),
+    }
+}
+
 fn ingest_file_item(
     repo: &StorageRepository,
     crypto: Option<&CryptoEngine>,
@@ -112,12 +140,13 @@ fn ingest_file_item(
         } else {
             format!("{} ({} items)", first_file_name, snapshot.file_paths.len())
         };
-        (title, joined.clone(), Some(joined.clone()), false, Some(joined))
+        (title, joined.clone(), Some(joined), false, None)
     };
 
-    let source_device_id = snapshot.source_device_id.clone().or_else(|| config.source_device_id.clone());
-    let source_device_name = snapshot.source_device_name.clone().or_else(|| config.source_device_name.clone());
-    let source_platform = snapshot.source_platform.clone().or_else(|| config.source_platform.clone());
+    let origin = resolve_source_origin(snapshot, config);
+    let source_device_id = origin.device_id;
+    let source_device_name = origin.device_name;
+    let source_platform = origin.platform;
 
     let item_summary = ClipItemSummary {
         id: uuid::Uuid::new_v4().to_string().to_uppercase(),
@@ -219,9 +248,10 @@ fn ingest_text_or_url_item(
         (title, text.to_string(), rtf_path, false, Some(text.to_string()), metadata_str)
     };
 
-    let source_device_id = snapshot.source_device_id.clone().or_else(|| config.source_device_id.clone());
-    let source_device_name = snapshot.source_device_name.clone().or_else(|| config.source_device_name.clone());
-    let source_platform = snapshot.source_platform.clone().or_else(|| config.source_platform.clone());
+    let origin = resolve_source_origin(snapshot, config);
+    let source_device_id = origin.device_id;
+    let source_device_name = origin.device_name;
+    let source_platform = origin.platform;
 
     // 非敏感条目使用换行符归一化后的内容哈希确定性 ID (UUIDv5)，实现跨端同内容自然置顶；敏感条目保持随机 UUID 防碰撞
     let id = if is_sensitive {
@@ -314,9 +344,10 @@ fn ingest_image_item(
         })
         .unwrap_or_else(|| config.default_image_title.clone());
 
-    let source_device_id = snapshot.source_device_id.clone().or_else(|| config.source_device_id.clone());
-    let source_device_name = snapshot.source_device_name.clone().or_else(|| config.source_device_name.clone());
-    let source_platform = snapshot.source_platform.clone().or_else(|| config.source_platform.clone());
+    let origin = resolve_source_origin(snapshot, config);
+    let source_device_id = origin.device_id;
+    let source_device_name = origin.device_name;
+    let source_platform = origin.platform;
 
     // 图片按二进制 SHA-256 哈希计算跨设备确定性 ID (UUIDv5)
     let id = {

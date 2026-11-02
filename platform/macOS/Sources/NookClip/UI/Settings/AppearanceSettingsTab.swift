@@ -4,10 +4,10 @@ import SwiftUI
 
 @MainActor
 struct AppearanceSettingsTab: View {
-    @AppStorage("appearance") private var appearance = "system"
-    @AppStorage("enableTranslucency") private var enableTranslucency = true
+    @AppStorage(UserDefaultsKey.appearance.rawValue) private var appearance = "system"
+    @AppStorage(UserDefaultsKey.enableTranslucency.rawValue) private var enableTranslucency = true
     /// 背景透明度 0~0.5：越大背景越透明（默认 0.15）
-    @AppStorage("backgroundTransparency") private var backgroundTransparency: Double = 0.15
+    @AppStorage(UserDefaultsKey.backgroundTransparency.rawValue) private var backgroundTransparency: Double = 0.15
     @AppStorage(UserDefaultsKey.rowSelectionStyle.rawValue) private var rowSelectionStyle = RowSelectionStyle.subtleAccent.rawValue
 
     var body: some View {

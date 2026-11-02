@@ -22,6 +22,42 @@
 
 ## [Unreleased]
 
+### 🚀 性能优化 (Performance)
+
+- **剪贴板监听自适应降频**：剪贴板无变化时轮询间隔自动从 350ms 放宽到 1 秒，本 App 被激活时立即收紧并补一次检测；空转时的 CPU 占用显著下降，复制响应速度不受影响。
+  *Adaptive polling: the clipboard watcher relaxes from a 350ms to a 1s interval when nothing changes and tightens instantly when the app is activated, cutting idle CPU usage without affecting copy responsiveness.*
+- **数据库读写分离**：SQLite 开启 WAL 后新增独立只读连接承载全部查询，读写互不排队；高频固定语句复用预编译缓存，翻找长历史时列表更跟手。
+  *Split read/write database connections: with WAL enabled, a dedicated read-only connection now serves all queries so reads never queue behind writes, and frequently used statements reuse prepared statements for snappier history browsing.*
+- **列表滚动每分钟不再全量重算**：一分钟内的相对时间（刚刚、N 分钟前）现在只重算受影响的行，其余行直接复用既有视图状态；长时间浏览大量记录时滚动开销明显降低。
+  *Incremental minute-bucket refresh: rolling relative timestamps ("just now", "N minutes ago") only recompute affected rows instead of remapping the whole list every minute, visibly reducing scroll overhead with large histories.*
+- **文件预览图标预取与零阻塞**：文件图标改在后台线程获取并预取，常见格式（文本、图片、PDF 等 20 类）直接用系统类型图标零磁盘 IO；导出/导入备份的读写也全部移出主线程，操作期间按钮自动防重复点击。
+  *Background file icons: file icons are fetched and prefetched off the main thread, with zero-IO system type icons for 20 common formats; backup export/import I/O also moved off the main thread with a busy-guard on the buttons.*
+
+### 🔒 隐私与安全 (Privacy & Security)
+
+- **敏感内容粘贴后清空更隐蔽**：粘贴敏感内容后的自动清空现在只比对内容指纹（哈希），不再在内存保留完整明文等待清空，缩短敏感明文的驻留时间。
+  *Hash-based burn verification: post-paste clipboard clearing now compares only a content fingerprint instead of retaining the full plaintext in memory, shortening sensitive plaintext residency.*
+- **密钥管理错误不再静默吞掉**：本地密钥初始化与备份写入失败时会记录日志便于排查，不再无声跳过；内置脱敏正则加载失败会立即报错而非静默忽略，避免规则失效却毫无察觉。
+  *Key-manager errors are logged instead of silently swallowed, and builtin redaction patterns now fail loudly if they fail to compile, so broken rules can never slip through unnoticed.*
+- **发版脚本加固**：发布流程中拉取主干失败会立即中止而不是被忽略；Sparkle 更新组件下载增加 SHA-256 校验，防止供应链篡改。
+  *Hardened release script: a failed main-branch pull now aborts the release instead of being ignored, and the Sparkle updater download is verified with a SHA-256 checksum against supply-chain tampering.*
+
+### 🐛 问题修复 (Fixed)
+
+- **修复从 Electron 类应用（终端/IDE）启动后「回车打不开应用」**：部分 Electron 应用（如抖音、VS Code）在启动环境带有 `ELECTRON_RUN_AS_NODE` 时会静默退回纯脚本模式而无法打开界面；现在打开应用前会主动清理该环境变量，从此类宿主启动也能一键直达。
+  *Fixed Enter-to-launch from Electron-based hosts: apps like Douyin or VS Code silently fall back to script mode when the launch environment carries ELECTRON_RUN_AS_NODE; the variable is now stripped before launching so apps open reliably from any host.*
+- **短词搜索行为说明与防回归**：经实测确认 SQLite 全文索引（trigram）对 1–2 字短词天然无索引可用，前缀语法语义不等价会导致静默漏结果；现已将此硬限制文档化并加注释防护，1–2 字搜索继续走精确的逐列匹配，行为与之前完全一致。
+  *Short-query search guard: verified that SQLite trigram FTS has no index path for 1–2 character queries and that prefix syntax silently misses results, so short queries keep exact per-column matching with the limitation documented and guarded against regressions.*
+- **CI 测试门禁**：打包发布现在必须先通过 Rust 全量测试与 Swift 全量测试两个关卡，测试不通过就不再产出安装包；两条测试流水线均启用依赖缓存，反馈更快。
+  *CI test gates: packaging now runs only after the full Rust and Swift test suites pass, with dependency caching enabled on both pipelines for faster feedback.*
+
+### 🎨 细节打磨 (Polish)
+
+- **配置键与图标全面登记**：全部用户配置键集中登记到统一常量表、界面图标统一登记到图标常量表，消除散落的字符串，降低拼写错导致设置失效的风险。
+  *Centralized keys & icons: every settings key and UI icon is now registered in the shared constant tables, eliminating scattered string literals that could silently break settings.*
+- **代码结构瘦身**：拆分了错误定义、局域网页面模板、手机互传与菜单关闭逻辑等多个超大文件段落，全部为等价重构，不改变任何行为。
+  *Structural slimming: split several oversized file sections (FFI errors, LAN page template, phone drop helpers, menu-close logic) as behavior-preserving refactors.*
+
 ---
 
 ## [0.5.0] - 2026-10-31

@@ -55,7 +55,7 @@ struct SettingsView: View {
         self._selectedTab = State(initialValue: initialTab)
     }
     // 仅用于窗口级 preferredColorScheme；选中态与切换动作在 AppearanceSettingsTab
-    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage(UserDefaultsKey.appearance.rawValue) private var appearance = "system"
     @State private var languageId = UUID()
 
     var body: some View {

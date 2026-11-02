@@ -188,6 +188,17 @@ public struct DefaultAppSearchProvider: AppSearchProvider {
     public func openApp(_ app: InstalledApp) -> Bool {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
+        // 防御：开发调试环境中，宿主进程可能继承 ELECTRON_RUN_AS_NODE=1
+        //（DeepSeek Harness 等 Electron 应用启动的终端/IDE）。LaunchServices 代启的
+        // 目标应用若同为 Electron 应用（如抖音、VS Code），会读到该变量并切换为
+        // 纯 Node 模式——加载 main.js 失败后静默 exit(0)，表现为「回车打不开、
+        // 无报错无崩溃」。必须**显式置空**而非 removeValue：OpenConfiguration.environment
+        // 是「合并/覆盖」语义，删除 key 时 LaunchServices 仍会从调用方进程环境继承原值
+        //（A/B 实测：removeValue 与最小环境均无效，置空字符串有效——Electron 将
+        // 空串视为未设置）。此处强制覆盖，保证目标应用以正常 GUI 模式启动。
+        var environment = ProcessInfo.processInfo.environment
+        environment["ELECTRON_RUN_AS_NODE"] = ""
+        config.environment = environment
         NSWorkspace.shared.openApplication(at: app.url, configuration: config, completionHandler: nil)
         return true
     }

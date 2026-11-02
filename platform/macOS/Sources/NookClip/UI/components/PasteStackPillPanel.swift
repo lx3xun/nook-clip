@@ -613,7 +613,7 @@ private struct PasteStackListContent: View {
                 recordDot
             }
             if state.isCompleted {
-                Image(systemName: "checkmark.circle.fill")
+                Image(systemName: NookClipIcon.Status.success)
                     .font(.nookClip(12, .semibold))
                     .foregroundStyle(NookClip.colorSuccess)
                 Text(L10n.tr("scrub.stack.completed"))
@@ -690,7 +690,7 @@ private struct PasteStackListContent: View {
     private var keepOpenBadge: some View {
         Button(action: onToggleKeepOpen) {
             HStack(spacing: 2) {
-                Image(systemName: state.keepOpen ? "lock.fill" : "lock.open")
+                Image(systemName: state.keepOpen ? NookClipIcon.Sensitive.lockFilled : NookClipIcon.Sensitive.lockOpen)
                     .font(.system(size: 8, weight: .semibold))
                 // 默认（关闭）状态不写文字：常态下每行都是一个字，头上再挂四个字
                 // 会把这个 340pt 宽的顶栏挤爆。开启后必须显形，让「异常」有解释。
@@ -718,7 +718,7 @@ private struct PasteStackListContent: View {
 
     private var closeButton: some View {
         Button(action: onStop) {
-            Image(systemName: "xmark")
+            Image(systemName: NookClipIcon.Action.close)
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(NookClip.textTertiary)
                 .frame(width: 16, height: 16)
@@ -1010,7 +1010,7 @@ private struct PasteStackRow: View {
     /// 完全对齐——列表滚动时，眼睛可以顺着这条竖线下移，不会因某行多了个图标而错位。
     @ViewBuilder
     private var playhead: some View {
-        Image(systemName: "play.fill")
+        Image(systemName: NookClipIcon.Action.play)
             .font(.system(size: 8, weight: .semibold))
             .foregroundStyle(NookClip.accent)
             .opacity(isHighlighted ? 1 : 0)
@@ -1025,7 +1025,7 @@ private struct PasteStackRow: View {
     @ViewBuilder
     private var marker: some View {
         if isPasted {
-            Image(systemName: "checkmark")
+            Image(systemName: NookClipIcon.Action.done)
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(NookClip.colorSuccess)
         } else {
@@ -1043,7 +1043,7 @@ private struct PasteStackRow: View {
     /// 挂 `.onDrag` 的行本身负责发起拖拽，把手只是提示，不需要自己再带手势。
     @ViewBuilder
     private var dragGrip: some View {
-        Image(systemName: "line.3.horizontal")
+        Image(systemName: NookClipIcon.Action.dragHandle)
             .font(.system(size: 8, weight: .semibold))
             .foregroundStyle(NookClip.textTertiary)
             .frame(width: 10, height: 18)

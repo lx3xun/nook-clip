@@ -23,7 +23,7 @@ struct AppPreviewPane: View {
                     onOpen()
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.forward.app")
+                        Image(systemName: NookClipIcon.Action.openInApp)
                             .font(.system(size: 11, weight: .semibold))
                         Text(L10n.tr("app.action_open"))
                             .font(.nookClipBodyMedium)
@@ -97,7 +97,7 @@ struct AppPreviewPane: View {
                         onOpen()
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "arrow.up.forward.app")
+                            Image(systemName: NookClipIcon.Action.openInApp)
                                 .font(.system(size: 13, weight: .semibold))
                             Text(L10n.tr("app.open_hint"))
                                 .font(.nookClipBodyMedium)

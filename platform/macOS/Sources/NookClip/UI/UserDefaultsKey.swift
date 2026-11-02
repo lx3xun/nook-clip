@@ -56,4 +56,39 @@ enum UserDefaultsKey: String {
     // MARK: 顺序粘贴栈（Paste Stack）
     /// 粘贴栈浮窗用户拖拽后的屏幕坐标（"x,y"）
     case pasteStackPanelOrigin = "pasteStack.panelOrigin"
+
+    // MARK: 外观主题（设置页/主面板/快捷弹窗/贴条共用）
+    /// 界面外观（system / light / dark）
+    case appearance
+    /// 材质半透明效果开关
+    case enableTranslucency
+    /// 背景不透明度（0~1，越小越透）
+    case backgroundTransparency
+
+    // MARK: 捕获与敏感保护
+    /// 是否启用敏感信息检测与保护（默认开启）
+    case enableSensitiveProtection
+    /// 敏感内容在剪贴板的保留秒数（到期自动擦除；0 = 不擦除）
+    case sensitiveClipboardTimeout
+
+    // MARK: 历史与同步
+    /// 历史最大保留条数
+    case historyMaxItemCount
+    /// 历史载荷磁盘占用上限（MB）
+    case historyDiskLimitMB
+    /// 是否启用 iCloud 同步
+    case enableICloudSync
+
+    // MARK: 通用设置
+    /// 登录时自动启动
+    case launchAtLogin
+    /// Sparkle 自动检查更新（Sparkle 框架约定键名，保持原样）
+    case sparkAutoCheck = "SUEnableAutomaticChecks"
+
+    // MARK: 粘贴行为
+    /// 粘贴成功提示音效
+    case pasteSoundEnabled
+
+    // MARK: 设备标识（iCloud 同步设备 ID，一次生成终身不变）
+    case syncDeviceID = "nook.sync.deviceID"
 }

@@ -4,8 +4,8 @@ import SwiftUI
 
 @MainActor
 struct CaptureSettingsTab: View {
-    @AppStorage("enableSensitiveProtection") private var enableSensitiveProtection = true
-    @AppStorage("sensitiveClipboardTimeout") private var sensitiveClipboardTimeout = 30
+    @AppStorage(UserDefaultsKey.enableSensitiveProtection.rawValue) private var enableSensitiveProtection = true
+    @AppStorage(UserDefaultsKey.sensitiveClipboardTimeout.rawValue) private var sensitiveClipboardTimeout = 30
     @AppStorage(UserDefaultsKey.formBurstAutoSuggestEnabled.rawValue) private var formBurstAutoSuggestEnabled = true
     // MARK: 粘完即焚
     @AppStorage(UserDefaultsKey.autoBurnOtpEnabled.rawValue) private var autoBurnOtpEnabled = true

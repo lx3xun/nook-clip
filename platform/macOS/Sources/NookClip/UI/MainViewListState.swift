@@ -129,6 +129,10 @@ final class RowMapCache {
     /// 上次构建行模型时的分钟时间桶：相对时间文案（刚刚/N 分钟前）随分钟变化，
     /// 仅按 items 内容做缓存会让「刚刚」长期不更新。
     private var cachedMinute: Int = .min
+    /// 性能优化：分钟桶推进时只重算相对时间仍在滚动窗口内（<1 小时）的行。
+    /// 旧行（小时/天级）的相对文案逐分钟字节不变，直接复用旧模型，
+    /// 长列表每分钟的整表 map（RowDedup + Calendar 计算）降为个位数行重算。
+    private static let rollingWindowSeconds: TimeInterval = 3600
 
     func invalidate() {
         cachedItems = []
@@ -141,6 +145,13 @@ final class RowMapCache {
         if items == cachedItems, language == cachedLanguage, minute == cachedMinute {
             return cachedRows
         }
+        // 快路径：仅分钟桶推进（数据未变、语言未变）→ 只刷新滚动窗口内的行时间
+        if items == cachedItems, language == cachedLanguage, minute != cachedMinute {
+            refreshRollingTimestamps(now: Date())
+            cachedMinute = minute
+            version &+= 1
+            return cachedRows
+        }
         let rows = ClipboardRowModel.map(items)
         cachedItems = items
         cachedRows = rows
@@ -148,6 +159,15 @@ final class RowMapCache {
         cachedMinute = minute
         version &+= 1
         return rows
+    }
+
+    /// 只重建时间落在滚动窗口内（「刚刚/N 分钟前」档）的行模型；
+    /// 其余行原对象复用（ Equatable 视图 diff 也会因此跳过它们）。
+    private func refreshRollingTimestamps(now: Date) {
+        let cutoff = now.addingTimeInterval(-Self.rollingWindowSeconds)
+        for (index, row) in cachedRows.enumerated() where row.lastUsedAt >= cutoff {
+            cachedRows[index] = ClipboardRowModel(item: cachedItems[index])
+        }
     }
 }
 

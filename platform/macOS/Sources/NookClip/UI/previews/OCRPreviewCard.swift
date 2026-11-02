@@ -104,7 +104,7 @@ struct OCRPreviewCard: View {
             }
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: showRules ? "info.circle.fill" : "info.circle")
+                Image(systemName: showRules ? NookClipIcon.Info.circleFilled : NookClipIcon.Info.circle)
                     .font(.system(size: 10, weight: .regular))
                 Text(showRules ? L10n.tr("preview.ocr.rules_hide") : L10n.tr("preview.ocr.rules_show"))
                     .font(.nookClip(10))
@@ -144,7 +144,7 @@ struct OCRPreviewCard: View {
                 if let onTriggerOCR {
                     Button(action: onTriggerOCR) {
                         HStack(spacing: 4) {
-                            Image(systemName: "arrow.clockwise")
+                            Image(systemName: NookClipIcon.Info.retry)
                             Text(L10n.tr("preview.ocr.retry"))
                         }
                         .font(.nookClip(11, .medium))
@@ -293,7 +293,7 @@ private struct OCRRulesBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                Image(systemName: "info.circle.fill")
+                Image(systemName: NookClipIcon.Info.circleFilled)
                     .font(.system(size: 11))
                     .foregroundStyle(NookClip.accent)
                 Text(L10n.tr("preview.ocr.rules_title"))

@@ -290,7 +290,7 @@ private struct FormBurstToastView: View {
 
             // 关闭按钮
             Button(action: onClose) {
-                Image(systemName: "xmark")
+                Image(systemName: NookClipIcon.Action.close)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(isCloseHovered ? NookClip.textPrimary : NookClip.textTertiary)
                     .frame(width: 18, height: 18)

@@ -440,7 +440,13 @@ fn build_rules() -> Vec<CompiledRule> {
     fn rxs(patterns: &[&str]) -> Vec<Regex> {
         patterns
             .iter()
-            .filter_map(|p| Regex::new(p).ok())
+            .map(|p| {
+                // 内置正则必须全部编译通过：正则属于随二进制分发的规则资产，
+                // 静默丢弃等于规则失效无感知（敏感数据漏检），启动即 panic 暴露
+                Regex::new(p).unwrap_or_else(|e| {
+                    panic!("builtin scrub regex failed to compile: {p:?}: {e}")
+                })
+            })
             .collect()
     }
 

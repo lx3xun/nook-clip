@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::{
     crypto::CryptoEngine,
@@ -62,8 +62,51 @@ fn attach_tags(conn: &Connection, items: &mut [ClipItemSummary]) -> Result<()> {
 
 pub struct StorageRepository {
     conn: Arc<Mutex<Connection>>,
+    /// 读连接：WAL 模式下读不阻塞写、写不阻塞读。所有纯 SELECT 走这条，
+    /// 写路径（INSERT/UPDATE/DELETE/事务）仍走 conn，串行化由 WAL+busy_timeout 保证。
+    /// 懒初始化（首查才建），避免只写不读的场景白开一条连接。
+    read_conn: OnceLock<Arc<Mutex<Connection>>>,
+    /// 数据库文件路径（读连接懒建时需要）
+    db_path: String,
     crypto: CryptoEngine,
     assets_dir: Mutex<Option<PathBuf>>,
+}
+
+impl StorageRepository {
+    /// 取（或建）读连接。独立连接但同一数据库文件；WAL 下并发读安全。
+    /// `:memory:` 库无法跨连接共享数据，读路径直接回退写连接（保持单库语义）。
+    #[allow(dead_code)] // 供后续读路径扩展使用；当前读路径统一走 read_conn()
+    fn read(&self) -> Arc<Mutex<Connection>> {
+        if self.db_path == ":memory:" {
+            return self.conn.clone();
+        }
+        self.read_conn
+            .get_or_init(|| {
+                let conn = Connection::open(&self.db_path)
+                    .expect("open read connection for storage repository");
+                // 读连接只做纯查询；仍开 WAL 语义依赖（busy_timeout 防写高峰读报 SQLITE_BUSY）
+                let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
+                let _ = conn.pragma_update(None, "query_only", true);
+                Arc::new(Mutex::new(conn))
+            })
+            .clone()
+    }
+
+    /// 读锁入口：直接对 OnceLock 内的 Arc 加锁，guard 借用 &self 生命周期，避开临时 Arc 悬垂。
+    fn read_conn(&self) -> parking_lot::lock_api::MutexGuard<'_, parking_lot::RawMutex, Connection> {
+        if self.db_path == ":memory:" {
+            return self.conn.lock();
+        }
+        self.read_conn
+            .get_or_init(|| {
+                let conn = Connection::open(&self.db_path)
+                    .expect("open read connection for storage repository");
+                let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
+                let _ = conn.pragma_update(None, "query_only", true);
+                Arc::new(Mutex::new(conn))
+            })
+            .lock()
+    }
 }
 
 /// 时间锚点聚合所需的时区边界（由调用方按 CalendarContext 的目标时区算好）。
@@ -307,6 +350,8 @@ impl StorageRepository {
         let crypto = CryptoEngine::new(master_key)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            read_conn: OnceLock::new(),
+            db_path: db_path.to_string(),
             crypto,
             assets_dir: Mutex::new(None),
         })
@@ -333,7 +378,7 @@ impl StorageRepository {
 
     /// 测试与迁移诊断辅助：读取数据库内存储的原始 payload_path 字段（不做运行时目录拼接）
     pub fn raw_stored_payload_path(&self, id: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let val: Option<Option<String>> = conn
             .query_row(
                 "SELECT payload_path FROM clip_items WHERE id = ?1",
@@ -382,7 +427,7 @@ impl StorageRepository {
         Ok(count)
     }
     pub fn has_encrypted_payloads(&self) -> Result<bool> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let exists: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM clip_payloads WHERE encrypted_content IS NOT NULL LIMIT 1)",
             [],
@@ -432,8 +477,8 @@ impl StorageRepository {
     /// 敏感条目 detail 解密），只取路径列则 <10ms
     pub fn all_payload_paths(&self) -> Result<Vec<String>> {
         let assets_dir = self.assets_dir();
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(
+        let conn = self.read_conn();
+        let mut stmt = conn.prepare_cached(
             "SELECT item_type, payload_path FROM clip_items WHERE payload_path IS NOT NULL AND payload_path != ''",
         )?;
         let rows = stmt.query_map([], |row| {
@@ -821,6 +866,14 @@ impl StorageRepository {
                     push_tag_condition(raw, &mut conditions, &mut params);
                 }
 
+                // 长词（≥3 字）走 FTS trigram 索引；<3 字词走 LIKE 回退。
+                // 【trigram 硬限制】SQLite FTS5 trigram 分词器需要 ≥3 个字符构成
+                // gram，1-2 字符查询串既无 gram 可查，前缀语法 `"ab"*` 也只匹配
+                // 「以 ab 开头的 gram 序列」而非「包含 ab 的子串」（实测
+                // 'invoice #42 paid' 中 "42"/"#4" 全部 0 命中，SQLite 3.54），
+                // 语义不等价，禁止用于 2 字词——会静默漏结果。
+                // 因此 <3 字词统一 LIKE；FTS 表内列 LIKE 实测（3.54，10 万行）
+                // 比普通表 LIKE 慢 3×（32ms vs 10ms），也不要迁去 FTS 列。
                 let (long_tokens, short_tokens): (Vec<String>, Vec<String>) =
                     keyword_tokens.into_iter().partition(|t| t.chars().count() >= 3);
 
@@ -873,7 +926,7 @@ impl StorageRepository {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let mut out = Vec::new();
         // 分块避免超出 SQLite 变量上限（默认 999）
         const CHUNK: usize = 500;
@@ -898,7 +951,7 @@ impl StorageRepository {
             return Ok(Vec::new());
         }
         let assets_dir = self.assets_dir();
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
 
         let placeholders = vec!["?"; ids.len()].join(",");
         let summary_expr = "CASE WHEN ci.is_sensitive = 0 AND cp.raw_text IS NOT NULL AND cp.raw_text != '' THEN cp.raw_text ELSE ci.summary END";
@@ -927,7 +980,7 @@ impl StorageRepository {
 
     pub fn query_items(&self, filter: &QueryFilter) -> Result<Vec<ClipItemSummary>> {
         let assets_dir = self.assets_dir();
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let search = Self::build_search_conditions(
             filter.include_deleted,
             filter.favorite_only,
@@ -1013,7 +1066,7 @@ impl StorageRepository {
         search_query: Option<&str>,
         tag: Option<&str>,
     ) -> Result<crate::model::CategoryCounts> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
 
         let SearchConditions {
             fts_join,
@@ -1079,7 +1132,7 @@ impl StorageRepository {
     /// last_used_at（降序），供时间导航锚点条做全历史时间分组。
     /// 与分页列表无关——pageSize 截断不再导致锚点条缺失更早的分组。
     pub fn time_group_timestamps(&self, filter: &QueryFilter) -> Result<Vec<f64>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
 
         let SearchConditions {
             fts_join,
@@ -1143,7 +1196,7 @@ impl StorageRepository {
         filter: &QueryFilter,
         boundaries: &TimelineBoundaries,
     ) -> Result<Vec<AnchorCountRow>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
 
         let SearchConditions {
             fts_join,
@@ -1310,7 +1363,7 @@ impl StorageRepository {
     }
 
     pub fn get_item_detail(&self, id: &str) -> Result<ClipItemDetail> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
 
         let row = conn
             .query_row(
@@ -1536,9 +1589,9 @@ impl StorageRepository {
 
     /// 统计全部未删除条目使用到的标签（按 count DESC, name ASC）。
     pub fn list_tags(&self) -> Result<Vec<TagStat>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         // 按小写聚合并取任一原样大小写作为展示名（MAX(tag) 稳定可预期）。
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             r#"
             SELECT MAX(ct.tag) AS name, COUNT(*) AS cnt
             FROM clip_tags ct
@@ -2405,7 +2458,7 @@ impl StorageRepository {
         let root = std::path::Path::new(managed_dir);
         let candidates: Vec<(String, String, String, bool, bool, f64, bool)> = {
             let conn = self.conn.lock();
-            let mut stmt = conn.prepare(
+            let mut stmt = conn.prepare_cached(
                 r#"
                 SELECT id, item_type, payload_path, favorite, deleted_at IS NOT NULL, last_used_at,
                        EXISTS(SELECT 1 FROM clip_tags ct WHERE ct.clip_id = clip_items.id) AS has_tags
@@ -2507,7 +2560,7 @@ impl StorageRepository {
 
     fn get_item_summary(&self, id: &str) -> Result<ClipItemSummary> {
         let assets_dir = self.assets_dir();
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         conn.query_row(
             &format!(
                 r#"
@@ -2527,7 +2580,7 @@ impl StorageRepository {
         })
     }
     pub fn count_items(&self) -> Result<u64> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM clip_items WHERE deleted_at IS NULL",
             [],
@@ -2537,7 +2590,7 @@ impl StorageRepository {
     }
 
     pub fn count_favorites(&self) -> Result<u64> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM clip_items WHERE favorite = 1 AND deleted_at IS NULL",
             [],
@@ -2561,12 +2614,12 @@ impl StorageRepository {
         allow_sensitive: bool,
         max_active_items: Option<u32>,
     ) -> Result<Vec<crate::sync::SyncItemRecord>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let tombstone_cutoff = Self::unix_now() - crate::sync::TOMBSTONE_RETENTION_SECS;
         let limit_val = max_active_items.unwrap_or(500) as i64;
         let sensitive_flag = if allow_sensitive { 1 } else { 0 };
 
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare_cached(
             r#"
             SELECT ci.id, ci.item_type, ci.title, ci.summary, cp.raw_text,
                    ci.is_sensitive, ci.favorite, ci.created_at, ci.last_used_at, ci.deleted_at,
@@ -2684,7 +2737,7 @@ impl StorageRepository {
         // 批量回填 tags（升序），避免 N+1：一次性查所有涉及 id 的 clip_tags。
         if !items.is_empty() {
             let mut tag_map: HashMap<String, Vec<String>> = HashMap::new();
-            let mut stmt = conn.prepare(
+            let mut stmt = conn.prepare_cached(
                 "SELECT clip_id, tag FROM clip_tags ORDER BY clip_id, created_at ASC, tag ASC",
             )?;
             let rows = stmt.query_map([], |row| {
@@ -2703,7 +2756,7 @@ impl StorageRepository {
 
         // 硬删除墓碑：行已物理删除，只携带 id 与删除时间让对端软删同 id 条目
         {
-            let mut stmt = conn.prepare(
+            let mut stmt = conn.prepare_cached(
                 "SELECT id, deleted_at FROM sync_tombstones WHERE deleted_at >= ?1",
             )?;
             let rows = stmt.query_map(params![tombstone_cutoff], |row| {
@@ -2742,7 +2795,7 @@ impl StorageRepository {
     }
 
     pub fn get_sync_cursor(&self, device_id: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         let res: Option<Option<String>> = conn
             .query_row(
                 "SELECT last_fingerprint FROM sync_cursors WHERE device_id = ?1",
@@ -2770,8 +2823,8 @@ impl StorageRepository {
     }
 
     pub fn get_all_sync_cursors(&self) -> Result<std::collections::HashMap<String, String>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare("SELECT device_id, last_fingerprint FROM sync_cursors WHERE last_fingerprint IS NOT NULL")?;
+        let conn = self.read_conn();
+        let mut stmt = conn.prepare_cached("SELECT device_id, last_fingerprint FROM sync_cursors WHERE last_fingerprint IS NOT NULL")?;
         let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
         let mut map = std::collections::HashMap::new();
         for r in rows {
@@ -3087,7 +3140,7 @@ impl StorageRepository {
         &self,
         mode: crate::exchange::SensitiveExportMode,
     ) -> Result<Vec<crate::exchange::export::BackupExportItem>> {
-        let conn = self.conn.lock();
+        let conn = self.read_conn();
         // 排除敏感数据时在 SQL 层过滤：避免先 LEFT JOIN 拉出大体积密文/nonce
         // 再在 Rust 侧丢弃（万级历史 + 大载荷时白读几百 MB）。
         let exclude_sensitive = matches!(mode, crate::exchange::SensitiveExportMode::Exclude);
@@ -3199,7 +3252,7 @@ impl StorageRepository {
         // 批量回填 tags（升序）
         if !results.is_empty() {
             let mut tag_map: HashMap<String, Vec<String>> = HashMap::new();
-            let mut stmt = conn.prepare(
+            let mut stmt = conn.prepare_cached(
                 "SELECT clip_id, tag FROM clip_tags ORDER BY clip_id, created_at ASC, tag ASC",
             )?;
             let rows = stmt.query_map([], |row| {

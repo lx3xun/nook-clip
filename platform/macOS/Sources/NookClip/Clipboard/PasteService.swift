@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 
 @MainActor
 final class PasteService {
@@ -82,7 +83,7 @@ final class PasteService {
     static let internalMarker = NSPasteboard.PasteboardType("com.lx3xun.nookclip.internal-paste")
     /// 敏感内容兜底擦除时长（秒）的配置键：粘贴服务与 `AutoBurnController`
     /// 读同一项，避免两处各写一份裸字符串导致设置页改了不生效
-    static let sensitiveTimeoutKey = "sensitiveClipboardTimeout"
+    static let sensitiveTimeoutKey = UserDefaultsKey.sensitiveClipboardTimeout.rawValue
     /// 未配置时的默认兜底时长（秒）
     static let defaultSensitiveTimeoutSeconds = 30
     private static let transientMarker = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
@@ -129,9 +130,9 @@ final class PasteService {
 
     /// 粘贴音效开关（设置 → 通用）：未写入过 UserDefaults 时默认开启
     private static var isPasteSoundEnabled: Bool {
-        UserDefaults.standard.object(forKey: "pasteSoundEnabled") == nil
+        UserDefaults.standard.object(forKey: UserDefaultsKey.pasteSoundEnabled.rawValue) == nil
             ? true
-            : UserDefaults.standard.bool(forKey: "pasteSoundEnabled")
+            : UserDefaults.standard.bool(forKey: UserDefaultsKey.pasteSoundEnabled.rawValue)
     }
 
     /// 粘贴成功时播放短促提示音（复用系统自带音效，不随包分发音频资源）
@@ -466,9 +467,15 @@ final class PasteService {
 
     // MARK: - 敏感数据剪切板自动自毁清理
 
+    /// SHA-256 摘要（hex）：闭包只持有哈希，不持有敏感明文本体。
+    /// 用途是「到期时比对剪贴板内容是否仍是当初那条」，哈希比对足够。
+    private static func sha256Hex(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
     private func scheduleSensitiveClipboardClear(expectedChangeCount: Int, plainText: String) {
         cancelAutoClearTimer()
-        
+
         let timeoutSeconds: Int
         if defaults.object(forKey: Self.sensitiveTimeoutKey) == nil {
             timeoutSeconds = Self.defaultSensitiveTimeoutSeconds
@@ -476,11 +483,17 @@ final class PasteService {
             timeoutSeconds = defaults.integer(forKey: Self.sensitiveTimeoutKey)
         }
         guard timeoutSeconds > 0 else { return }
-        
+
+        // 隐私红线：DispatchWorkItem 闭包存活期 = 超时时长（默认 30s），
+        // 闭包内只捕获 changeCount 与明文哈希，不捕获明文本体。
+        let expectedDigest = Self.sha256Hex(plainText)
         let workItem = DispatchWorkItem {
             let pb = PasteboardAccess.general
-            // 仅当剪切板尚未被用户后续其他复制覆盖时清理
-            if pb.changeCount == expectedChangeCount || pb.string(forType: .string) == plainText {
+            // 仅当剪切板尚未被用户后续其他复制覆盖时清理；
+            // changeCount 变过但内容哈希一致（如被等值重写）也算同一条
+            let stillSame = pb.changeCount == expectedChangeCount
+                || Self.sha256Hex(pb.string(forType: .string) ?? "") == expectedDigest
+            if stillSame {
                 pb.clearContents()
                 Self.lastInternalChangeCount = pb.changeCount
             }

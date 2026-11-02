@@ -5,8 +5,8 @@ import SwiftUI
 
 @MainActor
 struct GeneralSettingsTab: View {
-    @AppStorage("launchAtLogin") private var launchAtLogin = true
-    @AppStorage("SUEnableAutomaticChecks") private var autoCheckUpdates = true
+    @AppStorage(UserDefaultsKey.launchAtLogin.rawValue) private var launchAtLogin = true
+    @AppStorage(UserDefaultsKey.sparkAutoCheck.rawValue) private var autoCheckUpdates = true
     @AppStorage(UserDefaultsKey.updateSource.rawValue) private var updateSource = UpdateSource.auto.rawValue
 
     var body: some View {

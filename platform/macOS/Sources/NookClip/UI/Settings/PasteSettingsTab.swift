@@ -7,7 +7,7 @@ import SwiftUI
 @MainActor
 struct PasteSettingsTab: View {
     @AppStorage(UserDefaultsKey.hotkeyDisplay.rawValue) private var hotkeyDisplay = "⌘ ⇧ V"
-    @AppStorage("pasteSoundEnabled") private var pasteSoundEnabled = true
+    @AppStorage(UserDefaultsKey.pasteSoundEnabled.rawValue) private var pasteSoundEnabled = true
     /// 终端防误触护栏开关（缺省开启：关掉它等于让用户先踩一次坑）
     @AppStorage(UserDefaultsKey.terminalSafePasteEnabled.rawValue) private var terminalSafePasteEnabled = true
     /// 是否同时保护 VS Code / Cursor / Xcode / JetBrains 等编辑器与 AI 工具内置终端（缺省开启）

@@ -31,7 +31,7 @@ final class InMemoryHistoryStore {
     var lastSyncResult: SyncResult { syncEngine.lastSyncResult }
 
     public var syncDeviceID: String {
-        let existingID = defaults.string(forKey: "nook.sync.deviceID")
+        let existingID = defaults.string(forKey: UserDefaultsKey.syncDeviceID.rawValue)
         if let id = existingID, !id.isEmpty {
             let isLegacyPlaceholder = id.range(of: #"^device-[A-F0-9]{8}$"#, options: .regularExpression) != nil
             if !isLegacyPlaceholder {
@@ -50,7 +50,7 @@ final class InMemoryHistoryStore {
         let prefix = safeName.isEmpty ? "Mac" : safeName
         let suffix = existingID?.components(separatedBy: "-").last ?? String(UUID().uuidString.prefix(8))
         let generated = "\(prefix)-\(suffix)"
-        defaults.set(generated, forKey: "nook.sync.deviceID")
+        defaults.set(generated, forKey: UserDefaultsKey.syncDeviceID.rawValue)
         return generated
     }
 

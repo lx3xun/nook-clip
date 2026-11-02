@@ -114,7 +114,7 @@ final class QuickPopoverController: NSObject {
         return savedHeight >= Double(PanelGeometry.minHeight) ? CGFloat(savedHeight) : PanelGeometry.minHeight
     }
     private func updatePanelAppearance(_ panel: NSPanel) {
-        let mode = UserDefaults.standard.string(forKey: "appearance") ?? "system"
+        let mode = UserDefaults.standard.string(forKey: UserDefaultsKey.appearance.rawValue) ?? "system"
         switch mode {
         case "light":
             panel.appearance = NSAppearance(named: .aqua)

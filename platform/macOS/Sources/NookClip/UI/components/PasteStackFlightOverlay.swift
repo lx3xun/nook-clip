@@ -338,7 +338,7 @@ private struct FlightBody: View, Animatable {
 
     private var card: some View {
         HStack(spacing: 5) {
-            Image(systemName: "doc.on.clipboard")
+            Image(systemName: NookClipIcon.Action.clipboardDoc)
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(NookClip.accent)
             Text(summary)

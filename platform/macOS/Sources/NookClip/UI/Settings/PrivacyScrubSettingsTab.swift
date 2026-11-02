@@ -315,7 +315,7 @@ struct PrivacyScrubSettingsTab: View {
                 beginAdding()
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: "plus")
+                    Image(systemName: NookClipIcon.Action.add)
                         .font(.system(size: NookClipIconSize.micro, weight: .semibold))
                     Text(L10n.tr("scrub.custom.add"))
                         .font(.nookClipMetaMedium)

@@ -2,15 +2,69 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 jobs:
+  # 快速门禁：Rust 单元/集成测试（不依赖 Xcode 全链路，最先失败最先暴露）
+  rust-tests:
+    name: Rust 核心测试
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 Cargo 构建产物
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: 运行 Rust 核心测试
+        run: cargo test -p nookclip-core -p nookclip-ffi --locked
+
+  # Swift 单元测试（依赖 Rust 桥接产物，先跑 build-rust.sh）
+  swift-tests:
+    name: Swift 客户端测试
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 Cargo 构建产物
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: 配置 Xcode 16 构建环境
+        run: |
+          XCODE_APP=$(find /Applications -maxdepth 1 -name "Xcode_16*.app" | sort -V | tail -n 1)
+          if [ -n "$XCODE_APP" ]; then
+            echo "Using Xcode: $XCODE_APP"
+            sudo xcode-select -s "$XCODE_APP"
+          fi
+          xcodebuild -version
+
+      - name: 构建 Rust 静态库与 Swift 桥接
+        run: zsh scripts/build-rust.sh
+
+      - name: 运行 Swift 客户端测试
+        run: swift test --package-path platform/macOS
+
+  # 生产构建与打包（跑在测试之后：测试红就不浪费打包的 20 分钟）
   build-and-package:
     name: 生产构建与 DMG 打包校验
-    runs-on: macos-14
+    needs: [rust-tests, swift-tests]
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 

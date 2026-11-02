@@ -177,7 +177,7 @@ private struct FilterChipBadge: View {
                 .fixedSize()
                 .foregroundStyle(chip.tint)
             if isHovered {
-                Image(systemName: "xmark")
+                Image(systemName: NookClipIcon.Action.close)
                     .font(.system(size: 7.5, weight: .semibold))
                     .foregroundStyle(chip.tint.opacity(0.7))
                     .frame(width: 11, height: 11)

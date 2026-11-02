@@ -6,15 +6,17 @@ import SwiftUI
 @MainActor
 struct HistorySettingsTab: View {
     var historyStore: InMemoryHistoryStore?
-    @AppStorage("historyMaxItemCount") private var historyMaxItemCount = HistoryMaxItemsPolicy.defaultMaxItems
-    @AppStorage("historyDiskLimitMB") private var historyDiskLimitMB = DiskLimitPolicy.defaultLimitMB
-    @AppStorage("enableICloudSync") private var enableICloudSync = false
+    @AppStorage(UserDefaultsKey.historyMaxItemCount.rawValue) private var historyMaxItemCount = HistoryMaxItemsPolicy.defaultMaxItems
+    @AppStorage(UserDefaultsKey.historyDiskLimitMB.rawValue) private var historyDiskLimitMB = DiskLimitPolicy.defaultLimitMB
+    @AppStorage(UserDefaultsKey.enableICloudSync.rawValue) private var enableICloudSync = false
     @State private var showClearConfirmation = false
     @State private var isSyncingManual = false
     @State private var syncStatusMessage: String?
     @State private var syncStatusIsError = false
     @State private var backupStatusMessage: String?
     @State private var backupStatusIsError: Bool = false
+    /// 导出/导入执行中：按钮禁用防重入，避免并发操作同一份历史
+    @State private var isBackupBusy: Bool = false
     @State private var exportMode: SensitiveExportMode = .masked
     @State private var showPlaintextExportConfirm = false
     @State private var pendingPlaintextExport: (asJSON: Bool, mode: SensitiveExportMode)?
@@ -441,6 +443,7 @@ struct HistorySettingsTab: View {
                     Button(L10n.tr("settings.general.import_backup")) {
                         importBackup()
                     }
+                    .disabled(isBackupBusy)
                 }
                 SettingsRow(title: L10n.tr("settings.general.restore_demo"), showDivider: backupStatusMessage != nil) {
                     Button(L10n.tr("settings.general.restore_demo_button")) {
@@ -720,7 +723,7 @@ struct HistorySettingsTab: View {
     }
 
     private func runExport(asJSON: Bool, mode: SensitiveExportMode) {
-        guard let store = historyStore else { return }
+        guard let store = historyStore, !isBackupBusy else { return }
         let savePanel = NSSavePanel()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
@@ -736,29 +739,44 @@ struct HistorySettingsTab: View {
 
         savePanel.begin { @MainActor response in
             guard response == .OK, let targetURL = savePanel.url else { return }
-            do {
-                if asJSON {
-                    let data = try store.exportToJSON(mode: mode)
-                    try data.write(to: targetURL, options: .atomic)
-                } else {
-                    let md = try store.exportToMarkdown(mode: mode)
-                    try md.write(to: targetURL, atomically: true, encoding: .utf8)
-                }
-                withAnimation {
-                    backupStatusIsError = false
-                    backupStatusMessage = L10n.tr("settings.backup.exported_success", store.totalCount, targetURL.lastPathComponent)
-                }
-            } catch {
-                withAnimation {
-                    backupStatusIsError = true
-                    backupStatusMessage = L10n.tr("settings.backup.export_failed", error.localizedDescription)
+            // 大库导出（Rust 全量导出 + 文件写入）挪后台，主线程只收结果更新状态
+            isBackupBusy = true
+            Task.detached(priority: .userInitiated) {
+                let result: Result<Void, Error> = {
+                    do {
+                        if asJSON {
+                            let data = try store.exportToJSON(mode: mode)
+                            try data.write(to: targetURL, options: .atomic)
+                        } else {
+                            let md = try store.exportToMarkdown(mode: mode)
+                            try md.write(to: targetURL, atomically: true, encoding: .utf8)
+                        }
+                        return .success(())
+                    } catch {
+                        return .failure(error)
+                    }
+                }()
+                await MainActor.run {
+                    isBackupBusy = false
+                    switch result {
+                    case .success:
+                        withAnimation {
+                            backupStatusIsError = false
+                            backupStatusMessage = L10n.tr("settings.backup.exported_success", store.totalCount, targetURL.lastPathComponent)
+                        }
+                    case .failure(let error):
+                        withAnimation {
+                            backupStatusIsError = true
+                            backupStatusMessage = L10n.tr("settings.backup.export_failed", error.localizedDescription)
+                        }
+                    }
                 }
             }
         }
     }
 
     private func importBackup() {
-        guard let store = historyStore else { return }
+        guard let store = historyStore, !isBackupBusy else { return }
         let openPanel = NSOpenPanel()
         openPanel.canChooseFiles = true
         openPanel.canChooseDirectories = false
@@ -767,17 +785,32 @@ struct HistorySettingsTab: View {
 
         openPanel.begin { @MainActor response in
             guard response == .OK, let fileURL = openPanel.url else { return }
-            do {
-                let data = try Data(contentsOf: fileURL)
-                let importedCount = try store.importFromJSON(data)
-                withAnimation {
-                    backupStatusIsError = false
-                    backupStatusMessage = L10n.tr("settings.backup.imported_success", importedCount)
-                }
-            } catch {
-                withAnimation {
-                    backupStatusIsError = true
-                    backupStatusMessage = L10n.tr("settings.backup.import_failed", error.localizedDescription)
+            // 大库导入（读文件 + Rust 全量导入 + 内存镜像刷新）挪后台，主线程只收结果
+            isBackupBusy = true
+            Task.detached(priority: .userInitiated) {
+                let result: Result<Int, Error> = {
+                    do {
+                        let data = try Data(contentsOf: fileURL)
+                        let importedCount = try store.importFromJSON(data)
+                        return .success(importedCount)
+                    } catch {
+                        return .failure(error)
+                    }
+                }()
+                await MainActor.run {
+                    isBackupBusy = false
+                    switch result {
+                    case .success(let importedCount):
+                        withAnimation {
+                            backupStatusIsError = false
+                            backupStatusMessage = L10n.tr("settings.backup.imported_success", importedCount)
+                        }
+                    case .failure(let error):
+                        withAnimation {
+                            backupStatusIsError = true
+                            backupStatusMessage = L10n.tr("settings.backup.import_failed", error.localizedDescription)
+                        }
+                    }
                 }
             }
         }

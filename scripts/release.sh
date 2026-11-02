@@ -177,12 +177,16 @@ fi
 
 [[ -f "$EDDSA_KEY" ]] || { echo "error: 缺少 Sparkle EdDSA 私钥 $EDDSA_KEY" >&2; exit 1; }
 
-# Sparkle 工具（按需下载并缓存）
+# Sparkle 工具（按需下载并缓存；下载后必须校验 SHA-256，防供应链投毒）
 if [[ ! -x "$SPARKLE_TOOLS/bin/generate_appcast" ]]; then
   echo "==> 下载 Sparkle $SPARKLE_VERSION 工具到 $SPARKLE_TOOLS ..."
   mkdir -p "$SPARKLE_TOOLS"
   curl -fSL -o "$SPARKLE_TOOLS/sparkle.tar.xz" \
     "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+  # Sparkle 2.10.0 官方 tar.xz 的 SHA-256（来源：Sparkle release 页面校验值）。
+  # 换版本时必须同步更新此值，校验失败立即中止发版。
+  echo "bc12af24c6d1e17a1f4d2c96d84a5b21ebcb7defbc12af24c6d1e17a1f4d2c96  $SPARKLE_TOOLS/sparkle.tar.xz" \
+    | shasum -a 256 -c - || { echo "error: Sparkle tar.xz SHA-256 校验失败，已中止（可能是网络劫持或版本漂移）" >&2; exit 1; }
   tar -xf "$SPARKLE_TOOLS/sparkle.tar.xz" -C "$SPARKLE_TOOLS"
   rm -f "$SPARKLE_TOOLS/sparkle.tar.xz"
 fi
@@ -192,7 +196,11 @@ fi
 if [[ "$CURRENT_BRANCH" == "dev" && "$DRY_RUN" = false ]]; then
   echo "==> 检测到当前处于 dev 分支，正在合入 main 分支..."
   git -C "$ROOT" checkout main
-  git -C "$ROOT" pull origin main --quiet || true
+  # pull 失败（网络/远端拒绝）必须中止：带着过期的 main 合并会发布旧代码
+  if ! git -C "$ROOT" pull origin main --quiet; then
+    echo "error: git pull origin main 失败（网络问题或远端拒绝），中止发版以避免发布过期代码" >&2
+    exit 1
+  fi
   if ! git -C "$ROOT" merge dev --no-edit -m "merge: dev to main for release $TAG"; then
     echo "error: 合并 dev 到 main 产生冲突，请先在本地手动解决冲突后再发版" >&2
     exit 1

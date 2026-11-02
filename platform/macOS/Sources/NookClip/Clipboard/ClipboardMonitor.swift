@@ -32,6 +32,17 @@ final class ClipboardMonitor {
     private var sourceResolver = SourceAppResolver()
     private var activateObserver: NSObjectProtocol?
 
+    // MARK: 自适应轮询间隔（性能优化：空闲降频、交互收紧）
+    /// 交互态基础间隔：复制后 / App 激活后的快速响应档（与历史 350ms 一致）
+    private static let fastInterval: TimeInterval = 0.35
+    /// 空闲间隔：连续无复制时放宽到 1s，显著降低空转次数
+    private static let idleInterval: TimeInterval = 1.0
+    /// 连续无变化达到该次数后进入空闲档
+    private static let idleAfterQuietPolls = 3
+    private var quietPollCount = 0
+    /// 激活观察者：本 App 被唤起后立即收紧轮询，保证呼出即取到最新剪贴板
+    private var selfActivateObserver: NSObjectProtocol?
+
     private static let sensitivePasteboardTypes: [NSPasteboard.PasteboardType] = [
         .init("org.nspasteboard.TransientType"),
         .init("org.nspasteboard.ConcealedType"),
@@ -42,13 +53,8 @@ final class ClipboardMonitor {
 
     func start() {
         lastChangeCount = PasteboardAccess.general.changeCount
-        let timer = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.poll()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        quietPollCount = 0
+        scheduleTimer(interval: Self.fastInterval)
 
         // 记录应用激活历史，供复制来源归因（主线程回调）
         activateObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -64,6 +70,15 @@ final class ClipboardMonitor {
                     name: app.localizedName ?? app.bundleIdentifier,
                     isSelf: app.processIdentifier == ProcessInfo.processInfo.processIdentifier
                 )
+                // 本 App 被唤起（用户呼出面板）→ 立即收紧轮询并补一次轮询，
+                // 保证呼出瞬间就能看到刚复制的内容
+                if app.processIdentifier == ProcessInfo.processInfo.processIdentifier {
+                    self.quietPollCount = 0
+                    if self.timer != nil {
+                        self.scheduleTimer(interval: Self.fastInterval)
+                        self.poll()
+                    }
+                }
             }
         }
     }
@@ -75,10 +90,45 @@ final class ClipboardMonitor {
             NSWorkspace.shared.notificationCenter.removeObserver(activateObserver)
             self.activateObserver = nil
         }
+        if let selfActivateObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(selfActivateObserver)
+            self.selfActivateObserver = nil
+        }
+    }
+
+    /// 按给定间隔重建一次性定时器：每次 tick 后按「最近是否捕获到复制」重排下一档间隔。
+    private func scheduleTimer(interval: TimeInterval) {
+        timer?.invalidate()
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.pollAndReschedule()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    /// 轮询一次并按结果决定下一档间隔：有捕获或刚激活 → 快档；连续安静 → 慢档。
+    private func pollAndReschedule() {
+        let capturedSomething = pollCaptured()
+        if capturedSomething {
+            quietPollCount = 0
+        } else {
+            quietPollCount += 1
+        }
+        let next = quietPollCount >= Self.idleAfterQuietPolls ? Self.idleInterval : Self.fastInterval
+        scheduleTimer(interval: next)
+    }
+
+    /// 轮询检查（定时器触发）；返回本次是否实际捕获到新条目。
+    private func pollCaptured() -> Bool {
+        var captured = false
+        poll(capturedFlag: &captured)
+        return captured
     }
 
     /// 剪贴板轮询检查（定时器与测试主动触发）
-    func poll() {
+    func poll(capturedFlag: UnsafeMutablePointer<Bool>? = nil) {
         let pasteboard = PasteboardAccess.general
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount
@@ -121,6 +171,7 @@ final class ClipboardMonitor {
 
         // 5. 捕获链：后台串行处理（保持轮询顺序，前一个未完成时后续排队），
         //    结果回主线程派发 onChange
+        capturedFlag?.pointee = true
         let engine = rustEngine ?? AppDependencies.live.rustHistoryStore.engine
         let protectionEnabled = isSensitiveProtectionEnabled
         let lastPastedSummary = PasteService.lastPastedSummary
@@ -280,7 +331,7 @@ final class ClipboardMonitor {
     /// 敏感保护开关（捕获侧唯一读取点，文件/文本分支共用）。默认开启。
     /// 开启：命中即整条加密入库；关闭：敏感内容不入历史（系统剪贴板原样保留，可直接粘贴）。
     private var isSensitiveProtectionEnabled: Bool {
-        defaults.object(forKey: "enableSensitiveProtection") as? Bool ?? true
+        defaults.object(forKey: UserDefaultsKey.enableSensitiveProtection.rawValue) as? Bool ?? true
     }
 
 

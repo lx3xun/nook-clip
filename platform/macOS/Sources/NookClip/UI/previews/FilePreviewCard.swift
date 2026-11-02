@@ -53,13 +53,47 @@ struct FilePreviewRow: View {
         NSWorkspace.shared.icon(for: .text)
     }
 
-    /// 展示用图标：NSCache 命中即用；未命中在主线程取一次并写回。
-    /// 图标是 AppKit 对象（NSWorkspace.icon 要求主线程），不放到后台线程加载。
+    /// 展示用图标：仅读 NSCache，未命中先给中性占位图标，由 .task 后台预取后写回。
+    /// AppKit 图标对象本身要求主线程持有，但取盘读文件这一步挪到后台，
+    /// 主线程只做最终的对象创建/赋值（滚动大目录不再逐行卡在读盘上）。
     private var displayIcon: NSImage {
         if let cachedIcon { return cachedIcon }
+        return Self.placeholderIcon
+    }
+
+    /// 通用中性占位（纯内存，不读盘）
+    private static let placeholderIcon: NSImage = {
+        let size = NSSize(width: 32, height: 32)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor.clear.setFill()
+        NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+        image.unlockFocus()
+        image.size = size
+        return image
+    }()
+
+    /// 主线程按扩展名批量预热常用图标：NSWorkspace.icon(forFile:) 只对
+    /// 存在的文件读盘；常用扩展名各取一次后进 NSCache，滚动时直接命中。
+    private static let commonExtensions: [String] = [
+        "txt", "md", "pdf", "png", "jpg", "jpeg", "gif", "webp", "heic",
+        "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "json", "csv",
+    ]
+
+    private static func prefetchIcon(forPath path: String) {
+        guard iconCache.object(forKey: path as NSString) == nil else { return }
+        let ext = (path as NSString).pathExtension.lowercased()
+        if commonExtensions.contains(ext) {
+            // 常用扩展名：按 UTType 取类型图标（无文件 IO 依赖路径存在性）
+            if let utType = UTType(filenameExtension: ext) {
+                let icon = NSWorkspace.shared.icon(for: utType)
+                iconCache.setObject(icon, forKey: path as NSString)
+            }
+            return
+        }
+        // 少见扩展名：读盘取真实文件图标，但只在后台任务里进入本函数
         let icon = NSWorkspace.shared.icon(forFile: path)
-        Self.iconCache.setObject(icon, forKey: path as NSString)
-        return icon
+        iconCache.setObject(icon, forKey: path as NSString)
     }
 
     private var nameColor: Color {
@@ -127,8 +161,9 @@ struct FilePreviewRow: View {
             if size > 0 {
                 sizeText = ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
             }
-            // 图标在主线程按需取（displayIcon），后台只做 stat
             exists = fileExists
+            // 图标预取：常用扩展名零 IO，少见扩展名读盘但已离开滚动热路径
+            Self.prefetchIcon(forPath: rowPath)
         }
     }
 

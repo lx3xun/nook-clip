@@ -119,6 +119,20 @@ enum NookClipIcon {
         static let closeCircle = "xmark.circle.fill"
         /// 「更多」菜单（…）：把低频/类型动作收敛到一个入口
         static let more = "ellipsis"
+        /// 通用「添加」（+）：规则新增、标签新增等行内加号按钮
+        static let add = "plus"
+        /// 通用「关闭」（×）：轻量行内关闭/移除按钮（非圆形容器场景）
+        static let close = "xmark"
+        /// 文本复制源（doc.on.clipboard）：粘贴栈飞行指示等「剪贴板文本」语义
+        static let clipboardDoc = "doc.on.clipboard"
+        /// 执行/开始（▶）：粘贴栈逐步播放
+        static let play = "play.fill"
+        /// 多选完成（✓）
+        static let done = "checkmark"
+        /// 拖拽把手（≡）：粘贴栈浮窗拖动指示
+        static let dragHandle = "line.3.horizontal"
+        /// 打开外部 App（arrow.up.forward.app）：预览区「用其他 App 打开」
+        static let openInApp = "arrow.up.forward.app"
     }
 
     enum Badge {
@@ -127,9 +141,43 @@ enum NookClipIcon {
 
     enum Sensitive {
         static let lock = "lock"
+        static let lockFilled = "lock.fill"
+        static let lockOpen = "lock.open"
         static let shieldOk = "checkmark.shield"
         static let reveal = "eye"
         static let remask = "eye.slash"
+    }
+
+    // MARK: - 标签编辑（Tag Editor / Tag Chip）
+    enum Tag {
+        /// 标签符号（#）
+        static let symbol = "number"
+        /// 新增标签（+）
+        static let add = "plus"
+        /// 移除标签（×）
+        static let remove = "xmark"
+        /// 标签选中态（✓）
+        static let selected = "checkmark"
+        /// 标签部分选中态（−）
+        static let partial = "minus"
+    }
+
+    // MARK: - 信息与刷新（OCR 预览卡等说明/重试场景）
+    enum Info {
+        /// 说明（轮廓）
+        static let circle = "info.circle"
+        /// 说明（实心，展开态）
+        static let circleFilled = "info.circle.fill"
+        /// 重新识别（↻）
+        static let retry = "arrow.clockwise"
+    }
+
+    // MARK: - 贴条窗口（Pinned Note）
+    enum Pin {
+        /// 拖拽缩放指示（右下角）
+        static let resizeDownRight = "arrow.down.right"
+        /// 拖拽缩放指示（左下角）
+        static let resizeDownLeft = "arrow.down.left"
     }
 
     // MARK: - 粘完即焚（Auto-Burn Clipboard）

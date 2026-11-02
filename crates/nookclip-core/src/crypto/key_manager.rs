@@ -115,7 +115,11 @@ impl MasterKeyManager {
     ) -> Result<[u8; 32]> {
         // 1. 本地受控文件存在即用：零弹窗
         if let Some(key) = self.read_key_from_file() {
-            let _ = self.mark_initialized();
+            if let Err(e) = self.mark_initialized() {
+                eprintln!(
+                    "[nookclip][key_manager] mark_initialized failed (non-fatal, key usable): {e}"
+                );
+            }
             return Ok(key);
         }
 
@@ -137,7 +141,11 @@ impl MasterKeyManager {
                 let mut key = [0u8; 32];
                 key.copy_from_slice(&key_bytes);
                 self.write_key_to_file(&key)?;
-                let _ = self.mark_initialized();
+                if let Err(e) = self.mark_initialized() {
+                    eprintln!(
+                        "[nookclip][key_manager] mark_initialized failed (non-fatal, key usable): {e}"
+                    );
+                }
                 Ok(key)
             }
             KeyVaultReadStatus::Unavailable { error_code } => {
@@ -156,8 +164,18 @@ impl MasterKeyManager {
                 let mut new_key = [0u8; 32];
                 rand::thread_rng().fill_bytes(&mut new_key);
                 self.write_key_to_file(&new_key)?;
-                let _ = vault_provider.write_backup_key(new_key.to_vec());
-                let _ = self.mark_initialized();
+                // 备份写失败必须可感知：本地文件可用时密钥本身不受影响，
+                // 但钥匙串备份会静默过期，换机恢复时才发现就晚了
+                if !vault_provider.write_backup_key(new_key.to_vec()) {
+                    eprintln!(
+                        "[nookclip][key_manager] KeyVault backup write FAILED: master key exists locally but KeyVault backup is missing"
+                    );
+                }
+                if let Err(e) = self.mark_initialized() {
+                    eprintln!(
+                        "[nookclip][key_manager] mark_initialized failed (non-fatal, key usable): {e}"
+                    );
+                }
                 Ok(new_key)
             }
         }

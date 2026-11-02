@@ -100,7 +100,7 @@ struct TagChipView: View {
             }
             if let onRemove, isHovered {
                 Button(action: onRemove) {
-                    Image(systemName: "xmark")
+                    Image(systemName: NookClipIcon.Action.close)
                         .font(.system(size: size.removeIconSize, weight: .semibold))
                         .foregroundStyle(foregroundColor.opacity(0.6))
                         .frame(width: size.removeIconSize + 4, height: size.removeIconSize + 4)

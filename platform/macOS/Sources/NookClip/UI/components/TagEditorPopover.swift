@@ -143,7 +143,7 @@ struct TagEditorPopover: View {
     // MARK: - 输入行
     private var inputRow: some View {
         HStack(spacing: 4) {
-            Image(systemName: "number")
+            Image(systemName: NookClipIcon.Tag.symbol)
                 .font(.system(size: NookClipIconSize.compact))
                 .foregroundStyle(NookClip.textTertiary)
             TagInputField(
@@ -181,7 +181,7 @@ struct TagEditorPopover: View {
                     if canCreateNew {
                         let index = filteredCandidates.count
                         HStack(spacing: 6) {
-                            Image(systemName: "plus")
+                            Image(systemName: NookClipIcon.Tag.add)
                                 .font(.system(size: NookClipIconSize.micro, weight: .bold))
                                 .foregroundStyle(NookClip.accent)
                             Text(L10n.tr("tag.create", query.trimmingCharacters(in: .whitespacesAndNewlines).leadingHashesStripped))
@@ -221,7 +221,7 @@ struct TagEditorPopover: View {
         isCreate: Bool
     ) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: state.isOn ? "checkmark" : (state.isPartial ? "minus" : "number"))
+            Image(systemName: state.isOn ? NookClipIcon.Tag.selected : (state.isPartial ? NookClipIcon.Tag.partial : NookClipIcon.Tag.symbol))
                 .font(.system(size: NookClipIconSize.micro, weight: .bold))
                 .foregroundStyle(state.isOn ? NookClip.accent : NookClip.textTertiary)
                 .frame(width: 12)

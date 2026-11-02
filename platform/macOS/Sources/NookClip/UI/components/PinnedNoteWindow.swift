@@ -30,7 +30,7 @@ import SwiftUI
 /// 按同一个档位设 `appearance`（设置项和主面板共用 `UserDefaults` 的 "appearance"）。
 enum PinnedAppearance {
     /// 与 `MainView` / `SettingsView` 的 `@AppStorage("appearance")` 同一个 key
-    static let storageKey = "appearance"
+    static let storageKey = UserDefaultsKey.appearance.rawValue
     static let defaultValue = "system"
 
     /// 当前配置的外观档位（light / dark / system）
@@ -1350,7 +1350,7 @@ private struct PinnedNoteCard: View {
     /// 两个下角都给提示：以前只有右下角有图标，左下角虽然能拖却完全看不出来，
     /// 用户会以为贴条只有一侧能拉伸。
     private func resizeGripIndicator(_ corner: PinnedNotePanel.ResizeCorner) -> some View {
-        Image(systemName: corner == .bottomRight ? "arrow.down.right" : "arrow.down.left")
+        Image(systemName: corner == .bottomRight ? NookClipIcon.Pin.resizeDownRight : NookClipIcon.Pin.resizeDownLeft)
             .font(.system(size: 7, weight: .bold))
             .foregroundStyle(NookClip.textTertiary)
             .frame(
@@ -1600,7 +1600,7 @@ private struct PinnedNoteCard: View {
     private func hintPill(text: String, accent: Color?) -> some View {
         HStack(spacing: 4) {
             if let accent {
-                Image(systemName: "checkmark")
+                Image(systemName: NookClipIcon.Action.done)
                     .font(.system(size: NookClipIconSize.micro, weight: .semibold))
                     .foregroundStyle(accent)
             }
