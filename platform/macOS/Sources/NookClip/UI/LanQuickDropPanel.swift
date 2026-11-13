@@ -14,30 +14,6 @@ struct LanQuickDropPanel: View {
     var onClose: () -> Void
 
     @StateObject private var controller = LanQuickDropController()
-    @State private var mode: Mode = .drop
-
-    private enum Mode: Hashable {
-        case link
-        case drop
-    }
-
-    /// 短网址条目允许在「链接二维码」与「双向快传」之间切换
-    private var isLinkPayload: Bool {
-        guard payload.kind == .text,
-              let raw = payload.text?.trimmingCharacters(in: .whitespacesAndNewlines),
-              raw.count <= 512,
-              let url = URL(string: raw),
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else { return false }
-        return true
-    }
-
-    private var activeQRText: String {
-        if mode == .link, let text = payload.text {
-            return text.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return controller.shareURLString
-    }
 
     var body: some View {
         ZStack {
@@ -50,7 +26,6 @@ struct LanQuickDropPanel: View {
         }
         .transition(.opacity)
         .task {
-            if isLinkPayload { mode = .link }
             await controller.start(payload: payload, onReceive: onReceive)
         }
         .onDisappear { controller.stop() }
@@ -59,23 +34,7 @@ struct LanQuickDropPanel: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
-
-            if isLinkPayload {
-                Picker("", selection: $mode) {
-                    Text(L10n.tr("landrop.mode_link")).tag(Mode.link)
-                    Text(L10n.tr("landrop.mode_drop")).tag(Mode.drop)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                if mode == .link {
-                    Text(L10n.tr("landrop.url_mode_hint"))
-                        .font(.nookClipMeta)
-                        .foregroundStyle(NookClip.textTertiary)
-                }
-            }
-
             mainContent
-
             footer
         }
         .padding(20)
@@ -132,7 +91,7 @@ struct LanQuickDropPanel: View {
                 text: L10n.tr("landrop.stopped")
             )
         case nil:
-            if controller.isRunning || mode == .link {
+            if controller.isRunning {
                 qrBlock
             } else {
                 messageState(icon: NookClipIcon.Status.loading, text: L10n.tr("landrop.starting"))
@@ -164,50 +123,39 @@ struct LanQuickDropPanel: View {
                         .font(.nookClipMeta)
                         .foregroundStyle(NookClip.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if mode == .drop {
-                        Text(verbatim: controller.shareURLString)
-                            .font(.nookClipCode)
-                            .foregroundStyle(NookClip.textTertiary)
-                            .textSelection(.enabled)
-                            .lineLimit(3)
-                            .truncationMode(.middle)
-                        if controller.remainingSeconds > 0 {
-                            Label {
-                                Text(L10n.tr("landrop.countdown", controller.remainingSeconds))
-                                    .monospacedDigit()
-                            } icon: {
-                                Image(systemName: NookClipIcon.AutoBurn.countdown)
-                            }
-                            .font(.nookClipMeta)
-                            .foregroundStyle(NookClip.colorSensitive)
+                    Text(verbatim: controller.shareURLString)
+                        .font(.nookClipCode)
+                        .foregroundStyle(NookClip.textTertiary)
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                        .truncationMode(.middle)
+                    if controller.remainingSeconds > 0 {
+                        Label {
+                            Text(L10n.tr("landrop.countdown", controller.remainingSeconds))
+                                .monospacedDigit()
+                        } icon: {
+                            Image(systemName: NookClipIcon.AutoBurn.countdown)
                         }
-                        if controller.receivedCount > 0 {
-                            Label {
-                                Text(L10n.tr("landrop.received_count", controller.receivedCount))
-                                    .monospacedDigit()
-                            } icon: {
-                                Image(systemName: NookClipIcon.Status.success)
-                            }
-                            .font(.nookClipMeta)
-                            .foregroundStyle(NookClip.colorSuccess)
+                        .font(.nookClipMeta)
+                        .foregroundStyle(NookClip.colorSensitive)
+                    }
+                    if controller.receivedCount > 0 {
+                        Label {
+                            Text(L10n.tr("landrop.received_count", controller.receivedCount))
+                                .monospacedDigit()
+                        } icon: {
+                            Image(systemName: NookClipIcon.Status.success)
                         }
-                        if controller.availableIPs.count > 1 {
-                            ipPicker
-                        }
-                    } else if let text = payload.text {
-                        Text(verbatim: text)
-                            .font(.nookClipCode)
-                            .foregroundStyle(NookClip.textTertiary)
-                            .textSelection(.enabled)
-                            .lineLimit(3)
-                            .truncationMode(.middle)
+                        .font(.nookClipMeta)
+                        .foregroundStyle(NookClip.colorSuccess)
+                    }
+                    if controller.availableIPs.count > 1 {
+                        ipPicker
                     }
                 }
                 Spacer(minLength: 0)
             }
-            if mode == .drop {
-                keepOpenBanner
-            }
+            keepOpenBanner
         }
     }
 
@@ -232,7 +180,7 @@ struct LanQuickDropPanel: View {
 
     private var qrImage: some View {
         Group {
-            if let image = QRCodeGenerator.image(for: activeQRText, targetPixel: 560) {
+            if let image = QRCodeGenerator.image(for: controller.shareURLString, targetPixel: 560) {
                 Image(nsImage: image)
                     .interpolation(.none)
                     .resizable()

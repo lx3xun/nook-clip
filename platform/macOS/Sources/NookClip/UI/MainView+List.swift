@@ -261,6 +261,13 @@ extension MainView {
             Label(L10n.tr("context.diff"), systemImage: NookClipIcon.Context.diff)
         }
         .disabled(renaming || !canDiffSelection)
+        // 手机互传（⌘⇧D）：入口易发现性修复——右键直达，不再要求先进预览再开「⋯ 更多」
+        Button {
+            togglePhoneDropFromSelection()
+        } label: {
+            Label(L10n.tr("preview.phone_drop.button"), systemImage: NookClipIcon.Action.phoneDrop)
+        }
+        .disabled(renaming)
         Button {
             beginRename()
         } label: {

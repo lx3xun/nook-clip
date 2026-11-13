@@ -47,7 +47,7 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 ### Content Recognition & Preview
 - **Offline Image OCR**: Tap Recognize Text on an image card to run built-in on-device vision over the screenshot—no memory held until you ask—then search the indexed text or copy it with one click.
 - **Syntax Highlighting & JSON Formatting**: Automatic code highlighting; JSON content can be formatted, minified, or copied with a single click.
-- **QR Code for Links**: Generates QR codes directly from recognized URLs for quick mobile scanning.
+- **QR Code for Links**: The preview pane automatically shows a QR code card for recognized URLs—scan it with your phone to open the link, no toggling required.
 - **Color Previews**: Recognizes hex color codes (e.g. `#FF5722`), showing color dots inline and providing one-click copy for HEX and RGB values.
 - **Missing File Protection**: Warns before pasting if a copied file has been moved or deleted.
 
@@ -68,7 +68,7 @@ It uses a native interface backed by a high-performance Rust core, keeping memor
 - **Inline Diff of Two Entries (`⌘ D`)**: Press `⌘ D` or click Compare in the 2-item batch bar, preview toolbar, or right-click menu to view line- and word-level red/green diffs (Inline / Side-by-Side / Changes-Only); press `↑` / `↓` while diffing to live-swap entries, and press `⌘ C` to copy or `⏎` to paste the merged result.
 - **Batch Actions & Undo**: Select multiple items with `⇧`, `⌘`, or by dragging the mouse down the list (with edge auto-scrolling) to merge-paste or bulk-delete; undo deletions within 10 seconds with `⌘ Z`.
 - **iCloud Drive Sync & Backup**: Optional sync across your Macs via personal iCloud Drive (no third-party servers), plus JSON and Markdown export with options to exclude or mask sensitive items.
-- **Phone Drop (LAN QR Code)**: Select any item and choose Send to Phone from the ⋯ More menu in the preview header; scan the QR code with your phone camera to view and copy long text or download original images/files from your Mac, and push text or photos from your phone back to the Mac clipboard and history—no app install needed. Transfers stay on your local network, expire after 5 minutes, close the port the moment you dismiss the panel, and never touch any cloud server.
+- **Phone Drop (LAN QR Code · `⌘ ⇧ D`)**: Select any item, then press `⌘ ⇧ D`, click the Send to Phone button in the preview header, or right-click the row and choose Send to Phone; scan the QR code with your phone camera to view and copy long text or download original images/files from your Mac, and push text or photos from your phone back to the Mac clipboard and history—no app install needed. Transfers stay on your local network, expire after 5 minutes, close the port the moment you dismiss the panel, and never touch any cloud server.
 
 ---
 ## 🎬 Core Features, Animated
@@ -109,7 +109,8 @@ Clips reconstructed at the real interface's size and colors (click a thumbnail f
 | **`⌥ ⏎`** | Paste as plain text (strips fonts, colors, and rich formatting); starts Paste Stack in multi-select mode or on structured table/contact items |
 | **`⌘ ⏎`** | Paste and keep panel open (great for filling multi-field forms) |
 | **`⌘ C`** | Re-copy selection to system clipboard (or copy selected text in preview) |
-| **`⌘ D`** | Compare two entries / leave the diff view (also clickable from the 2-item batch bar, the preview header's More menu, or the right-click menu) |
+| **`⌘ D`** | Compare two entries / leave the diff view (also clickable from the 2-item batch bar, the preview header's permanent Compare button (shown when two entries are checked), or the right-click menu) |
+| **`⌘ ⇧ D`** | Send to Phone / exit Phone Drop (also clickable via the preview header button or the row right-click menu; scan the QR code for app-free two-way transfer) |
 | **`⌥ ↑` / `⌥ ↓`** | Jump to the previous / next change while diffing |
 | **`⌘ C` (while diffing)** | Copy the merged result |
 | **`⏎` (while diffing)** | Paste the merged result and close the panel |

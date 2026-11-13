@@ -436,7 +436,6 @@
 "source.unknown" = "未知來源";
 
 /* QR code */
-"preview.qrcode.button" = "顯示 QR Code";
 "preview.qrcode.hint" = "掃碼開啟連結";
 "preview.qrcode.unavailable" = "文字過長，無法產生 QR Code";
 "preview.open_link" = "在瀏覽器中開啟";
@@ -724,6 +723,7 @@
 
 /* Phone Drop (手機互傳) */
 "preview.phone_drop.button" = "手機互傳";
+"preview.phone_drop.shortcut_hint" = "選取記錄後按 ⌘⇧D，或點頂欄手機互傳按鈕";
 "landrop.title" = "手機互傳";
 "landrop.subtitle" = "同一 Wi-Fi 下掃碼，免裝 App 雙向傳文傳圖";
 "landrop.scan_hint" = "用手機相機掃碼開啟";
@@ -734,9 +734,6 @@
 "landrop.close" = "關閉";
 "landrop.received_count" = "已收到 %d 條回傳";
 "landrop.no_network" = "請先連接 Wi-Fi 或區域網路";
-"landrop.url_mode_hint" = "這是網址：可切換為連結 QR Code";
-"landrop.mode_link" = "連結 QR Code";
-"landrop.mode_drop" = "雙向互傳";
 "landrop.received_toast" = "已收到來自行動裝置的剪貼內容";
 "landrop.stopped" = "互傳已停止";
 "landrop.starting" = "正在啟動互傳服務…";

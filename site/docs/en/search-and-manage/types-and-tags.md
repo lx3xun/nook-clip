@@ -11,7 +11,7 @@ The filter bar features 8 fixed slots whose positions never shift:
 1. **Starred**: Favorited items (`⌘ S`) — permanently exempt from auto-cleanup limits.
 2. **Images**: Screenshots, photos, and graphics.
 3. **Text**: Plain and rich text passages.
-4. **Links**: URLs with preview cards and instant QR codes.
+4. **Links**: URLs with preview cards and an always-on QR code for scanning.
 5. **Code**: Source code snippets with syntax highlighting.
 6. **Files**: Files copied from Finder (with missing-file warnings if moved or deleted).
 7. **Colors**: Hex / RGB color codes (`#1677FF`) with live color swatches.

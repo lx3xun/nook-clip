@@ -372,6 +372,12 @@ final class DraggablePanel: NSPanel {
             return true
         }
 
+        // ⌘⇧D：手机互传（顶栏常驻按钮同一动作；已展开时收起）
+        if modifiers == [.command, .shift] && keyCode == kVK_ANSI_D {
+            actions.togglePhoneDrop()
+            return true
+        }
+
         // ⌘[ / ⌘]：分类循环（⌘[ 上一个，⌘] 下一个）
         if modifiers == .command, (keyCode == kVK_ANSI_LeftBracket || keyCode == kVK_ANSI_RightBracket) {
             actions.cycleCategory(keyCode == kVK_ANSI_LeftBracket ? -1 : 1)

@@ -26,6 +26,8 @@ struct PanelKeyActions {
     var startPasteStack: () -> Bool = { false }
     /// ⌘P：把选中条目钉在屏幕上（贴条）
     var pinToScreen: () -> Void = {}
+    /// ⌘⇧D：手机互传——把选中条目经局域网快传到手机（已展开时收起）
+    var togglePhoneDrop: () -> Void = {}
     /// Esc 分层清空：过滤浮层 → 批量选区 → 关键词 → 标签 → 分类 → 时间定位 → 收起面板
     var escape: () -> Void
     /// ⌘[ / ⌘]：分类循环（⌘[ 上一个，⌘] 下一个）

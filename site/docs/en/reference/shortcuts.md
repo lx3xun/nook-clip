@@ -53,8 +53,9 @@ NookClip is built for a full-keyboard workflow. Almost every action can be perfo
 | **`⌘ L`** | Edit Tags | Opens tag editor popover (supports batch tagging) |
 | **`⌘ ⌫`** | Delete Selected Entries | Press `⌘ Z` within 10s to undo; otherwise moves to Trash |
 | **`⌘ Z`** | Undo Last Delete | Restores deleted items in place within 10 seconds |
+| **`⌘ ⇧ D`** | Send to Phone / Exit Phone Drop | Also available via the Send to Phone button in the preview header or the row right-click menu; see [Phone Drop](../advanced/phone-drop.md) |
 
-> **The preview header is now cleaner**: the right side keeps Pin to Screen (`⌘ P`), Star (`⌘ S`), and the **⋯ More** menu, while Scrub & Paste (`⌃ ⏎`) appears on the toolbar only when sensitive content is detected; actions such as Compare Two Entries, Send to Phone, QR code, Reveal in Finder, Edit Tags, and Delete live inside **⋯ More** with shortcut hints. All keyboard shortcuts above work unchanged.
+> **Preview header layout**: the right side keeps Send to Phone (`⌘ ⇧ D`), Pin to Screen (`⌘ P`), Star (`⌘ S`), and the **⋯ More** menu, while Scrub & Paste (`⌃ ⏎`) appears on the toolbar only when sensitive content is detected and Compare Two Entries (`⌘ D`) only when exactly two entries are checked; actions such as Reveal in Finder, Edit Tags, and Delete live inside **⋯ More** with shortcut hints. Link items show their QR code card in the preview pane automatically—no toggling needed. All keyboard shortcuts above work unchanged.
 
 ---
 

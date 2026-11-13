@@ -22,6 +22,15 @@
 
 ## [Unreleased]
 
+### ✨ 功能特性 (Added)
+
+- **手机互传一键直达（`⌘ ⇧ D`）**：手机互传不再深藏于预览顶栏「⋯ 更多」菜单——顶栏新增常驻「手机互传」按钮，并支持快捷键 `⌘ ⇧ D` 一键开启/收起，列表行右键菜单也新增「手机互传」入口；文件已失效的记录会自动隐藏该入口，互传面板打开时再按一次即收起。
+  *One-keystroke Phone Drop (`⌘ ⇧ D`): Send to Phone is no longer buried in the preview header's ⋯ More menu—a permanent toolbar button is back, the `⌘ ⇧ D` shortcut toggles the panel open/closed, and the list row right-click menu gains a Send to Phone entry; entries with missing files hide the action automatically.*
+- **链接二维码自动展示，互传界面单一模式**：识别到网址后，预览区自动展示该链接的二维码卡片，扫码即可打开，无需再点「显示二维码」按钮；手机互传面板移除「链接二维码 / 双向互传」切换，打开即是双向互传通道，界面更简单、语义更清晰。
+  *Auto-shown link QR & single-mode Phone Drop: URL items now show their QR code card automatically in the preview pane—scan to open without pressing a Show QR code button; the Phone Drop panel drops its Link QR / Two-way transfer mode switcher and is always the two-way transfer channel, keeping the UI simpler and the semantics clearer.*
+- **对比按钮常驻预览顶栏（`⌘ D`）**：对比两条记录不再收在「⋯ 更多」菜单里——勾选两条记录时，顶栏自动展示常驻「对比」按钮，点一下即刻进入行内对比，不再需要翻菜单；快捷键 `⌘ D` 行为不变，未勾选时仍可比最上面两条。
+  *Permanent Compare button in the preview header (`⌘ D`): Compare Two Entries no longer hides inside the ⋯ More menu—when exactly two entries are checked, a permanent Compare button appears in the toolbar for one-click inline diffing; the `⌘ D` shortcut is unchanged and still diffs the top two entries when nothing extra is checked.*
+
 ### 🚀 性能优化 (Performance)
 
 - **剪贴板监听自适应降频**：剪贴板无变化时轮询间隔自动从 350ms 放宽到 1 秒，本 App 被激活时立即收紧并补一次检测；空转时的 CPU 占用显著下降，复制响应速度不受影响。

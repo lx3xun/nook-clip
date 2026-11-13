@@ -7,8 +7,6 @@ struct PreviewToolbar: View {
     var isFavorite: Bool = false
     var item: ClipboardRowModel? = nil
     var contentText: String? = nil
-    var showQRCode: Bool = false
-    var onToggleQRCode: (() -> Void)? = nil
     var onFavorite: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
     /// 打开标签编辑器（⌘L / 末尾 +）
@@ -67,11 +65,22 @@ struct PreviewToolbar: View {
                 tagChips
             }
             Spacer(minLength: 8)
-            // 右侧：复制次数 → [含敏感内容时：脱敏粘贴] → 钉在屏幕 → 收藏 → 更多菜单
+            // 右侧：复制次数 → [选中两条可对比时：对比] → [含敏感内容时：脱敏粘贴] → 手机互传 → 钉在屏幕 → 收藏 → 更多菜单
             if let item {
                 copyCountPill(item)
             }
             HStack(spacing: 4) {
+                if canDiff, let onDiff {
+                    // 对比两条记录常驻按钮（⌘D）：仅在当前条目可发起对比时展示
+                    // （列表至少 2 条；图片/文件须已有 OCR 文本），从「⋯ 更多」提升而来
+                    ToolbarActionButton(
+                        title: L10n.tr("preview.diff.button"),
+                        shortcut: "⌘D",
+                        icon: NookClipIcon.Action.diff,
+                        tooltipAlignment: .bottomTrailing,
+                        action: onDiff
+                    )
+                }
                 if canScrubPaste, let onScrubPaste {
                     ToolbarActionButton(
                         title: L10n.tr("preview.scrub.button"),
@@ -79,6 +88,17 @@ struct PreviewToolbar: View {
                         icon: NookClipIcon.Action.scrub,
                         tooltipAlignment: .bottomTrailing,
                         action: onScrubPaste
+                    )
+                }
+                if let onPhoneDrop, !(item?.kind == .file && diskMeta.filesExist == false) {
+                    // 手机互传常驻按钮（⌘⇧D）：入口易发现性修复——不再深藏于「⋯ 更多」
+                    ToolbarActionButton(
+                        title: L10n.tr("preview.phone_drop.button"),
+                        shortcut: "⌘⇧D",
+                        icon: NookClipIcon.Action.phoneDrop,
+                        isActive: isPhoneDropActive,
+                        tooltipAlignment: .bottomTrailing,
+                        action: onPhoneDrop
                     )
                 }
                 if let onPinToScreen {
@@ -172,8 +192,8 @@ struct PreviewToolbar: View {
 
     // MARK: - 「更多」菜单
     //
-    // 顶栏右侧常驻「钉在屏幕 / 收藏 / 更多」（含敏感内容时额外显示「脱敏粘贴」）；
-    // 对比、手机快传、二维码、在访达中显示、编辑标签与删除等动作统一收进这里。
+    // 顶栏右侧常驻「对比 / 钉在屏幕 / 收藏 / 更多」（含敏感内容时额外显示「脱敏粘贴」，
+    // 选中两条可对比时额外显示「对比」）；在访达中显示、编辑标签与删除等动作统一收进这里。
     // 采用纯 SwiftUI Button + AppKit NSMenu 弹出（对齐 GroupHeaderView.showGroupMenu）：
     // 1. 避免 SwiftUI Menu (NSPopUpButton) 在 ImageRenderer 快照中退化为 🚫 占位符；
     // 2. 菜单关闭后主动调 DraggablePanel.restoreKeyboardFocus()，防止 LSUIElement 面板丢失键盘焦点；
@@ -182,7 +202,7 @@ struct PreviewToolbar: View {
     @ViewBuilder
     private func moreMenu(_ item: ClipboardRowModel) -> some View {
         ToolbarMoreButton(
-            isActive: isPhoneDropActive || showQRCode,
+            isActive: isPhoneDropActive,
             buildActions: {
                 buildMoreMenuSections(for: item)
             }
@@ -224,39 +244,16 @@ struct PreviewToolbar: View {
     }
 
     /// 与当前条目无关、只要有文本/列表就能用的进阶动作。
+    /// （手机互传（⌘⇧D）与对比两条记录（⌘D）均已提升为顶栏常驻按钮，
+    /// 不再收纳进「⋯ 更多」，避免双入口冗余；对比按钮仅在 canDiff 时展示。）
     private func advancedActions(_ item: ClipboardRowModel) -> [ToolbarMoreAction] {
-        var actions: [ToolbarMoreAction] = []
-        if canDiff, let onDiff {
-            actions.append(ToolbarMoreAction(
-                title: L10n.tr("preview.diff.button"),
-                icon: NookClipIcon.Action.diff,
-                shortcut: "⌘D",
-                action: onDiff
-            ))
-        }
-        if let onPhoneDrop, !(item.kind == .file && diskMeta.filesExist == false) {
-            actions.append(ToolbarMoreAction(
-                title: L10n.tr("preview.phone_drop.button"),
-                icon: NookClipIcon.Action.phoneDrop,
-                isActive: isPhoneDropActive,
-                action: onPhoneDrop
-            ))
-        }
-        return actions
+        []
     }
 
-    /// 仅在特定内容类型下出现的动作（二维码 / 在访达中显示）。
+    /// 仅在特定内容类型下出现的动作（在访达中显示）。
+    /// （链接二维码已改为 URL 预览区常驻自动展示，不再经由菜单切换。）
     private func typeSpecificActions(_ item: ClipboardRowModel) -> [ToolbarMoreAction] {
         switch item.kind {
-        case .url:
-            if resolvedURL(item) != nil, let onToggleQRCode {
-                return [ToolbarMoreAction(
-                    title: L10n.tr("preview.qrcode.button"),
-                    icon: NookClipIcon.Action.qrcode,
-                    isActive: showQRCode,
-                    action: onToggleQRCode
-                )]
-            }
         case .file:
             let filePaths = resolvedFilePaths(item)
             if !filePaths.isEmpty, diskMeta.filesExist == true {

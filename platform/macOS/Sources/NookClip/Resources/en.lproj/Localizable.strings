@@ -436,7 +436,6 @@
 "source.unknown" = "Unknown Source";
 
 /* QR code */
-"preview.qrcode.button" = "Show QR code";
 "preview.qrcode.hint" = "Scan to open link";
 "preview.qrcode.unavailable" = "This text is too long to generate a QR code";
 "preview.open_link" = "Open in browser";
@@ -724,6 +723,7 @@
 
 /* Phone Drop */
 "preview.phone_drop.button" = "Send to Phone";
+"preview.phone_drop.shortcut_hint" = "Select a clip, then press ⌘⇧D or click the toolbar button";
 "landrop.title" = "Send to Phone";
 "landrop.subtitle" = "Scan on the same Wi-Fi to send text and images both ways — no app needed";
 "landrop.scan_hint" = "Scan with your phone camera";
@@ -734,9 +734,6 @@
 "landrop.close" = "Close";
 "landrop.received_count" = "Received %d item(s)";
 "landrop.no_network" = "Connect to Wi-Fi or a LAN first";
-"landrop.url_mode_hint" = "This is a URL — switch to link QR code";
-"landrop.mode_link" = "Link QR";
-"landrop.mode_drop" = "Two-way transfer";
 "landrop.received_toast" = "Received clipboard content from your phone";
 "landrop.stopped" = "Sharing stopped";
 "landrop.starting" = "Starting transfer service…";

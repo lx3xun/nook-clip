@@ -22,7 +22,7 @@ The panel uses a clean **Left List · Right Preview** split layout:
   - **Code**: Automatic language detection with syntax highlighting.
   - **Images**: Crisp thumbnail, pixel dimensions, and file size.
   - **Colors**: Copying `#1677FF` or `rgb(...)` renders a live color swatch.
-  - **Files & Links**: File path inspection or URL preview card (with an instant QR code for scanning on your phone).
+  - **Files & Links**: File path inspection or URL preview card (QR code shown automatically for scanning on your phone).
 
 ---
 

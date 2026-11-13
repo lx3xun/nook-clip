@@ -9,11 +9,14 @@ Sending a long block of text, a screenshot, or a file from your Mac to your phon
 ## 1. How to Trigger It / How It Works
 
 1. Select any item in the NookClip main panel (text, code, image, or file).
-2. Open the **⋯ More** menu at the right of the preview header and choose **Send to Phone**.
+2. Open the Phone Drop panel in any of these ways:
+   - Click the **Send to Phone** button in the preview header;
+   - Press **`⌘ ⇧ D`**;
+   - **Right-click** the item in the list and choose "Send to Phone".
 3. A popover shows a QR code, the **LAN address**, and a live countdown. It stays valid for **5 minutes** by default.
 4. Connect your phone to the **same Wi-Fi** as your Mac, scan with the system camera, and the page opens in the phone browser—ready to send and receive.
 
-> If the selected item is a URL, the QR code defaults to a **Link QR** and hints that you can switch to **Two-way transfer**, so the phone can open the link and still send content back to the Mac.
+> Tip: If the selected item is a URL, the preview pane automatically shows a QR code card for that link—your phone can scan it and open the page directly, no Phone Drop needed. The QR code inside the Phone Drop panel is always the two-way transfer channel.
 
 Meanwhile, your Mac starts a small temporary service on the local machine and generates a **one-time random token**. Only a device that scanned this QR code can access it. **Keep the Phone Drop view open during transfer**—closing the popover, dismissing the main panel, or letting the countdown finish stops the service immediately, disconnects the link, and releases the port.
 

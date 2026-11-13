@@ -84,6 +84,7 @@ extension MainView {
             restoreScrubConfirm: { restoreScrubPaste() },
             startPasteStack: { startPasteStackFromSelection() },
             pinToScreen: { pinSelectedToScreen() },
+            togglePhoneDrop: { togglePhoneDropFromSelection() },
             escape: { handleEscapeKey() },
             cycleCategory: { step in
                 exitDiff()

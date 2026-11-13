@@ -2,7 +2,7 @@
 
 Comparing two config revisions, checking what an AI changed in your code, or verifying which numbers changed in a contract usually means opening an external diff tool and pasting both versions into separate tabs.
 
-**NookClip brings diffing right into your clipboard history: press `⌘ D` (or click "Diff" in the batch bar, preview header, or context menu) to turn the preview pane into a line- and word-level red/green diff view, live-swap rows with `↑↓`, and cherry-pick hunks to copy or paste a merged result.**
+**NookClip brings diffing right into your clipboard history: press `⌘ D` (or click the permanent "Diff" button in the preview header—shown only when two entries are checked—the batch bar, or the context menu) to turn the preview pane into a line- and word-level red/green diff view, live-swap rows with `↑↓`, and cherry-pick hunks to copy or paste a merged result.**
 
 ---
 

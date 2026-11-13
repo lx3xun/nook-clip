@@ -625,7 +625,9 @@ struct MainView: View {
                         canScrubPaste: selectedRow.map { $0.kind != .image && $0.kind != .file } ?? false,
                         onRestoreScrub: { restoreScrubPaste() },
                         onDiff: { toggleDiff() },
-                        canDiff: canDiffSelection,
+                        // 顶栏「对比」按钮仅在用户勾选两条记录时展示（canDiffSelection
+                        // 还涵盖「单选/未选时比最上面两条」的 ⌘D 快捷键场景，按钮不跟随）
+                        canDiff: canDiffSelection && selectionCoordinator.selectionIDs.count == 2,
                         onReceiveFromPhone: { drop in receiveFromPhone(drop) },
                         isPhoneDropPresented: $phoneDropPresented
                     )
@@ -665,6 +667,18 @@ struct MainView: View {
     }
 
     // MARK: 键盘动作（contracts C3 · PasteService 统一出入口）
+
+    /// ⌘⇧D（快捷键 / 列表行右键菜单共用）：切换手机互传面板。
+    /// 只翻转 `phoneDropPresented` 开关；互传载荷由 PreviewPane 监听
+    /// `isPhoneDropPresented` 变 true 时自动补建（含敏感明文解析与文件读取）。
+    func togglePhoneDropFromSelection() {
+        if phoneDropPresented {
+            phoneDropPresented = false
+            return
+        }
+        guard selectedRow != nil else { return }
+        phoneDropPresented = true
+    }
 
 
     func openApplication(_ app: InstalledApp) {

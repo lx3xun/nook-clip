@@ -68,8 +68,6 @@ struct PreviewPane: View {
     /// 脱敏预检的防抖任务（按住方向键连续换选中时只算最后一条）
     @State private var scrubHintTask: Task<Void, Never>?
     @State private var revealFailure: ClipboardItem.RevealFailure?
-    /// 链接二维码展示状态（切换选中条目时重置）
-    @State private var showQRCode = false
     /// 图片 OCR 扫描动画状态与实时阶段日志
     @State private var isScanningOCR = false
     @State private var ocrProgressStage: OCRProgressStage? = nil
@@ -321,8 +319,6 @@ struct PreviewPane: View {
                     isFavorite: item.isFavorite,
                     item: item,
                     contentText: fullText(item),
-                    showQRCode: showQRCode,
-                    onToggleQRCode: { showQRCode.toggle() },
                     onFavorite: onFavorite,
                     onDelete: onDelete,
                     onEditTags: { onEditTags?(item.id) },
@@ -414,13 +410,23 @@ struct PreviewPane: View {
             .onChange(of: isPhoneDropPresented.wrappedValue) { _, presented in
                 if !presented {
                     phoneDropPayload = nil
+                } else if phoneDropPayload == nil {
+                    // 外部入口（快捷键 ⌘⇧D / 列表行右键菜单）直接翻转了
+                    // isPhoneDropPresented 而未构建载荷：在此补建，复用与
+                    // 顶栏按钮完全一致的 lanPayload 语义（含敏感明文解析）。
+                    if let payload = lanPayload(for: item) {
+                        phoneDropPayload = payload
+                    } else {
+                        // 载荷不可构建（如文件读取失败 / 敏感明文解析失败）：
+                        // 回退收起，避免面板卡在无载荷的空展开态
+                        isPhoneDropPresented.wrappedValue = false
+                    }
                 }
             }
             .onChange(of: item.id) { _, _ in
-                // 切换选中：取消定时器并离开明文态（清剪贴板），收起二维码
+                // 切换选中：取消定时器并离开明文态（清剪贴板）
                 maskSensitive(clearClipboard: true, releaseEntity: true)
                 revealFailure = nil
-                showQRCode = false
                 isPhoneDropPresented.wrappedValue = false
                 phoneDropPayload = nil
                 urlCopied = false
@@ -734,9 +740,9 @@ struct PreviewPane: View {
                     .fill(NookClip.bgInset)
             }
 
-            if showQRCode {
-                QRCodeCard(text: urlString)
-            }
+            // 链接分类：二维码常驻自动展示（扫码打开链接是 URL 条目的核心动作，
+            // 无需再通过按钮切换显隐）
+            QRCodeCard(text: urlString)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
